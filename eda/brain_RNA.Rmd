@@ -1,0 +1,195 @@
+---
+title: "Exploring RNA measurements from brain"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+Here we will show some very simple explorations of high-dimensional
+data typical of computational biology. This particular study has a
+study ID `SRP012682` and it happens to be the 
+*Genotype-Tissue Expression Project* or 
+[GTEx](https://gtexportal.org).
+
+You can look up the study on the SRA (Sequence Read Archive) or the
+ENA (European Nucleotide Archive) and find a [description](http://www.ebi.ac.uk/ena/data/view/PRJNA75899):
+
+> The aim of the Genotype-Tissue Expression (GTEx) Project is to
+> increase our understanding of how changes in our genes affect human
+> health and disease with the ultimate goal of improving health care
+> for future generations. GTEx will create a database that researchers
+> can use to study how inherited changes in genes lead to common
+> diseases. GTEx researchers are studying genes in different tissues
+> obtained from many different people....
+
+There is a computational project, called 
+[recount2](https://jhubiostatistics.shinyapps.io/recount/), which performs a
+basic summarization of public data sets with gene expression
+data. There are numerous competing methods for computing gene
+expression from raw data, which we will cover later in the course. For
+now, let's just load the summarized table computed by *recount2*.
+This gives us, for each gene and each sample, a measurement of gene
+expression. We can use these measurements to compare samples, and we
+will discuss distances and normalization as a future topic.
+
+First we need to install the *SummarizedExperiment* R package, which is hosted on
+Bioconductor:
+
+```{r eval=FALSE}
+source("http://bioconductor.org/biocLite.R")
+biocLite("SummarizedExperiment")
+```
+
+We can then download the summarized experiment data (note, it is 200
+Mb so it may take a minute):
+
+```{r}
+url <- "http://duffel.rail.bio/recount/SRP012682/rse_gene_brain.Rdata"
+file <- "brain.rda"
+if (!file.exists(file)) download.file(url, file)
+load(file)
+ls()
+```
+
+I've written a simple function which scales the gene expression data.
+It should roughly be *counts* of molecules detected for each gene and
+for each sample. It takes maybe half a minute to do the scaling.
+
+```{r}
+library(SummarizedExperiment)
+source("../bioc/my_scale_counts.R")
+rse <- my_scale_counts(rse_gene)
+```
+
+We will learn about this `rse` object later for now we will just
+extract the information we need to do some EDA (exploratory data
+analysis). We have ~60,000 genes and ~1400 samples.
+
+```{r}
+cts <- assay(rse)
+dim(cts)
+```
+
+The "condition" for the samples is part of the metadata of the `rse`
+object. Like I said, we will explore this in a later section, but for
+now we pull out the information we need:
+
+```{r}
+condition <- rse$smtsd
+head(condition)
+```
+
+We'll do a little string processing, to chop off the redundant information:
+
+```{r}
+library(magrittr)
+condition %<>% (function(x) sub("Brain - (.*)", "\\1", x))
+condition %<>% factor
+table(condition)
+```
+
+There are many rows which have so few measurements, that we can safely
+ignore them for large-scale EDA (e.g. calculating distances between samples).
+These kind of filtering decisions are highly dataset-specific, you
+wouldn't want to use this exact filter for another dataset, but here,
+it makes sense to ask that the row sum be larger than 100, because we
+have ~1400 samples.
+
+```{r}
+dim(cts)
+rs <- rowSums(cts)
+hist(log10(rs + 1))
+abline(v=2, col="blue", lwd=3)
+cts <- cts[rs > 100,]
+dim(cts)
+```
+
+A very simple plot is just to look at two samples gene expression
+values against each other in a scatterplot. Typically, we take the
+logarithm, as gene expression is highly skewed (many genes with low
+expression, a few with very high expression).
+
+```{r fig.width=8, fig.height=5}
+par(mfrow=c(1,2))
+plot(cts[,1:2])
+logcts <- log10(cts + 1)
+plot(logcts[,1:2])
+```
+
+Here you can get a sense for the distribution of counts (log-scale).
+
+```{r}
+hist(logcts[,1])
+```
+
+A first pass for looking at the sample distances is to make a PCA
+plot. To speed up the calculation of the PCs, we first subset to the
+top 500 genes by *unsupervised* variance of log counts (we don't look
+at the condition to which the sample belong, just look at the total
+variance). 
+
+```{r}
+library(matrixStats)
+rv <- rowVars(logcts)
+o <- order(rv, decreasing=TRUE)[1:500]
+pc <- prcomp(t(logcts[o,]))
+plot(pc$x[,1:2])
+```
+
+We can get a better sense by coloring the groups by condition.
+
+```{r}
+library(ggplot2)
+dat <- data.frame(pc$x[,1:2], condition)
+ggplot(dat, aes(PC1, PC2, col=condition)) + geom_point()
+```
+
+Let's focus on the samples belonging to four specific regions of the
+brain: 
+
+```{r}
+regions <- c("Cerebellum","Cortex","Hippocampus","Hypothalamus")
+condition.sub.idx <- condition %in% regions
+condition.sub <- droplevels(condition[condition.sub.idx])
+table(condition.sub.idx)
+```
+
+We can compute Euclidean distances between the log counts for these
+samples (afterwards we will discuss better ways of calculating
+distances for count data).
+
+```{r}
+dists <- dist(t(logcts[o,condition.sub.idx]))
+```
+
+We can plot these distances using the *pheatmap* package:
+
+```{r}
+library(pheatmap)
+library(RColorBrewer)
+cols <- colorRampPalette(rev(brewer.pal(9,"Blues")))(255)
+distmat <- as.matrix(dists)
+df <- data.frame(condition=condition.sub,
+                 row.names=colnames(distmat))
+pheatmap(distmat, color=cols,
+         clustering_distance_rows=dists,
+         clustering_distance_cols=dists,
+         annotation_col=df,
+         show_rownames=FALSE, show_colnames=FALSE)
+```
+
+Likewise we can plot Pearson correlations:
+
+```{r}
+corrs <- cor(logcts[o,condition.sub.idx])
+```
+
+Note that the clustering on the rows and columns here is not from the
+original data, but a clustering of the correlation matrix.
+
+```{r}
+library(pheatmap)
+cols <- colorRampPalette(c("red","white","blue"))(21)
+pheatmap(corrs, breaks=-10:10/10, color=cols,
+         annotation_col=df,
+         show_rownames=FALSE, show_colnames=FALSE)
+```

@@ -1,0 +1,39 @@
+type	name	species	bp	coding	noncoding	pseudo	tx
+mammal	Alpaca	Vicugna_pacos	2967746133	11765	2532	898	15236
+fish	Amazon molly	Poecilia_formosa	748923461	23615	679	60	31637
+invert	Roundword	Caenorhabditis_elegans	100286401	20362	24719	1658	58941
+invert	Sea squirt	Ciona_intestinalis	115227500	16671	455	27	17784
+invert	Solitary sea squirt	Ciona_savignyi	177003750	11616	340	216	20711
+mammal	Cat	Felis_catus	2455541136	19493	1855	542	22656
+fish	Cave fish	Astyanax_mexicanus	1191242572	23042	2208	21	25927
+bird	Chicken	Gallus_gallus	1230258557	18346	6492	43	38118
+mammal	Chimpanzee	Pan_troglodytes	3309577922	18759	8681	572	29160
+fish	Cod	Gadus_morhua	832114588	20095	1541	518	24159
+mammal	Cow	Bos_taurus	2670422299	19994	3825	797	26740
+mammal	Dog	Canis_familiaris	2410976875	19856	11898	950	39074
+mammal	Dolphin	Tursiops_truncatus	2521923936	16550	3790	925	21326
+bird	Duck	Anas_platyrhynchos	1105035747	15634	567	249	17169
+mammal	Elephant	Loxodonta_africana	3196760833	20033	2644	568	28847
+invert	Fruitfly	Drosophila_melanogaster	143725995	13918	3384	257	34749
+fish	Fugu	Takifugu_rubripes	393312790	18523	703	162	48706
+mammal	Gorilla	Gorilla_gorilla	3040677044	20962	6701	1553	35727
+mammal	Horse	Equus_caballus	2474929062	20449	2142	4400	29196
+mammal	Human	Homo_sapiens	3096649726	20310	22529	14589	199234
+invert	Lamprey	Petromyzon_marinus	885550958	10415	2652	47	14141
+mammal	Mouse	Mus_musculus	2730871774	22615	14299	10937	125665
+mammal	Orangutan	Pongo_abelii	3446771396	20424	6996	1023	29447
+mammal	Pig	Sus_scrofa	2808525991	21630	3124	568	30585
+fish	Platyfish	Xiphophorus_maculatus	729664433	20379	372	28	20854
+mammal	Platypus	Ornithorhynchus_anatinus	2073148626	21698	7531	547	32009
+single	Yeast	Saccharomyces_cerevisiae	12157105	6692	413	21	7126
+fish	Stickleback	Gasterosteus_aculeatus	461533448	20787	1617	52	29245
+fish	Tilapia	Oreochromis_niloticus	927383394	21437	5626	25	33243
+bird	Turkey	Meleagris_gallopavo	1061817103	14123	755	124	17373
+invert	Turtle	Pelodiscus_sinensis	2202483752	18189	1042	97	21808
+invert	Xenopus	Xenopus_tropicalis	1511735326	18442	1306	173	24197
+fish	Zebrafish	Danio_rerio	1371719383	25832	6060	358	58549
+bird	Zebra finch	Taeniopygia_guttata	1233186341	17488	724	406	19334
+plant	Arabidopsis	Arabidopsis_thaliana	119667750	27655	1398	NA	54013
+plant	Wheat	Triticum_aestivum	13427354022	104272	10156	NA	166589
+plant	Maize	Zea_mays	2135083061	39498	4976	NA	136472
+plant	Rice	Oryza_sativa	374424240	35679	55401	NA	97751

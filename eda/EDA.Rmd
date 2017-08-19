@@ -1,0 +1,210 @@
+---
+title: "Simple EDA using dplyr and ggplot2"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+In this document, we will explore a small table of data about
+the genomes of various organisms. I also include a file, 
+`scrape_ensembl.R` which shows how I scraped this data
+from the [Ensembl](http://ensembl.org) website.
+
+We start by reading in the TSV (tab-separated value) data
+using the readr package:
+
+```{r}
+library(readr)
+orgs <- read_tsv("organisms_genes.tsv")
+head(orgs)
+table(orgs$type)
+```
+
+`read_tsv` returns a *tibble* object, which is similar to a
+*data.frame*, being tabular data with different types of variables
+as columns (character, double, integer, etc.). One difference, aside
+from the presentation when you `show` the object, is that the
+characters are not automatically converted to *factor*, as they are
+with `read.delim` or the like.
+
+Let's convert the first column to a *factor*. To do so, I show a
+special function from the *magrittr* package called a compound
+assignment pipe. This looks like `%<>%`. This take the left-hand side
+and performs the function on the right-hand side, finally re-assigning
+the end result to the left-hand side. 
+
+We will see other "pipes" from *magrittr* later on.
+
+```{r}
+library(magrittr)
+orgs$type %<>% factor
+```
+
+Let's make some plots of the number of basepairs in the genomes of
+these organisms, split by the type of organism. There's one plant with
+a really large genome. The `bigpar` command makes the labels really
+large, which is advisable for making plots for slides or posters.
+
+```{r stripplots}
+library(rafalib)
+bigpar()
+with(orgs, stripplot(bp ~ type))
+with(orgs, stripplot(log10(bp) ~ type))
+```
+
+Most of the organisms have around 1 billion basepairs in their genome.
+
+That large genome is wheat.
+
+```{r}
+orgs[which.max(orgs$bp),]
+```
+
+Let's remove it for now to make plots where we can see the range of
+the other organisms.
+
+I plot the number of genes that code for proteins over the total
+number of basepairs:
+
+```{r scatterbase}
+orgs <- orgs[orgs$name != "Wheat",]
+with(orgs, plot(bp, coding, col=type, pch=20, cex=2))
+legend("topright", levels(orgs$type), col=1:nlevels(orgs$type), pch=20)
+# right click to Esc from identify()
+# with(orgs, identify(bp, coding, labels=orgs$name)) 
+```
+
+Another way to make a plot with labels is using 
+[ggplot2](http://ggplot2.tidyverse.org/reference/):
+
+```{r scattergg}
+library(ggplot2)
+ggplot(orgs, aes(bp, coding, color=type)) +
+  geom_point(size=3)
+```
+
+Which organisms have the largest genome (after wheat)?
+
+```{r}
+orgs[order(orgs$bp, decreasing=TRUE)[1:5],c("name","bp")]
+```
+
+For many operations, it's useful to use the dplyr package to
+manipulate *data.frames* or *tibbles*. 
+
+Before, I introduce two new functions.  First, the forward pipe
+`%>%`, which sends the left-hand side to the first argument of the
+function on the right-hand side. Seconds, the right assignment `->` is
+just like the more familiar left assignment, but points in the same
+direction of the pipes, so I find useful here.
+
+A simple example of the pipe is:
+
+```{r}
+c(1:9,1000) %>% mean(trim=.1)
+```
+
+Using dplyr, let's show, adding a new column
+which tallies up the number of coding and non-coding genes:
+
+```{r}
+library(dplyr)
+orgs %>% mutate(genes = coding + noncoding) -> orgs
+orgs$genes
+```
+
+dplyr is really useful for grouping and summarization tasks. The
+following line groups the organisms by type and summarizes the number
+for each type, the mean ratio of genes which are coding and the
+standard deviation of the ratio.
+
+```{r}
+orgs %>% group_by(type) %>% summarize(n=n(),
+                                      cr.avg=mean(coding/genes),
+                                      cr.sd=sd(coding/genes))
+```
+
+Let's save this as a new table, `tab`:
+
+```{r}
+orgs %>% group_by(type) %>% summarize(n=n(),
+                                      cr.avg=mean(coding/genes),
+                                      cr.sd=sd(coding/genes)) -> tab
+```
+
+Two packages with functions for printing tables (as Latex or
+markdown):
+
+```{r}
+library(xtable)
+xtable(tab)
+library(knitr)
+kable(tab)
+```
+
+We can use summarization as a mid-point and then send those summaries
+to a plotting function. For example, points and line ranges:
+
+```{r pointrange}
+# here we have to name the median something other than `bp`
+orgs %>%
+  group_by(type) %>%
+  summarize(basepairs=median(bp),
+            min=min(bp),
+            max=max(bp)) %>%
+  ggplot(aes(type, basepairs, ymin=min, ymax=max)) +
+  geom_pointrange()
+```
+
+ggplot2 is great for grouping points together with summarizing
+graphical elements, such as lines through sets of points:
+
+```{r linesummary}
+ggplot(orgs, aes(bp, coding, col=type)) +
+  geom_point() + geom_smooth(se=FALSE, method="lm")
+```
+
+Also for "faceting" plots, breaking into multiple scatter plots by
+breaking along a variable:
+
+```{r faceting}
+ggplot(orgs, aes(bp, coding)) +
+  geom_point() + facet_wrap(~ type, scales="free")
+```
+
+Finally, I like to show a useful plot constructed using ggplot2, just
+with simulated data. It is common that wants to show overlapping
+densities or histograms, which is not a simple task with base R
+graphics. It's fairly simple with ggplot2.
+
+We create some simulated data drawing three sets of samples from three
+distributions. 
+
+```{r}
+ns <- c(1000,500,200)
+dat <- data.frame(type=rep(letters[1:3], ns),
+                  z=rnorm(1700,
+                          mean=rep(c(0,2,4),ns),
+                          sd=rep(c(1,1,1),ns)))
+head(dat)
+table(dat$type)
+```
+
+It's straightforward to draw these as overlapping densities:
+
+```{r ggdensity}
+ggplot(dat, aes(z, col=type, fill=type)) + geom_density(alpha=0.1)
+```
+
+Or as histograms:
+
+```{r gghist}
+ggplot(dat, aes(z, col=type, fill=type)) +
+  geom_histogram(alpha=0.1, position="identity")
+```
+
+Another option, putting the bars beside each other:
+
+```{r gghistdodge}
+ggplot(dat, aes(z, col=type, fill=type)) +
+  geom_histogram(position="dodge")
+```

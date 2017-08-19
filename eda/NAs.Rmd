@@ -1,0 +1,57 @@
+---
+title: "Quick primer on NA, Inf, and NaN"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+When performing data analysis with large datasets or public data, it's
+important to be aware of the types of missing values that might be
+present in the data, and might accumulate as you compute summary
+statistics. 
+
+Many already will know about the `NA` value, which propagates into
+summary statistics like so:
+
+```{r}
+x <- c(1,2,3,NA)
+mean(x)
+sd(x)
+```
+
+And can be removed from those statistics either through the function
+or manually using `is.na`:
+
+```{r}
+mean(x, na.rm=TRUE)
+sd(x, na.rm=TRUE)
+is.na(x)
+mean(x[!is.na(x)])
+```
+
+When we have constant values in a matrix, and we compute z-scores, we
+can get two kinds of output, either 0/0 which is "not a number" `NaN`, 
+or any non-zero number divided by 0 which gives `Inf` or `-Inf`:
+
+```{r}
+m <- matrix(c(0,0,0,1,1,1,1:9),ncol=3,byrow=TRUE)
+m
+rowMeans(m)
+apply(m, 1, sd)
+z <- apply(m, 1, function(x) mean(x)/sd(x))
+z
+```
+
+We can identify the `NaN` and infinite values using `is.nan` and
+`is.finite`: 
+
+```{r}
+z[!is.nan(z)]
+z[!is.nan(z) & is.finite(z)]
+```
+
+We could also deal with these by explicitly checking if the
+denominator is equal to 0 and returning whatever we want in this case: 
+
+```{r}
+apply(m, 1, function(x) if (sd(x) == 0) 0 else mean(x)/sd(x))
+```

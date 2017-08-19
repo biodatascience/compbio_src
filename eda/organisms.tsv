@@ -1,0 +1,39 @@
+type	name	species
+mammal	Alpaca	Vicugna_pacos
+fish	Amazon molly	Poecilia_formosa
+invert	Roundword	Caenorhabditis_elegans
+invert	Sea squirt	Ciona_intestinalis
+invert	Solitary sea squirt	Ciona_savignyi
+mammal	Cat	Felis_catus
+fish	Cave fish	Astyanax_mexicanus
+bird	Chicken	Gallus_gallus
+mammal	Chimpanzee	Pan_troglodytes
+fish	Cod	Gadus_morhua
+mammal	Cow	Bos_taurus
+mammal	Dog	Canis_familiaris
+mammal	Dolphin	Tursiops_truncatus
+bird	Duck	Anas_platyrhynchos
+mammal	Elephant	Loxodonta_africana
+invert	Fruitfly	Drosophila_melanogaster
+fish	Fugu	Takifugu_rubripes
+mammal	Gorilla	Gorilla_gorilla
+mammal	Horse	Equus_caballus
+mammal	Human	Homo_sapiens
+invert	Lamprey	Petromyzon_marinus
+mammal	Mouse	Mus_musculus
+mammal	Orangutan	Pongo_abelii
+mammal	Pig	Sus_scrofa
+fish	Platyfish	Xiphophorus_maculatus
+mammal	Platypus	Ornithorhynchus_anatinus
+single	Yeast	Saccharomyces_cerevisiae
+fish	Stickleback	Gasterosteus_aculeatus
+fish	Tilapia	Oreochromis_niloticus
+bird	Turkey	Meleagris_gallopavo
+invert	Turtle	Pelodiscus_sinensis
+invert	Xenopus	Xenopus_tropicalis
+fish	Zebrafish	Danio_rerio
+bird	Zebra finch	Taeniopygia_guttata
+plant	Arabidopsis	Arabidopsis_thaliana
+plant	Wheat	Triticum_aestivum
+plant	Maize	Zea_mays
+plant	Rice	Oryza_sativa
