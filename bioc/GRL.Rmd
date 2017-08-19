@@ -1,0 +1,245 @@
+---
+title: "Lists of genomic ranges: GRangesList"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+# Why do we need a list of ranges?
+
+We showed previously how to specify multiple genomic ranges in a
+*GRanges* object. And this made sense for specifying the general
+region in the genome where the genes start and end, for example.
+
+However, genes in many organisms are themselves made up of
+sub-regions: exons. The exons and introns are transcribed into RNA,
+but then the introns are spliced out, resulting in molecules of mRNA
+which only contain the exonic sequence.
+
+In order to specify where the exonic sequence lies in the genome, we
+can use a single *GRanges*. However, if we want to specify multiple
+*genes* or *transcripts*, we need a list of *GRanges*. Bioconductor
+has a specific object for this purpose called the *GRangesList*.
+
+What's the distinction between *genes* and *transcripts*? A *gene* is
+generally defined as a region in the genome which is
+transcribed. However, the specific combination of exons is referred to
+as a *transcript*. The different transcripts that a gene produces can
+be referred to as *isoforms* of the gene. To give an example, suppose
+we have a gene with exons E1, E2, E3, E4. And there are two
+transcripts, or isoforms, of this gene: one which includes E3, and one
+which excludes E3. To specify all the isoforms of the gene, we need a
+*GRangesList*, which has two elements: one of length 4 (E1,E2,E3,E4),
+and one of length 3 (E1,E2,E4). We will see concrete examples of this
+below, using the human *transcriptome*: all of the transcripts
+produced by all of the genes in the human genome.
+
+We start by loading the Ensembl database used previously.
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+```{r message=FALSE}
+library(EnsDb.Hsapiens.v86)
+edb <- EnsDb.Hsapiens.v86
+```
+
+We don't run the following code, chunk but we include it to show you
+could also build an Ensembl database using a Bioconductor package
+called *AnnotationHub*, which we'll see more of soon.
+
+```{r eval=FALSE}
+library(AnnotationHub)
+ah <- AnnotationHub()
+edb <- query(ah, c("EnsDb", "Hsapiens", "v87"))[[1]]
+```
+
+Let's take a look at the information contained in `edb`:
+
+```{r}
+columns(edb)
+```
+
+Let's pull out a table of the gene and transcript IDs. We ask for all
+the genes, and then provide those as `keys` to the `select` function.
+This produces a table linking every transcript to every gene.
+
+```{r}
+txdf <- select(edb,
+               keys=keys(edb, "GENEID"),
+               columns=c("GENEID","TXID"),
+               keytype="GENEID")
+head(txdf,20)
+```
+
+If a gene appears once in this table, it means it has only one
+isoform, if it appears twice, it has two isoforms, and so on. We can
+run `table` on the `GENEID` column to calculate how many isoforms each
+gene has. If we run `table` again, we will find out how many 1-isoform
+genes there are, how many 2-isoform genes there are, etc.
+
+```{r}
+table(table(txdf$GENEID))
+```
+
+Let's construct a *GRangesList* of all the exons, grouped by the
+transcript they belong to. It takes maybe half a minute to pull out
+this information from the database object:
+
+```{r}
+ebt <- exonsBy(edb, by="tx")
+```
+
+Just to show we have a *GRangesList*:
+
+```{r}
+class(ebt)
+length(ebt)
+```
+
+If we try to print it, it will just show us the first few list
+elements (each a *GRanges*), and then say how many additional elements
+are in the list.
+
+```{r}
+ebt
+```
+
+Note the difference between using single square brackets...
+
+```{r}
+ebt[1]
+```
+
+...and double square brackets:
+
+```{r}
+ebt[[1]]
+```
+
+# Compare isoforms of a gene
+
+Suppose we want to compare the different isoforms of a specific
+gene. We can pull out the names of all the transcripts for a given
+gene, from the table we made earlier:
+
+```{r}
+gid <- "ENSG00000196839"
+idx <- txdf$GENEID == gid
+sum(idx) # how many transcripts?
+txs <- txdf$TXID[idx]
+txs
+```
+
+Now, we want to see all the exons for these transcripts. We'll pull
+these out of larger *GRangesList* using the `[ ]` brackets, as this
+returns a *GRangesList*.
+
+```{r}
+ebt2 <- ebt[txs]
+ebt2
+```
+
+We can look at the exons of the first transcript:
+
+```{r}
+ebt2[[1]]
+l <- length(ebt2[[1]])
+ebt2[[1]][1] # just first exon
+ebt2[[1]][l] # last exon
+```
+
+Note that, because this gene is transcribed on the - strand, the first
+exon is to the right of the last exon.
+
+```{r}
+start(ebt2[[1]][1]) > start(ebt2[[1]][l])
+```
+
+# Visualizing genes with Gviz
+
+The most robust package for visualizing genomic "tracks" in R is
+*Gviz*. A track basically refers to a set of features displayed with
+the genome going from left to right. Users typically want to see
+annotations (where the genes and exons are), as well as experiment
+data (RNA sequences, epigenetic information, etc.)
+
+It's a little bit of extra work to visualize a *GRangesList*
+(you have to convert the data to a data.frame first) using *Gviz*, but
+the package does have in-depth (albiet dense) documentation, and a
+working vignette.
+
+In my opinion, this could still be easier. There are people
+working on other approaches, such as 
+[epivizr](http://bioconductor.org/packages/epivizr). Outside of R,
+people commonly use the 
+[UCSC Genome Browser](https://genome.ucsc.edu/) (a website), or
+[IGV](http://software.broadinstitute.org/software/igv/) (a standalone
+Java application).
+
+The following function I define takes a GRangesList object and turns it
+into a data.frame that can be read by the Gviz package.
+
+```{r message=FALSE}
+library(Gviz)
+granges2df <- function(x) {
+  df <- as(x, "data.frame")
+  df <- df[,c("seqnames","start","end","strand","group_name")]
+  colnames(df)[1] <- "chromosome"
+  colnames(df)[5] <- "transcript"
+  df
+}
+```
+
+Now we will make a data.frame called `df` with the information about
+the transcripts of our gene, and make a *GeneRegionTrack* out of it.
+
+```{r}
+df <- granges2df(ebt2)
+df$gene <- gid
+grt <- GeneRegionTrack(df)
+```
+
+We need to set the range of the plot, and for this we can find out the
+range of all the ranges within `ebt2`. I do this by `unlist`-ing the
+GRangesList (making a big GRanges object), and then asking the range.
+
+```{r}
+range(unlist(ebt2))
+```
+
+Now we put our tracks together, with a genome axis track as well.
+What can we see here? There transcripts are mostly overlapping. There
+are a cluster of transcripts that are long and basically overlapping
+except for a few exons excluded. Then there are transcripts which only
+contain the beginning exons (the arrows indicate that the beginning of
+the transcript is on the right-hand side), and there is one transcript
+with just the ending exons (left-hand side). This is pretty typical
+for a multiple-isoform gene.
+
+```{r}
+gax <- GenomeAxisTrack()
+plotTracks(list(gax,grt), chromosome="20",
+           transcriptAnnotation="transcript",
+           from=44619522 - 10000, to=44652233 + 10000)
+```
+
+Note that it is also possible to label certain features. We just
+create a new column called `feature`, and then we can put whatever
+grouping or labels we like. Here we are coloring an individual exon of
+one of the transcripts:
+
+```{r}
+df$feature <- "A"
+df$feature[6] <- "B"
+grt <- GeneRegionTrack(df)
+```
+
+Now we add a specific color for that exon:
+
+```{r}
+plotTracks(list(gax,grt), chromosome="20",
+           transcriptAnnotation="transcript",
+           from=44619522 - 10000, to=44652233 + 10000,
+           A="orange", B="dodgerblue")
+```

@@ -1,0 +1,243 @@
+---
+title: "Working with Bioconductor objects"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+Why use Bioconductor? From a user perspective, the answer is clear:
+because many statisticians, bioinformaticians, and computer scientists
+have spent time writing methods and algorithms specifically for
+biological (often genomic) data. A reason for this (why many people
+have contributed to this project) is that there is a shared
+infrastructure for common data types. This infrastructure is built up
+of object classes. An example of a class is *GRanges*, which is a way
+to specify a set of ranges in a particular genome, e.g. from basepair
+100 to basepair 200 on chromosome 1 of the human genome (version 38).
+
+What's an object? Well everything in R is an object, but usually when
+we talk about Bioconductor objects, we mean data structures containing
+many attributes, so more complex than a vector or matrix. And the
+objects have specific *methods* that help you either access the
+information in the object, run analyses on the object, plot the
+object, etc.
+
+# Getting started with Bioconductor
+
+Before we get started, you need to know how to install Bioconductor
+packages. The most important details are:
+
+* Bioconductor is a package repository, like CRAN
+* All Bioconductor packages **must** be installed with `biocLite()`
+* Bioconductor packages are linked in their versions, both to each
+  other and to the version of R
+* `biocLite()` will look up your version of R and give you the
+  appropriate versions of Bioconductor packages
+* If you want the latest version of Bioconductor, you need to use the
+  latest version of R
+
+How do you know if a package is a Bioconductor package? For one thing,
+you can just google the package name and you'll see either CRAN or
+Bioconductor as a first result (packages must be in one or the other,
+they are not allowed to be on both repositories). But also, you can
+use `biocLite()` to install any packages, even ones on CRAN. By the
+way, you can install multiple packages at once by making a string
+vector: `biocLite(c("foo","bar"))`
+
+Why all this stress on versioning? This is because the packages in
+Bioconductor are highly *interdependent*, and also some are very dependent on
+R internals. So that the project can guarantee the code will run and
+not give errors on many systems (Linux, Mac and Windows have support
+for the majority of Bioconductor packages), new development is locked
+into cycles, such that a *release* of Bioconductor shouldn't contain
+any two packages which conflict and could potentially cause errors.
+  
+Details: of course, Bioconductor is also a
+[project](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4509590), made
+up of people. There is a *core team* which is supported by an NIH
+grant, and developers who contribute to the open source Bioconductor
+packages. There are also yearly 
+[conferences](https://www.bioconductor.org/help/events/)
+(one in US, one in Europe, and one in Asia).
+
+# Working with Bioconductor objects
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+We will introduce the core Bioconductor objects this
+week. In this particular document, we will discuss perhaps the most
+important class of object, which is the *ExpressionSet* or
+*SummarizedExperiment* (it's actually two classes, I lied). But they
+are similar so I mention them now together. They have the same
+structure:
+
+* a matrix of data, rows are genomic features, and columns are samples
+* a table of data about the samples (columns)
+* a table of data about the features (rows)
+
+A diagram of this 3-part structure can be found 
+[here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4509590/figure/F2/).
+
+The ExpressionSet was created primarily to store *microarray* data,
+where each column of the matrix stored the values from a particular
+microarray. The SummarizedExperiment is a new class, similar to
+ExpressionSet, which makes more sense for the era of *sequencing*
+data. One particular difference is that the rows of a
+SummarizedExperiment can correspond to particular *GRanges*, e.g. the
+number of RNA-seq reads that can be assigned to a particular gene, and
+the location of the gene in the genome.
+
+But first let's explore the ExpressionSet, because it came first in
+time, and it's very simple. 
+We will explore [SummarizedExperiment](SE.html) later.
+
+The components of an ExpressionSet are the matrix of data, the table
+about the samples (phenotypic data) and the table about the features
+(feature data).
+
+# Build a toy ExpressionSet
+
+Let's build some simulated data to make a little ExpressionSet.
+(Normally, an ExpressionSet would be created for us, either from
+downloading from a public database, or when we loaded in raw
+microarray data.)
+
+```{r message=FALSE}
+library(Biobase)
+exprs <- matrix(rnorm(6 * 10), ncol=6, nrow=10)
+phenoData <- data.frame(sample=factor(1:6),
+                        condition=factor(c("A","A","B","B","C","C")),
+                        treated=factor(rep(0:1,3)))
+phenoData
+featureData <- data.frame(geneID=1:10, geneSymbol=letters[1:10])
+featureData
+```
+
+We put the three tables together with this function:
+
+```{r}
+eset <- ExpressionSet(exprs,
+                      AnnotatedDataFrame(phenoData),
+                      AnnotatedDataFrame(featureData))
+eset
+```
+
+Note that, all the data is still there, and can be accessed with
+special functions:
+
+```{r}
+exprs(eset)
+pData(eset)
+fData(eset)
+```
+
+We can get a column from the phenotypic data by typing the object
+name, `$` and the column name:
+
+```{r}
+eset$condition
+```
+
+Note what happens when we subset the object with square brackets
+`[ ]`. This subset both the columns, and the *rows* of the phenotypic
+data. This is a common property across all Bioconductor objects: **you
+don't have to worry about keeping track of the tables during subset or
+re-ordering operations, because the objects take care of this for
+you.**
+
+```{r}
+idx <- eset$condition %in% c("A","B")
+eset.sub <- eset[,idx]
+exprs(eset.sub)
+pData(eset.sub)
+```
+
+# Downloading data from GEO
+
+2 million microarray samples are hosted by the 
+Gene Expression Omnibus, or [GEO](https://www.ncbi.nlm.nih.gov/geo/).
+While RNA-seq has emerged as the generally dominant technology for
+measuring RNA expression, a nice property of microarray was that it
+was very easy to download public data and start working with it. We
+can see that using the *GEOquery* Bioconductor package, which delivers
+pre-prepared and processed ExpressionSets from GEO. I've searched the
+GEO website and found an interesting dataset, 
+[GSE2125](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE2125),
+with the summary: "alveolar macrophages from human subjects".
+
+```{r message=FALSE}
+library(GEOquery)
+file <- list.files(pattern="GSE2125")
+if (length(file) == 0) {
+  geo <- getGEO("GSE2125", destdir=".")
+  e <- geo[[1]]
+} else {
+  e <- getGEO(filename=file)
+}
+```
+
+We can take a look at the phenotypic data. A lot is repetitive. Some
+of the lines are very long as well as being repetitive.
+
+```{r}
+names(pData(e))
+e$molecule_ch1
+e$contact_city
+e$extract_protocol_ch1[1]
+```
+
+The information we care about is often called
+`characteristics_ch1`. Here it's the status of the patient who donated
+macrophages, either asthmatic, non-smoker, or smoker.
+
+```{r}
+e$condition <- sub("status: ","",e$characteristics_ch1)
+table(e$condition)
+```
+
+We can take a peek at the expression values themselves. If the numbers
+are on the scale 3-14, then the data has already been log transformed.
+
+```{r}
+exprs(e)[1:5,1:5]
+range(exprs(e))
+boxplot(exprs(e),range=0)
+```
+
+We will perform *quantile normalization* to make it easier to compute
+distances across samples. The quantile normalization function we use
+here is one of many options for minimizing systematic differences
+between samples in microarray data.  We will discuss distances and
+normalization techniques in a later section. One obvious consequence
+of quantile normalization is that the boxplots are identical
+afterward. 
+
+```{r}
+library(preprocessCore)
+exprs(e) <- normalize.quantiles(exprs(e))
+boxplot(exprs(e),range=0)
+```
+
+Now let's make a *heatmap* of the expression values. We will make a
+heatmap using the genes with the highest variance across all
+samples. First we calculate the row-wise variances:
+
+```{r message=FALSE}
+library(matrixStats)
+rv <- rowVars(exprs(e))
+```
+
+Then we use the *pheatmap* package to make a heatmap which clusters
+the rows and columns by similarity. Note that we can easily provide
+the expression data and the relevant phenotypic table with the
+*accessor* functions.
+
+```{r}
+library(pheatmap)
+o <- head(order(rv, decreasing=TRUE),200)
+pheatmap(exprs(e)[o,],
+         annotation_col=pData(e)["condition"],
+         show_rownames=FALSE, show_colnames=FALSE)
+```
+

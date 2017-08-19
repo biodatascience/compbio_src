@@ -1,0 +1,5 @@
+*.rda
+*.html
+*.gz
+*/*_cache
+*/*_files

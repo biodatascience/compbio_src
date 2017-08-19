@@ -1,0 +1,205 @@
+---
+title: "Genomic ranges: GRanges"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+Here we show off the way we specify genomic ranges in Bioconductor,
+using the *GenomicRanges* package and the *GRanges* class.
+
+A *GRanges* object specifies both the basepairs involved in the range
+(these are integer ranges), the strand (+ or -), and the
+chromosome. Chromosomes in Bioconductor are called "sequences"
+(because sometimes we may want to specify ranges of non-chromosomes,
+for example viral DNA, un-incorporated contigs, etc.).
+
+# Interval ranges
+
+Let's start with a set of interval ranges, an *IRanges* object.
+
+```{r message=FALSE}
+library(GenomicRanges)
+ir <- IRanges(start=100 + 1:5, width=10)
+ir
+```
+
+We could also specify the same ranges by setting the *end*:
+
+```{r}
+ir <- IRanges(start=100 + 1:5, end=100 + 10:14)
+ir
+```
+
+We can make a plot of these ranges. It's a bit different than a
+typical plot, because I want to point out that we have *discrete*
+locations in the genome (so the position isn't defined over 
+$\mathbb{R}$ but over $\mathbb{N}$). So I've shifted the positions of
+the labels by 0.5 (see the `axis` command). Another detail to notice
+is that the ranges are *inclusive*. So the first range, from 101 to
+110 *includes* the 110 basepair. So I've added +1 when I draw the
+arrows to show it includes the last basepair.
+
+(Note that the convention used in Bioconductor to define interval
+ranges is not universal. The BED convention is that the range does
+**not** include the start position of the range. So 101-110 in BED
+format would not include the 101th basepair.)
+
+```{r}
+library(rafalib)
+nullplot(start(range(ir)), end(range(ir))+1, 0, 6, xaxt="n")
+abline(v=100:115, col="grey")
+axis(1, at=100:115 + .5, labels=100:115) 
+arrows(start(ir),seq_along(ir),end(ir)+1,seq_along(ir),
+       lwd=3,code=3,angle=90,length=.05)
+```
+
+# Genomic ranges
+
+So far we've just shown interval ranges. To specify a genomic range,
+we also will come up with the *strand* of the ranges (+ or -) and the
+chromosome. 
+
+```{r}
+st <- rep(c("+","-"),c(3,2))
+st
+```
+
+```{r}
+gr <- GRanges(seqnames="chr1", ranges=ir, strand=st)
+gr
+```
+
+Note that *GRanges* objects, when printed, also have a note about the
+genome. Here it says that we have an unspecified genome, and there is
+no information about the `seqlengths`, the lengths of the
+chromosomes. This information (basically in what universe do the
+ranges live) is important to track along with the ranges themselves,
+in case the user asks to, e.g. move all ranges 1 million basepairs to
+the right. This is not necessarily possible if we have a range that
+ends less than 1 million basepairs from the end of a chromosome. So
+the *GRanges* object really needs to also contain details about the
+genome itself.
+
+Here we show some basic manipulations of *GRanges*:
+
+```{r}
+gr + 10 # growing by 10 on either side
+shift(gr, 10) # shifting by 10
+resize(gr, width=1) # 1 bp from the start (+) or end (-)
+flank(gr, width=2, both=TRUE) # +/- 2 bp from " or "
+```
+
+Note that the last two commands, `resize` and `flank`, gave back
+ranges relative to the *start* of the ranges with positive strand, and
+to the *end* of the ranges with negative strand. This is particular
+useful for working with genes, in which we often care about the region
+surrounding the *transcription start site* or TSS of a gene. The TSS
+will be the left-most basepair of a gene on the positive strand, and
+the right-most basepair of a gene on the negative strand.
+
+These functions would usually give us more information, but in this
+case the information was not specified:
+
+```{r}
+seqnames(gr)
+seqinfo(gr)
+```
+
+Instead of looking at a toy *GRanges*, let's download some actual
+genomic ranges, the set of human genes, as annotated by the 
+[Ensembl project](http://www.ensembl.org/), version 86.
+
+This data is easily accessible in Bioconductor using the *ensembldb*
+package, and the specific Ensembl database package from Bioconductor.
+
+This says there are about 60 thousand genes (according to Ensembl).
+
+```{r message=FALSE}
+library(ensembldb)
+library(EnsDb.Hsapiens.v86) # this pkg is about 75 Mb
+edb <- EnsDb.Hsapiens.v86
+g <- genes(edb)
+length(g)
+```
+
+If you try to print `g` it will just show you the beginning and end:
+
+```{r}
+g
+```
+
+You can take a look at a single gene:
+
+```{r}
+g[1]
+```
+
+To pull out the gene names you use a `$`. This would give us a 60
+thousand length character vector, so we just show the first 5.
+
+```{r}
+g$gene_name[1:5]
+```
+
+We can look at the distribution of genes by chromosome. The `seqnames`
+returns a *factor-Rle* where *Rle* stands for *run length
+encoding*. This is a way to compress a long vector which may contain
+repeated values in *runs*.
+
+```{r}
+seqnames(g)
+```
+
+The object `g` has information about genes on the standard
+chromosomes, as well as genes or *haplotypes* of genes on *haplotype
+chromosomes*.
+
+```{r}
+head(seqlevels(g),100)
+```
+
+Let's subset to just the "standard" chromosomes:
+
+```{r}
+g <- keepStandardChromosomes(g, pruning.mode="coarse")
+```
+
+The following functions tell you the names and lengths of chromosomes,
+as well as the name of the genome (repeated for each chromosome).
+
+```{r}
+seqlevels(g)
+seqinfo(g)
+genome(g)
+```
+
+We can get the number of genes on each chromosome:
+
+```{r}
+table(seqnames(g))
+```
+
+Note that MT (mitochondrial DNA) has many more genes than the other
+chromosomes, per basepair:
+
+```{r}
+tab <- table(seqnames(g))
+tab
+lens <- seqlengths(seqinfo(g))
+lens
+all.equal(names(tab), names(lens))
+barplot(tab/lens)
+```
+
+If we remove MT, we can see the range better:
+
+```{r, fig.height=7}
+barplot((tab/lens)[-which(names(tab) == "MT")], horiz=TRUE, las=1)
+abline(v=(1:5)*1e-5, col=rgb(0,0,0,.5))
+```
+
+So roughly 1 gene per 50,000 basepairs, averaging per chromosome.
+
+```{r}
+mean((lens/tab)[-which(names(tab) == "MT")])
+```

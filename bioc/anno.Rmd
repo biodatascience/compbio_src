@@ -1,0 +1,159 @@
+---
+title: "Accessing annotations in Bioconductor"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+Here we will show how to use *AnnotationHub* and annotation packages
+in Bioconductor to access both experimental data, and information
+about things like genes. *AnnotationHub* is a *relatively* new method
+for accessing experimental data and annotation information (introduced
+in 2013). Previously, the main ways to access annotation information
+were to download a large package with all the information contained,
+or to query a web resource called *BioMart* using the *biomaRt*
+Bioconductor package. *AnnotationHub* makes it much easier to look up
+and download annotation information within R.
+
+One important usage note: *AnnotationHub* creates a hidden folder in
+your home directory, `~/.AnnotationHub` which accumulates the data
+objects you download with the package. In the next topic, we will show
+how to download the human genome which is ~700 Mb, and so you should
+know that it is sitting in this hidden folder, in case you need to
+clear up space later.
+
+```{r results="hide"}
+library("AnnotationHub")
+ah <- AnnotationHub()
+```
+
+One way to see what kind of information is available is to put up an
+HTML browser using the `display` function. 
+Search for **species:** "Homo sapiens" and **description:**
+"chip-seq". (I've noticed that using the global search is much slower
+than using the individual fields.) When you are finished, and want to
+return to R, you should hit `Esc` (or `Ctrl-C Ctrl-C` in an R terminal).
+
+```{r eval=FALSE}
+display(ah)
+```
+
+We can look up specific datasets of interest, either by selecting them
+in the web browser and telling the browser to return these rows to R,
+or by using the single square bracket with the `AH` code. This just
+tells us about the record:
+
+```{r}
+ah["AH28856"]
+```
+
+If we want to actually download this dataset (a set of ChIP-seq peaks
+for the histone modification H3K4me1), we use the double square
+brackets. The data are the set of locations in the genome where the
+histone modification was detected. Each range is associated with a
+score, a "signal value", a p-value and a q-value.
+
+
+```{r}
+peaks <- ah[["AH28856"]]
+peaks
+```
+
+We have the chromosome and genome information as well:
+
+```{r}
+seqinfo(peaks)
+```
+
+# Organism databases
+
+Another type of annotation we can pull down using *AnnotationHub* is
+an *OrgDb* or organism database. We subset the hub to only those
+objects that are of type *OrgDb*, and then we query for Homo sapiens.
+
+
+```{r}
+orgs <- subset(ah, ah$rdataclass == "OrgDb")
+orgdb <- query(orgs, "Homo sapiens")[[1]]
+```
+
+We can see the *OrgDb* bundles a lot of information from various
+sources (Entrez, GO, KEGG, UCSC, Ensembl, Uniprot).
+
+```{r}
+orgdb
+```
+
+The `columns` function tells us what identifiers are contained in the
+database, where the elements of the database are genes or associated proteins.
+
+```{r}
+columns(orgdb)
+```
+
+I typically like to
+use [SFTPB](https://gtexportal.org/home/gene/SFTPB) as an example
+gene. If you follow the link you can see it's expression profile in
+humans across various tissues. It's a gene that is almost exclusively
+expressed in lung, and it plays a role in producing *surfactant*,
+which reduces the surface tension in the alveoli in the lung. The lung
+is like a big balloon, but with many small sacks called alveoli, which
+produce a massive amount of surface area in a small volume. Without
+*surfactant*, we wouldn't have the muscle power to expand our lungs.
+
+We can look up more information about SFTPB using `select`. We provide
+a key, which is the gene symbol, and ask for the gene name, a column
+of `orgdb`:
+
+```{r}
+select(orgdb, keys="SFTPB", columns="GENENAME", keytype="SYMBOL")
+```
+
+We can find out what roles a gene play, by looking up the *Gene
+Ontology* terms, or GO terms:
+
+```{r}
+go <- select(orgdb, "SFTPB", "GO", "SYMBOL")
+go
+```
+
+These are not informative alone, just, e.g. `GO:0001664`.
+Let's restict to the terms that represent "biological processes":
+
+```{r}
+go <- go[go$ONTOLOGY == "BP",] # biological processes
+go
+```
+
+Now we need to look up what the GO terms mean, using a separate
+database, called `GO.db`:
+
+```{r}
+library(GO.db)
+columns(GO.db)
+go2 <- select(GO.db, go$GO, c("TERM","DEFINITION"), "GOID")
+go2$TERM
+```
+
+As expected, one of the terms has to do with *respiratory gaseous
+exchange*. Also, the surfactant is made up of many lipids, so the
+first term is not surprising. Sometimes very generic categories show
+up here, so it's relevant to know how many genes a GO term is
+associated with. Here we will use the *Ensembl* IDs for genes.
+
+```{r}
+sapply(go$GO, function(term) nrow(select(orgdb, term, "ENSEMBL", "GO")))
+```
+
+Another gene I often use as an example is the *glucocorticoid
+receptor*, which is the protein that responds to the hormone
+*cortisol*, the "stress hormone". We can repeat these lines of code
+with the gene symbol for glucocorticoid receptor (see the alias "GR"):
+
+```{r}
+select(orgdb, "NR3C1", "GENENAME", "SYMBOL")
+select(orgdb, "NR3C1", "ALIAS", "SYMBOL")
+go <- select(orgdb, "NR3C1", "GO", "SYMBOL")
+go <- go[go$ONTOLOGY == "BP",] # biological processes
+go2 <- select(GO.db, go$GO, c("TERM","DEFINITION"), "GOID")
+go2$TERM
+```
