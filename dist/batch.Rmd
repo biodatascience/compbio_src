@@ -1,0 +1,76 @@
+---
+title: "Batch effects and GC content"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+```{r}
+library(DESeq2)
+load("geuvadis.rda")
+
+# need to get the sequence content:
+#ftp://ftp.sanger.ac.uk/pub/gencode/Gencode_human/release_25/gencode.v25.annotation.gtf.gz
+
+library(GenomicFeatures)
+# warning message about closing connection OK
+# txdb <- makeTxDbFromGFF("gencode.v25.annotation.gtf.gz")
+# saveDb(txdb, file="gencode.sqlite")
+txdb <- loadDb("gencode.sqlite")
+ebg <- exonsBy(txdb, by="gene")
+head(names(ebg))
+table(names(ebg) %in% rownames(dds))
+table(rownames(dds) %in% names(ebg))
+
+e <- ebg[[1]]
+library(rafalib)
+plotRanges <- function(e) {
+  l <- length(e)
+  r <- ranges(range(e))
+  nullplot(start(r), end(r), 0, l+1)
+  segments(start(e), 1:l, end(e), 1:l, lwd=5)
+}
+plotRanges(e)
+plotRanges(reduce(e))
+ebg.red <- reduce(ebg)
+
+library(BSgenome.Hsapiens.UCSC.hg38)
+# not exactly what we want
+# dna <- getSeq(Hsapiens, ebg.red) 
+dna <- extractTranscriptSeqs(Hsapiens, ebg.red)
+all(sum(width(ebg.red)) == width(dna))
+mcols(ebg.red)$gc <- as.numeric(letterFrequency(dna, "GC", as.prob=TRUE))]
+m <- match(rownames(dds), names(ebg.red))
+all(m == seq_along(m)) # they happen to be in order
+rowRanges(dds)$gc <- mcols(ebg.red)$gc[ m ]
+rowRanges(dds)$len <- sum(width(ebg.red))[ m ]
+
+plot(rowRanges(dds)$gc, log10(counts(dds)[,1]+1), cex=.1)
+abline(v=c(.35,.65))
+
+plot(log10(rowRanges(dds)$len), log10(counts(dds)[,1]+1), cex=.1)
+
+# cqn 
+library(cqn)
+idx <- dds$population == "TSI"
+cts <- counts(dds[,idx])
+fit <- cqn(cts, rowRanges(dds)$gc, rowRanges(dds)$len)
+cqnplot(fit, n=1)
+cqnplot(fit, n=2)
+cqnplot(fit, n=2, xlim=c(-2,4.5))
+
+library(rafalib)
+bigpar()
+center <- dds$center[idx]
+cqnplot(fit, n=1, col=center)
+legend("bottom", levels(center), fill=1:nlevels(center))
+
+idx <- dds$population == "TSI" & dds$center %in% c("CGR","UG")
+cts <- counts(dds[,idx])
+fit <- cqn(cts, rowRanges(dds)$gc, rowRanges(dds)$len)
+center <- droplevels(dds$center[idx])
+cqnplot(fit, n=1, col=center)
+legend("bottom", levels(center), fill=1:nlevels(center))
+
+# cross reference with Fig 2 here:
+# https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5143225/
+```

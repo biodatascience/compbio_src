@@ -1,0 +1,33 @@
+---
+title: "Surrogate variable analysis for finding hidden batch effects"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+```{r}
+download.file("http://bowtie-bio.sourceforge.net/recount/countTables/bottomly_count_table.txt", "bottomly_count_table.txt")
+download.file("http://bowtie-bio.sourceforge.net/recount/phenotypeTables/bottomly_phenodata.txt", "bottomly_phenodata.txt")
+
+cts <- read.table("bottomly_count_table.txt", header=TRUE, row.names=1)
+coldata <- read.table("bottomly_phenodata.txt", header=TRUE, row.names=1)
+all(colnames(cts) == rownames(coldata))
+
+library(DESeq2)
+dds <- DESeqDataSetFromMatrix(cts, coldata, ~strain)
+dds$batch <- factor(dds$experiment.number)
+dds <- dds[,order(dds$batch, dds$strain)]
+dds <- estimateSizeFactors(dds)
+norm.cts <- counts(dds, normalized=TRUE)
+
+library(sva)
+mm <- model.matrix(~ strain, colData(dds))
+mm0 <- model.matrix(~ 1, colData(dds))
+norm.cts <- norm.cts[rowSums(norm.cts) > 0,]
+fit <- svaseq(norm.cts, mod=mm, mod0=mm0, n.sv=2)
+
+library(rafalib)
+bigpar()
+dds$strain.int <- as.integer(dds$strain)
+plot(fit$sv[,1:2], col=dds$batch, pch=dds$strain.int, cex=2)
+```
+

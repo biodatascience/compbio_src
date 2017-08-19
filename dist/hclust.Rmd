@@ -1,0 +1,72 @@
+---
+title: "Hierarchical clustering"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+```{r}
+library(DESeq2)
+load("geuvadis.rda")
+dds.f <- dds[,!dds$male]
+
+# log of normalized counts + 1
+ntd <- normTransform(dds.f)
+
+library(vsn)
+meanSdPlot(assay(ntd), ranks=FALSE)
+
+plot(assay(ntd)[,1:2])
+
+# the variance stabilizing transformation
+vsd <- vst(dds.f)
+
+meanSdPlot(assay(vsd), ranks=FALSE)
+
+plot(assay(vsd)[,1:2])
+
+plot(assay(ntd)[,1:2])
+sq.diffs <- (assay(ntd)[,2] - assay(ntd)[,1])^2
+ave <- .5 * (assay(ntd)[,2] + assay(ntd)[,1])
+plot(ave, sq.diffs)
+
+sum(sq.diffs[ave < 5])
+sum(sq.diffs[ave > 5])
+
+sum(sq.diffs[ave < 3])
+sum(sq.diffs[ave > 3])
+
+# transpose: distances between rows
+library(matrixStats)
+rv <- rowVars(assay(vsd))
+o <- order(rv,decreasing=TRUE)
+dists <- dist(t(assay(vsd)[head(o,500),]))
+hc <- hclust(dists)
+plot(hc, labels=vsd$population)
+plot(hc, labels=vsd$sample)
+
+table(vsd$population)
+idx <- vsd$population == "YRI"
+dists <- dist(t(assay(vsd)[head(o,500),idx]))
+hc <- hclust(dists)
+plot(hc, labels=vsd$sample[idx])
+
+library(pheatmap)
+mat <- assay(vsd)
+mat <- mat - rowMeans(mat)
+pheatmap(mat[head(o,50),],
+         show_rownames=FALSE, show_colnames=FALSE)
+df <- data.frame(vsd$population, vsd$center, row.names=colnames(vsd))
+pheatmap(mat[head(o,50),],
+         annotation_col=df,
+         show_rownames=FALSE, show_colnames=FALSE)
+
+idx <- vsd$center == "UG"
+rv <- rowVars(assay(vsd)[,idx])
+o <- order(rv,decreasing=TRUE)
+pheatmap(mat[head(o,200),idx],
+         annotation_col=df[idx,],
+         show_rownames=FALSE, show_colnames=FALSE)
+
+plotPCA(vsd, "population")
+plotPCA(vsd[,vsd$population=="YRI"], "center")
+```

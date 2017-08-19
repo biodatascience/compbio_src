@@ -1,0 +1,305 @@
+---
+title: "Computing distances for high-throughput data"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+Here we will explore a number of issues involved in comparing samples
+in high-throughput data, and in computing distances between
+samples. The main issues I want to introduce are: 
+
+* sequencing depth as a technical artifact
+* "batch effects" that distort measurements
+
+An ideal dataset for exploring these issues is a large dataset with
+both technical and biological aspects recorded as metadata. It's hard
+with few samples to discern what are technical differences, and what
+is simply *biological variability* among the samples in a
+condition. Note that proper data analysis requires that biological
+aspects of experiments be randomized or blocked with respect to
+technical aspects. Below we will show the number of significant
+differences we find when we simply compare measurements across the
+sequencing center in which the samples were processed.
+
+Here we will work with the 
+[GEUVADIS](http://www.geuvadis.org) project data, which contains 465
+unique RNA-seq samples. The RNA was extracted from lymphoblastoid cell
+line samples from 5 populations of the 1000 Genomes Project: the
+CEPH (CEU), Finns (FIN), British (GBR), Toscani (TSI) and Yoruba
+(YRI). The CEPH population consists of Utah residents with Northern
+and Western European ancestry.
+
+We start by downloading the summarized data from 
+[recount2](https://jhubiostatistics.shinyapps.io/recount/) (this
+downloads ~75 Mb). 
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+```{r message=FALSE}
+library(SummarizedExperiment)
+url <- "http://duffel.rail.bio/recount/ERP001942/rse_gene.Rdata"
+file <- "geuvadis_recount2.rda"
+if (!file.exists(file)) download.file(url, file)
+load(file)
+source("../bioc/my_scale_counts.R")
+rse <- my_scale_counts(rse_gene)
+```
+
+Now we read the GEUVADIS phenotypic data from a TSV file. This
+contains additional data not present in `colData` of the
+SummarizedExperiment. 
+
+```{r}
+library(readr)
+pheno <- read_tsv("geuvadis.tsv")
+df <- data.frame(pheno[,c("Run_s","Center_Name_s","population_s")])
+df <- data.frame(lapply(df, factor))
+colnames(df) <- c("run","center","population")
+levels(df$center)
+levels(df$center) <- c("CGR","CNAG","HZM","ICMB","LUMC","MPIMG","UG","UU")
+head(df)
+```
+
+We have more rows in the TSV than samples in `rse`. And there appear
+to be technical replicates, as there are 465 samples in GEUVADIS
+according to the project website.
+
+```{r}
+nrow(df)
+ncol(rse)
+```
+
+Here I make sure that all the samples in `rse` are present in `df`,
+and then match up the data in `df` and add it to the `colData` of `rse`:
+
+```{r}
+all(colnames(rse) %in% df$run)
+m <- match(colnames(rse), df$run)
+rse$center <- df$center[m]
+rse$population <- df$population[m]
+```
+
+# Sequencing depth as a technical artifact
+
+The total number of counts per sample is a technical artifact, which
+we need to control for before computing distances. Let's compute the
+sum of each column, and then divide by 1 million (we can call this
+"column sum per million"). This has a large range, from the sample
+with the least counts to the sample with the most counts.
+
+The number of counts (either *reads* or pairs of reads which are
+referred to as *fragments*) is known as the sample's *sequencing
+depth*. 
+
+```{r}
+cspm <- colSums(assay(rse))/1e6
+range(cspm)
+```
+
+Here I pick two samples in the dataset, with low and with high
+sequencing depth:
+
+```{r}
+idx <- order(cspm)[c(100,500)]
+cspm[idx]
+```
+
+Let's compare the counts for these two samples by making a simple
+scatter plot:
+
+```{r fig.width=5, fig.height=5}
+plot(assay(rse)[,idx])
+```
+
+Clearly, the log is useful here, as all the points are clustered near
+the origin. It's also useful to make the points somewhat transparent
+using `rgb` so we can see how they overlay. Finally we add a line that
+indicates y=x.
+
+```{r fig.width=5, fig.height=5}
+plot(log10(assay(rse)[,idx] + 1), 
+     cex=.5, col=rgb(0,0,0,.1), pch=20)
+abline(0,1,col="red", lwd=3)
+```
+
+# MA plot
+
+The problem with the scatterplot above is that, we really care about
+the differences between these two samples, but those differences are
+on a 45 degree angle. A common plot in genomics is to put the
+difference itself on the y-axis (typical the difference in log-scale measurements,
+so the *log fold change*). The x-axis can then be the average between
+the two values, whether on the original or log scale. This is called
+an "MA-plot" for *minus over average*, or a Bland-Altman plot. Note
+that we can now directly see the extent of the differences between
+these samples. And we can easily see the systematic technical factor
+associated with higher sequencing depth in the second sample.
+
+```{r}
+x <- log2(assay(rse)[,idx[1]] + 1)
+y <- log2(assay(rse)[,idx[2]] + 1)
+plot(.5*(x + y), y - x,
+     cex=.5, col=rgb(0,0,0,.1), pch=20)
+abline(h=0, col="red", lwd=3)
+```
+
+Remember, if we were to calculate Euclidean distances between samples
+on the log scale, we would be calculating the differences drawn below,
+squaring and summing them. So we definitely want to center these
+differences on the x-axis here, as we know the systematic difference
+is due solely to sequencing depth.
+
+While we're making this plot, also note the inflation of differences
+on the left side of the plot. This increase in variance depending on
+signal strength -- called 
+[heteroskedasticity](https://en.wikipedia.org/wiki/Heteroscedasticity)
+in statistics -- is a technical artifact from the inherent count-based
+measurements of high-throughput sequencing data, and needs to be dealt
+with to compute biologically meaningful distances between samples.
+
+```{r}
+plot(.5*(x + y), y - x, type="h")
+```
+
+# Principle component analysis
+
+As this is a graduate course in biostatistics, I'm assuming some
+familiarity with 
+[principle component analysis](https://en.wikipedia.org/wiki/Principal_component_analysis). 
+PCA is an invaluable technique for high-throughput data, to capture in
+a 2D plot the inter-relationships between samples in the dataset. Note
+that multidimensional scaling (MDS) on a Euclidean distance matrix
+produces an equivalent plot as PCA. 
+
+Performing PCA on unnormalized counts will allow us to see the extent
+to which sequencing depth contributes to total variance (of
+log-transformed counts).  Computing PCA on such a large matrix ~58,000
+x ~660 takes a long time, so we subset to the top 20,000 genes by
+unsupervised variance (taking the variance of each row of the matrix,
+ignoring the technical and biological covariates).
+
+We can notice two things from plotting PC1 over the column sums we
+previously calculated: There is a single sample which is an outlier in
+PC1, and otherwise, PC1 is capturing the differences between samples
+in sequencing depth.
+
+```{r}
+library(matrixStats)
+log.cts <- log(assay(rse) + 1)
+rv <- rowVars(log.cts)
+o <- order(rv,decreasing=TRUE)
+system.time({
+  pc <- prcomp(t(log.cts[head(o,20000),]))
+}) # takes ~1 min
+plot(cspm, pc$x[,1])
+outlier <- which(pc$x[,1] > 300)
+points(cspm[outlier], pc$x[outlier,1], col="blue", cex=3)
+```
+
+By plotting 20 "normal" samples and the outlier sample identified
+above, we see that this sample has a very different distribution of
+log counts. Remember from the above plot, the outlier does not have
+the highest sequencing depth (as measured by total count).
+
+```{r}
+idx <- order(cspm)[round(seq(from=1,to=length(cspm),length=20))]
+boxplot(log.cts[,c(idx,outlier)], range=0)
+```
+
+Here, we recompute the PCA, removing the outlier. Where we can clearly
+see that PC1 is capturing sequencing depth, so we definitely want to
+remove this technical effect.
+
+```{r}
+system.time({
+  pc <- prcomp(t(log.cts[head(o,20000),-outlier]))
+}) # takes ~1 min
+plot(cspm[-outlier], pc$x[,1])
+```
+
+# Normalization for sequencing depth
+
+show construction of pseudo-reference
+
+show calculation of median ratios
+
+```{r}
+reference <- exp(rowMeans(log(assay(rse))))
+x <- log2(reference)
+y <- log2(assay(rse)[,which.max(cspm)] + 1)
+plot(.5*(x + y), y - x,
+     cex=.5, col=rgb(0,0,0,.2), pch=20)
+abline(h=0, col="red", lwd=3)
+```
+
+```{r}
+hist(y - x, breaks=200, col="grey", xlim=c(-2,5))
+median.lfc <- median((y - x)[is.finite(x)])
+abline(v = median.lfc, col="blue", lwd=3)
+```
+
+```{r}
+plot(.5*(x + y), y - x,
+     cex=.5, col=rgb(0,0,0,.2), pch=20)
+abline(h=0, col="red", lwd=3)
+abline(h=median.lfc, col="blue", lwd=3)
+```
+
+# What do we see after normalization
+
+```{r}
+library(DESeq2)
+dds <- DESeqDataSet(rse, ~1)
+dds <- estimateSizeFactors(dds)
+ntd <- normTransform(dds)
+plotPCA(ntd, c("center")) # just looks at top genes by variance
+```
+
+```{r}
+plotPCA(ntd, c("population"))
+```
+
+```{r}
+chrY <- as.logical(seqnames(rowRanges(ntd)) == "chrY")
+chrYexprs <- colSums(counts(dds, normalized=TRUE)[chrY,])
+hist(chrYexprs, breaks=100, col="grey")
+```
+
+```{r}
+hist(log10(chrYexprs), breaks=100, col="grey")
+```
+
+```{r}
+ntd$male <- log10(chrYexprs) > 3.5
+plotPCA(ntd, intgroup="male")
+```
+
+```{r}
+dds$male <- log10(chrYexprs) > 3.5
+table(dds$male)
+save(dds, file="geuvadis.rda")
+```
+
+```{r}
+dds.f <- dds[,!dds$male]
+dds.f <- estimateSizeFactors(dds.f)
+ntd.f <- normTransform(dds.f)
+plotPCA(ntd.f, c("center"))
+```
+
+```{r}
+plotPCA(ntd.f, c("population"))
+```
+
+```{r message=FALSE}
+library(genefilter)
+tests <- rowFtests(assay(ntd.f), ntd.f$center)
+top.gene.log.exprs <- assay(ntd.f)[which.min(tests$p.value),]
+plot(top.gene.log.exprs ~ ntd.f$center)
+```
+
+```{r}
+hist(tests$p.value, col="grey")
+```
