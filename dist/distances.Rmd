@@ -33,10 +33,6 @@ We start by downloading the summarized data from
 [recount2](https://jhubiostatistics.shinyapps.io/recount/) (this
 downloads ~75 Mb). 
 
-```{r echo=FALSE}
-knitr::opts_chunk$set(cache=TRUE)
-```
-
 ```{r message=FALSE}
 library(SummarizedExperiment)
 url <- "http://duffel.rail.bio/recount/ERP001942/rse_gene.Rdata"
@@ -221,9 +217,32 @@ plot(cspm[-outlier], pc$x[,1])
 
 # Normalization for sequencing depth
 
-show construction of pseudo-reference
+We will discuss in class the reasons that the column sum is a bad
+estimator for a sequencing depth correction. Briefly, it is because
+the column sum is overly influenced by the genes with the very largest
+counts, whereas we are interested in determining the shift on the log
+scale that occurs across the entire range of counts. Most methods for
+computing sequencing depth, or equivalently, *library size* correction
+factors involve a robust estimator of the center of the log
+ratios. Two of the most used methods are the median of ratios, used by
+*DESeq* and *DESeq2* and the trimmed mean of log ratios, used by
+*edgeR*. Here we will show how the median ratio method works for
+RNA-seq counts. (Note that these normalization methods may work well
+for some sequencing datasets, such as *bulk* RNA-seq, but not with
+others, such as metagenomic data or single-cell RNA-seq. We will
+discuss these additional kinds of datasets in class. 
 
-show calculation of median ratios
+We start by constructing a *pseudo-reference* sample, which will be
+the geometric mean for each row. If a single sample has a 0, this
+makes the geometric mean 0, and so this row will not be used for
+calculating the correction factor. We can quickly compute the
+geometric mean of each row using `log`, then `rowMean` then `exp`
+(this is equivalent to the n-th root of the product of n terms).
+
+Here I plot a single sample (the one with the highest column sum),
+against this *pseudo-reference* sample, using the MA plot code I
+showed before. The log ratios are shifted above the x-axis as
+expected. 
 
 ```{r}
 reference <- exp(rowMeans(log(assay(rse))))
@@ -234,11 +253,32 @@ plot(.5*(x + y), y - x,
 abline(h=0, col="red", lwd=3)
 ```
 
+Now we plot a histogram of the log ratios, and identify the median
+with a vertical line (excluding those rows in which the geometric mean
+was 0, and so the log was undefined).
+
 ```{r}
 hist(y - x, breaks=200, col="grey", xlim=c(-2,5))
 median.lfc <- median((y - x)[is.finite(x)])
 abline(v = median.lfc, col="blue", lwd=3)
 ```
+
+Now we draw the MA plot again, with the line through the median log
+ratio calculated just now. The essential idea in the median ratio
+method is to scale the raw counts down by this factor -- if we are
+modeling with a GLM, to include this as an *offset* in the model.
+Note that, it is not necessary that all points fall on the blue
+line. We expect deviations representing within-condition biological
+variation as well as differential expression across conditions. We
+simply want to remove the systematic shift, which we know is a
+technical artifact -- if there was a biological systematic shift in
+expression levels for a sample, the experimenter needs to perform
+additional controls or to identify "housekeeping" genes which they
+believe do not change systematically. Finally, we note that we could
+have applied something like the quantile normalization we showed
+earlier in the exploration of microarray data. The scaling method is
+typically preferred for count data, as we maintain information about
+the precision of low vs high counts.
 
 ```{r}
 plot(.5*(x + y), y - x,
@@ -249,17 +289,45 @@ abline(h=median.lfc, col="blue", lwd=3)
 
 # What do we see after normalization
 
+Instead of doing all this computation manually, we can use a
+Bioconductor package *DESeq2* to do it for us. We will explore more
+sophisticated transformations in the next section, but for now we will
+just divide each column by a scaling factor, add 1 and take the
+logarithm (base 2). The `plotPCA` automatically just looks at the top
+genes by their unsupervised variance. We clearly see two groups
+separating, and not by the center which prepared the sample.
+
 ```{r}
 library(DESeq2)
 dds <- DESeqDataSet(rse, ~1)
 dds <- estimateSizeFactors(dds)
 ntd <- normTransform(dds)
-plotPCA(ntd, c("center")) # just looks at top genes by variance
+plotPCA(ntd, c("center"))
 ```
+
+If we plot by the human population of the RNA-seq sample donors, we
+see this explains PC1, but not PC2, where we see the clear separation.
 
 ```{r}
 plotPCA(ntd, c("population"))
 ```
+
+A reasonable guess is that PC2 represents the differences between the
+sexes of the donors. We don't have this information in the metadata,
+but we can make a rough guess of sex by summing up the counts of
+genes expressed on the Y chromosome. 
+
+**Note**: this is just a rough guess of the sex of the donors, for
+demonstration of exploring this data. You wouldn't use such a method
+for a final analysis. Another important note is that the Y chromosome
+gene expression has nothing to do with the *gender* or
+self-identification of the donors, and that binarizing a variable like
+sex is an oversimplification. When talking about the sex
+chromosomes, or biological sex, it is important to use the correct
+term "sex" and not "gender".
+
+We find out which `rowRanges` of the dataset are on `chrY`,
+and then compute the sum of normalized counts from those genes:
 
 ```{r}
 chrY <- as.logical(seqnames(rowRanges(ntd)) == "chrY")
@@ -267,20 +335,32 @@ chrYexprs <- colSums(counts(dds, normalized=TRUE)[chrY,])
 hist(chrYexprs, breaks=100, col="grey")
 ```
 
+It's a bit more clear on the log scale that there are two clusters: 
+
 ```{r}
 hist(log10(chrYexprs), breaks=100, col="grey")
 ```
+
+We make an estimate of sex by setting an arbitrary cut-point, and we
+see that this roughly divides the groups of samples we saw as PC2:
 
 ```{r}
 ntd$male <- log10(chrYexprs) > 3.5
 plotPCA(ntd, intgroup="male")
 ```
 
+We add our estimate of sex to the `colData` of the dataset, and save
+this object, so we can continue working with this data later. The
+saved version should be about 40 Mb.
+
 ```{r}
 dds$male <- log10(chrYexprs) > 3.5
 table(dds$male)
 save(dds, file="geuvadis.rda")
 ```
+
+Let's subset to just the female samples, and recalculate a PCA. We
+don't see much clustering by the sequencing center overall:
 
 ```{r}
 dds.f <- dds[,!dds$male]
@@ -289,9 +369,18 @@ ntd.f <- normTransform(dds.f)
 plotPCA(ntd.f, c("center"))
 ```
 
+But we can see clear clustering by the human populations:
+
 ```{r}
 plotPCA(ntd.f, c("population"))
 ```
+
+Finally, I note that, although we didn't see clustering by sequencing
+center in the top two PCs above, there is still some technical
+variation present in the normalized counts, associated with sequencing
+center. For example, we can run F-tests on each row to find
+association of log normalized counts with center. We then plot the log
+normalized counts for the gene with the smallest p-value (uncorrected).
 
 ```{r message=FALSE}
 library(genefilter)
@@ -299,6 +388,11 @@ tests <- rowFtests(assay(ntd.f), ntd.f$center)
 top.gene.log.exprs <- assay(ntd.f)[which.min(tests$p.value),]
 plot(top.gene.log.exprs ~ ntd.f$center)
 ```
+
+You can see from a histogram of p-values over all genes, that there is
+an enrichment of small p-values for certain genes. We will see in a
+later section why the measurements for these genes show an association
+with sequencing center.
 
 ```{r}
 hist(tests$p.value, col="grey")
