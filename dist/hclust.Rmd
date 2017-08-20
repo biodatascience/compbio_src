@@ -1,72 +1,206 @@
 ---
-title: "Hierarchical clustering"
+title: "Distance part 2: hierarchical clustering"
 author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
 
-```{r}
+Here we will examine distances a little more, including looking into
+hierarchical cluster, which is a useful technique for unsupervised
+analysis of high-throughput data. We load the GEUVADIS RNA-seq dataset
+we prepared in [distances](distances.html).
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+```{r message=FALSE}
 library(DESeq2)
 load("geuvadis.rda")
 dds.f <- dds[,!dds$male]
+```
 
-# log of normalized counts + 1
+# Picking a transformation
+
+Last time I showed how we could normalize the data for sequencing
+depth differences, and then take the log of the scaled counts. Here I
+want to emphasize that the logarithm, while convenient, is not optimal 
+for computing distances between samples. We use the `normTransform`
+function to produce log normalized counts, and then we use the
+`meanSdPlot` function to plot the standard deviation of the log
+normalized counts for each gene over the mean:
+
+```{r message=FALSE}
 ntd <- normTransform(dds.f)
-
 library(vsn)
 meanSdPlot(assay(ntd), ranks=FALSE)
+```
 
-plot(assay(ntd)[,1:2])
+This plot makes clear that, even after the log transform, the data
+exhibit systematic:
+[heteroskedasticity](https://en.wikipedia.org/wiki/Heteroscedasticity). 
+We should not expect that all points fall on a horizontal line, but
+the red line shows that there is a *systematic trend* of variances on
+the mean. In particular, low counts, which are associated with less
+precision for calculating multiplicative changes between samples, have
+*higher* standard deviation, and so contribute *more* to a distance
+computation than high counts.
 
-# the variance stabilizing transformation
+You can see this increased spread on the left side of an MA plot:
+
+```{r}
+x <- assay(ntd)[,1]
+y <- assay(ntd)[,2]
+plot(.5*(x + y), y - x,
+     cex=.5, col=rgb(0,0,0,.1), pch=20)
+abline(h=0, col="red", lwd=3)
+```
+
+A better transformation than log is to compute the 
+[variance stabilizing transformation](https://en.wikipedia.org/wiki/Variance-stabilizing_transformation). 
+An implementation of this for count data is the `vst` function in the
+DESeq2 package. This function also incorporates normalization for
+sequencing depth. We can examine how these two diagnostic plots
+change. The `meanSdPlot` has less of a systematic "hump" on the left
+side. Note: we do not seek a transformation which puts *all* the genes
+on a horizontal line -- we expect high standard deviation for a subset
+of genes which show true biological differences across the samples. We
+only seek to remove *systematic trends* in the variance over the mean.
+
+```{r}
 vsd <- vst(dds.f)
-
 meanSdPlot(assay(vsd), ranks=FALSE)
+```
 
-plot(assay(vsd)[,1:2])
+We can also see from an MA plot of two samples, that the increased
+spread of data on the left side has been reduced -- now genes across
+the entire range have roughly equal "chance" at contributed to
+differences between samples.
 
-plot(assay(ntd)[,1:2])
+```{r fig.width=5, fig.height=5}
+x <- assay(vsd)[,1]
+y <- assay(vsd)[,2]
+plot(.5*(x + y), y - x,
+     cex=.5, col=rgb(0,0,0,.1), pch=20)
+abline(h=0, col="red", lwd=3)
+```
+
+To drive the point home, here I calculate the differences between two
+samples, and square them. These squared differences are the elements
+of a Euclidean distance computation. I also calculate the average
+signal strength on the log scale (the x-axis in the first MA plot
+above).
+
+```{r}
 sq.diffs <- (assay(ntd)[,2] - assay(ntd)[,1])^2
 ave <- .5 * (assay(ntd)[,2] + assay(ntd)[,1])
 plot(ave, sq.diffs)
+```
 
-sum(sq.diffs[ave < 5])
-sum(sq.diffs[ave > 5])
+Note that, if we just take the logarithm of normalized counts, genes
+with average signal less than 5 (32 on the count scale) contribute
+three times more to the sum than genes with average signal higher
+than 5. The inequality even holds for genes with average signal less
+than 3 (8 on the count scale).
 
-sum(sq.diffs[ave < 3])
-sum(sq.diffs[ave > 3])
+```{r}
+sum(sq.diffs[ave < 5])/sum(sq.diffs[ave > 5])
+sum(sq.diffs[ave < 3])/sum(sq.diffs[ave > 3])
+```
 
-# transpose: distances between rows
+# Drawing cluster dendrograms
+
+For the rest of the document, I focus on drawing and working with
+hierachical clustering results. Let's start with the basic code. We
+first subset to the top genes by variance, and then compute
+sample-sample distances of the variance stabilized data using the
+`dist` function:
+
+```{r}
 library(matrixStats)
 rv <- rowVars(assay(vsd))
 o <- order(rv,decreasing=TRUE)
 dists <- dist(t(assay(vsd)[head(o,500),]))
+```
+
+The hierarchical clustering function in R is `hclust`, with a number
+of options you can read about in `?hclust`. The default `method` is
+`complete`. From the man page:
+
+> Initially, each object is assigned to its own cluster and then the algorithm
+> proceeds iteratively, at each stage joining the two most similar 
+> clusters, continuing until there is just a single cluster.
+
+```{r}
 hc <- hclust(dists)
-plot(hc, labels=vsd$population)
 plot(hc, labels=vsd$sample)
+```
 
+This plot is pretty busy, and it's hard to see what's going on. 
+One thing I notice immediately, is that there are two of each sample,
+clustered closely together: these are technical replicates, which
+makes sense that they would be so close in the dendrogram.
+Better to see what's going on is to color the labels. 
+
+To get a better sense, let's zoom into a single population, and see
+how the samples cluster within this group. 
+
+```{r}
+library(magrittr)
 table(vsd$population)
-idx <- vsd$population == "YRI"
-dists <- dist(t(assay(vsd)[head(o,500),idx]))
+idx <- vsd$population == "TSI"
+vsd2 <- vsd[,idx]
+vsd2$sample %<>% factor
+```
+
+As before, we compute distances and a hierarchical clustering, then we
+ask for the results to be converted to a *dendrogram* object:
+
+```{r}
+dists <- dist(t(assay(vsd2)[head(o,500),]))
 hc <- hclust(dists)
-plot(hc, labels=vsd$sample[idx])
+dend <- as.dendrogram(hc)
+```
 
-library(pheatmap)
-mat <- assay(vsd)
-mat <- mat - rowMeans(mat)
-pheatmap(mat[head(o,50),],
-         show_rownames=FALSE, show_colnames=FALSE)
-df <- data.frame(vsd$population, vsd$center, row.names=colnames(vsd))
-pheatmap(mat[head(o,50),],
-         annotation_col=df,
-         show_rownames=FALSE, show_colnames=FALSE)
+Now we will use the *dendextend* package to color and annotate the
+dendrogram. Unlike above, after we've computed the dendrogram, we need
+to supply labels and colors *in the dendrogram order* not in the
+original data order. We therefore ask for the dendrogram order and
+apply this order to labels and colors when we want to modify these.
+Note that the four pairs of technical replicates often cluster tightly
+together.
 
-idx <- vsd$center == "UG"
-rv <- rowVars(assay(vsd)[,idx])
-o <- order(rv,decreasing=TRUE)
-pheatmap(mat[head(o,200),idx],
-         annotation_col=df[idx,],
-         show_rownames=FALSE, show_colnames=FALSE)
+```{r}
+library(dendextend)
+library(RColorBrewer)
+palette(brewer.pal(8, "Dark2"))
+o.dend <- order.dendrogram(dend)
+labels(dend) <- vsd2$sample[o.dend]
+labels_colors(dend) <- as.integer(vsd2$sample[o.dend])
+plot(dend)
+```
 
-plotPCA(vsd, "population")
-plotPCA(vsd[,vsd$population=="YRI"], "center")
+Note that, when we zoom into a single population, we can start to see
+the clustering of samples according to the sequencing center in which
+the samples were prepared. This indicates technical variation in the 
+measurements. 
+
+```{r}
+plotPCA(vsd2, "center")
+```
+
+Finally, we show how to use hierarchical clustering to produce a
+distinct set of clusters, using the `cutree` function:
+
+```{r}
+vsd2$cluster <- cutree(hc, k=5)
+head(vsd2$cluster)
+table(vsd2$cluster)
+```
+
+We can show these clusters on the dendrogram by re-coloring the
+labels: 
+
+```{r}
+labels_colors(dend) <- as.integer(vsd2$cluster[o.dend])
+plot(dend)
 ```
