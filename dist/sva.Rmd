@@ -1,33 +1,100 @@
 ---
-title: "Surrogate variable analysis for finding hidden batch effects"
+title: "Surrogate variable analysis: hidden batch effects"
 author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
 
-```{r}
-download.file("http://bowtie-bio.sourceforge.net/recount/countTables/bottomly_count_table.txt", "bottomly_count_table.txt")
-download.file("http://bowtie-bio.sourceforge.net/recount/phenotypeTables/bottomly_phenodata.txt", "bottomly_phenodata.txt")
+We showed in the section on [batch effects](batch.html), that we can
+sometimes identify the source of batch effects, and by using
+statistical models, we can remove any sample-specific variation we can
+predict based on features like sequence content or gene length. Here
+we will show a powerful procedure, which doesn't require the use of
+knowing exactly how the counts will vary across batches -- it uses
+only the biological condition, and looks for large scale variation
+which is orthogonal to the biological condition. This approach (we
+will examine a specific method called surrogate variable analysis, or
+SVA), does require that the technical variation be orthogonal to the
+biological conditions.
 
+For the description of the SVA method, see these two papers:
+
+* [Capturing Heterogeneity in Gene Expression Studies by Surrogate Variable Analysis](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1994707/)
+* [svaseq: removing batch effects and other unwanted noise from sequencing data](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4245966/)
+
+Other methods which can identify hidden batches are described in these papers:
+
+* [Normalization of RNA-seq data using factor analysis of control genes or samples](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4404308/)
+* [Using probabilistic estimation of expression residuals (PEER) to obtain increased power and interpretability of gene expression analyses](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3398141/)
+
+We start by downloading RNA-seq count tables from the original 
+[recount](http://bowtie-bio.sourceforge.net/recount/)
+project:
+
+```{r}
+url <- "http://bowtie-bio.sourceforge.net/recount/countTables/bottomly_count_table.txt"
+file <- "bottomly_count_table.txt"
+if (!file.exists(file)) download.file(url, file)
+url <- "http://bowtie-bio.sourceforge.net/recount/phenotypeTables/bottomly_phenodata.txt"
+file <- "bottomly_phenodata.txt"
+if (!file.exists(file)) download.file(url, file)
+```
+
+This experiment consisted of 10 and 11 mice from two different
+species. But useful for our demonstration of SVA, it is key that the
+experiment was performed in three batches. We will pretend in the
+following code that we *do not know the batches*, although we do. We
+will estimate technical variation using only the information about
+which mouse comes from which species.
+
+```{r}
+library(magrittr)
 cts <- read.table("bottomly_count_table.txt", header=TRUE, row.names=1)
 coldata <- read.table("bottomly_phenodata.txt", header=TRUE, row.names=1)
 all(colnames(cts) == rownames(coldata))
+levels(coldata$strain) %<>% (function(x) sub("/",".",x))
+```
 
+We use DESeq2 to produce a normalized count matrix, which is the input
+to SVA. Note that the biological groups (mouse species) were present
+in all batches, so a block design. 
+
+```{r message=FALSE}
 library(DESeq2)
 dds <- DESeqDataSetFromMatrix(cts, coldata, ~strain)
 dds$batch <- factor(dds$experiment.number)
-dds <- dds[,order(dds$batch, dds$strain)]
+table(dds$strain, dds$batch)
+```
+
+We estimate the library size correction and save the normalized counts
+matrix: 
+
+```{r}
 dds <- estimateSizeFactors(dds)
 norm.cts <- counts(dds, normalized=TRUE)
+```
 
+Finally, we provide the normalized counts and two model matrices to
+SVA. The first matrix uses the biological condition, and the second
+model matrix is the null model, here just an intercept term.
+
+```{r message=FALSE}
 library(sva)
 mm <- model.matrix(~ strain, colData(dds))
 mm0 <- model.matrix(~ 1, colData(dds))
 norm.cts <- norm.cts[rowSums(norm.cts) > 0,]
 fit <- svaseq(norm.cts, mod=mm, mod0=mm0, n.sv=2)
-
-library(rafalib)
-bigpar()
-dds$strain.int <- as.integer(dds$strain)
-plot(fit$sv[,1:2], col=dds$batch, pch=dds$strain.int, cex=2)
 ```
 
+If we plot the estimated *surrogate variables*, we see they separate
+the samples from different batches fairly well. This procedure can be
+used to estimate unknown, or undocumented batches present in
+high-throughput datasets, although we must be careful not to overfit
+and remove *too much* of the variation in the data -- some of which
+represents natural biological variations of samples.
+
+```{r}
+library(rafalib)
+bigpar()
+dds$strain.int <- as.integer(dds$strain) + 15
+plot(fit$sv[,1:2], col=dds$batch, pch=dds$strain.int, cex=2)
+```

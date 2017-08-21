@@ -1,5 +1,7 @@
 *.rda
 *.html
 *.gz
+*.txt
+*.sqlite
 */*_cache
 */*_files

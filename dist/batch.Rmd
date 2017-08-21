@@ -4,23 +4,111 @@ author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
 
-```{r}
+Previously, we looked at distances between samples in high-throughput
+sequencing experiments, exploring sequencing depth as a technical
+artifact, the effect of various transformation on stabilizing
+variance, and PCA and hierarchical clustering as methods for
+ordination of samples.
+
+In [distances](distances.html), we noticed many genes where
+we see differences in measurements across the sequencing center, and
+in [hclust](hclust.html), we saw high level clustering of samples by
+sequencing center, when we focused on a single human population. These
+technical differences in high-throughput measurements as often
+referred to as "batch effects", a term which encompasses any kind of
+technical artifact due to the lab or time at which a sample was
+processed. Note that the time of sample preparation, the *batch*, can
+have its own unique technical distortion on measurements, just as much
+as a sample from a different sequencing center. 
+
+Two references which give a general outline of batch effects in
+sequencing data are:
+
+* [Tackling the widespread and critical impact of batch effects in high-throughput data](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3880143/)
+* [Analyzing and minimizing PCR amplification bias in Illumina sequencing libraries](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3188800/)
+
+It is critical, if you are involved in the design of a high-throughput
+experiment, that the biological conditions are not *confounded* with
+the sample preparation batches, instead to use either a block or
+randomized design. Block designs are easy, simply ensuring that each
+sample preparation batch contains each of the biological conditions of
+interest, so that the batch effects can be isolated apart from the
+biological differences between samples.
+
+Here I will show the origin of batch effects across lab can sometimes
+be isolated to batch-specific distortions related to the DNA sequence
+of the genes. As described in the second link above, a step in nearly
+all high-throughput experiments is to amplify the DNA fragments
+using [PCR](https://en.wikipedia.org/wiki/Polymerase_chain_reaction). 
+As PCR is an exponential process of copying molecules, it is very
+sensitive to slight variations, and results in distortions of
+measurements which are specific to the particular place and time when
+the samples were processed: the batch.
+
+We start again with the GEUVADIS RNA-seq samples prepared
+in [distances](distances.html). 
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+```{r message=FALSE}
 library(DESeq2)
 load("geuvadis.rda")
+```
 
-# need to get the sequence content:
-#ftp://ftp.sanger.ac.uk/pub/gencode/Gencode_human/release_25/gencode.v25.annotation.gtf.gz
+As typical, though we conceptually have a simple task to perform, many
+steps are needed just to get the covariates that we need. Here our
+simple task is to model the counts on covariates like the genes'
+lengths and sequence content. However, it will take many steps to
+obtain and summarize the sequence content into a single number. 
 
+A critical summary of DNA sequence is the *GC content*, which is the
+fraction of G's and C's out of the total sequence. Note that, because
+G pairs with C, and C with G, the GC content of a sequence and it's
+complement is identical. GC content varies along the genome, for
+biological reasons. Different organisms have very different GC content
+of their genomes. But we care about GC content also for a technical
+reason: because the GC content of a piece of DNA can make it
+difficulty to amplify. We will see this below. 
+
+In order to get the GC content of each gene, we start by downloading
+the information about the genes used by recount2 for quantification,
+which was version 25 of the Gencode genes. We download this file from
+the following
+[link](ftp://ftp.sanger.ac.uk/pub/gencode/Gencode_human/release_25/gencode.v25.annotation.gtf.gz).
+
+```{r message=FALSE}
 library(GenomicFeatures)
-# warning message about closing connection OK
-# txdb <- makeTxDbFromGFF("gencode.v25.annotation.gtf.gz")
-# saveDb(txdb, file="gencode.sqlite")
+```
+
+We need to import this gene information from a GTF (gene transfer
+format) file, and turn it into a *TxDb*.
+We then save the database, so we can skip the `makeTxDbFromGFF` step
+in the future.
+Note that a warning message about closing connection is OK.
+
+```{r eval=FALSE}
+txdb <- makeTxDbFromGFF("gencode.v25.annotation.gtf.gz")
+saveDb(txdb, file="gencode.sqlite")
+```
+
+We load the *TxDb* and extract all the exons, grouped by gene. We
+check that we have the same gene names in `ebg` and in `dds`.
+
+```{r}
 txdb <- loadDb("gencode.sqlite")
 ebg <- exonsBy(txdb, by="gene")
 head(names(ebg))
 table(names(ebg) %in% rownames(dds))
 table(rownames(dds) %in% names(ebg))
+```
 
+Note that the exons in `ebg` contain redundant sequence. We can see
+this by plotting the ranges for a given gene. Note that, after running
+`reduce`, we remove all redundant sequence in `ebg` for a given gene.
+
+```{r message=FALSE}
 e <- ebg[[1]]
 library(rafalib)
 plotRanges <- function(e) {
@@ -32,45 +120,115 @@ plotRanges <- function(e) {
 plotRanges(e)
 plotRanges(reduce(e))
 ebg.red <- reduce(ebg)
+```
 
+Now we extract the exonic sequence for every gene, using
+the `extractTranscriptSeqs` function. We then calculate the GC content
+with `letterFrequency`, and assign this to a `gc` column of
+`ebg.red`. Finally, we find a matching between the rownames of `dds`
+and `ebg.red`, and assign the GC content and length of genes from
+`ebg.red` to `dds`. 
+
+```{r message=FALSE}
 library(BSgenome.Hsapiens.UCSC.hg38)
-# not exactly what we want
-# dna <- getSeq(Hsapiens, ebg.red) 
 dna <- extractTranscriptSeqs(Hsapiens, ebg.red)
 all(sum(width(ebg.red)) == width(dna))
-mcols(ebg.red)$gc <- as.numeric(letterFrequency(dna, "GC", as.prob=TRUE))]
+mcols(ebg.red)$gc <- as.numeric(letterFrequency(dna, "GC", as.prob=TRUE))
 m <- match(rownames(dds), names(ebg.red))
 all(m == seq_along(m)) # they happen to be in order
-rowRanges(dds)$gc <- mcols(ebg.red)$gc[ m ]
-rowRanges(dds)$len <- sum(width(ebg.red))[ m ]
+mcols(dds)$gc <- mcols(ebg.red)$gc[ m ]
+mcols(dds)$len <- sum(width(ebg.red))[ m ]
+```
 
-plot(rowRanges(dds)$gc, log10(counts(dds)[,1]+1), cex=.1)
+We know have all the covariates we need for modeling how the counts
+vary by GC content. We can make simple plots to see if we see a
+dependence. Note that, outside of GC content of .35-.65, we see very
+few large counts, although there do appear to be genes with this GC
+content. It is very difficult to amplify the fragments of cDNA from
+these genes, and so they are often missing from high-throughput
+sequencing experiments like RNA-seq.
+
+```{r}
+plot(mcols(dds)$gc, log10(counts(dds)[,1]+1), cex=.1)
 abline(v=c(.35,.65))
+```
 
-plot(log10(rowRanges(dds)$len), log10(counts(dds)[,1]+1), cex=.1)
+We also plot the counts over the length of the gene. It is expected
+that, everything else being equal, we should see higher counts from
+longer genes. Keep in mind though, that we do not expect a line in
+this scatterplot, due to differences in gene expression of the genes
+at a given length. In other words, any point on the x-axis, the
+differences in a vertical band can be explained by gene expression (as
+well as any other technical covariates, like GC content).
 
-# cqn 
+```{r}
+plot(log10(mcols(dds)$len), log10(counts(dds)[,1]+1), cex=.1)
+```
+
+We will know use a Bioconductor package called 
+[cqn](https://www.ncbi.nlm.nih.gov/pmc/articles/pmid/22285995/)
+to model systematic dependence of counts on gene GC content and
+length. We provide the `cqn` function with the counts, the GC content
+and the gene lengths. The plots show estimated spline dependence of
+counts on GC (`n=1`)...
+
+```{r message=FALSE}
 library(cqn)
 idx <- dds$population == "TSI"
-cts <- counts(dds[,idx])
-fit <- cqn(cts, rowRanges(dds)$gc, rowRanges(dds)$len)
+dds2 <- dds[,idx]
+cts <- counts(dds2)
+fit <- cqn(cts, mcols(dds2)$gc, mcols(dds2)$len)
 cqnplot(fit, n=1)
-cqnplot(fit, n=2)
-cqnplot(fit, n=2, xlim=c(-2,4.5))
+```
 
+...and dependence on length (`n=2`).
+
+```{r}
+cqnplot(fit, n=2, xlim=c(-2,4.5))
+```
+
+Both of these plots are typical: for GC content, we see an upside-down
+"U", where the low and high GC content fragments are systematically
+underrepresented (although we see lots of sample-sample variability in
+the estimated splines). And it is typical to have more counts for
+longer genes due to fragmentation. The tick marks on the x-axis
+indicate the knots of the splines, by default, these are data
+quantiles: 0.025, 0.25, 0.5, 0.75, 0.975.
+
+We can draw the lines with the sequencing center as the color. Doing
+this, we see that the lines cluster by sequencing center. The
+dependence of counts on the GC content of the features being sequenced
+is highly batch specific.
+
+```{r}
 library(rafalib)
 bigpar()
-center <- dds$center[idx]
+center <- dds2$center
 cqnplot(fit, n=1, col=center)
 legend("bottom", levels(center), fill=1:nlevels(center))
-
-idx <- dds$population == "TSI" & dds$center %in% c("CGR","UG")
-cts <- counts(dds[,idx])
-fit <- cqn(cts, rowRanges(dds)$gc, rowRanges(dds)$len)
-center <- droplevels(dds$center[idx])
-cqnplot(fit, n=1, col=center)
-legend("bottom", levels(center), fill=1:nlevels(center))
-
-# cross reference with Fig 2 here:
-# https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5143225/
 ```
+
+There is less variation of counts on gene length across center:
+
+```{r}
+cqnplot(fit, n=2, col=center, xlim=c(-2,4.5))
+legend("topleft", levels(center), fill=1:nlevels(center))
+```
+
+
+Finally, we zoom in to two sequencing centers, to show how different
+the dependence of counts on GC content can be across batch. You can
+also cross reference this final plot with Figure 2 
+[here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5143225/), which
+goes into more depth on the topic.
+
+```{r}
+idx <- dds$population == "TSI" & dds$center %in% c("CGR","UG")
+dds3 <- dds[,idx]
+cts <- counts(dds3)
+fit <- cqn(cts, mcols(dds3)$gc, mcols(dds3)$len)
+center <- droplevels(dds3$center)
+cqnplot(fit, n=1, col=center)
+legend("bottom", levels(center), fill=1:nlevels(center))
+```
+

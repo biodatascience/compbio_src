@@ -76,7 +76,7 @@ spread of data on the left side has been reduced -- now genes across
 the entire range have roughly equal "chance" at contributed to
 differences between samples.
 
-```{r fig.width=5, fig.height=5}
+```{r}
 x <- assay(vsd)[,1]
 y <- assay(vsd)[,2]
 plot(.5*(x + y), y - x,
