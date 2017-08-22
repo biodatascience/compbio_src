@@ -1,0 +1,21 @@
+---
+title: "Expectation maximization"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+$$ \textrm{max}_\theta \textrm{E}_{Z|X,\theta^t} \left[ \log L(\theta; X, Z) \right] $$
+
+$$ = \textrm{E}_{Z|X,\theta^t} \left[ \log \prod_i \prod_c \pi_c f(x_i; \mu_c)^{\mathbb{1}(z_i = c)} \right] $$
+
+$$ = \textrm{E}_{Z|X,\theta^t} \left[ \sum_i \sum_c \mathbb{1}(z_i = c) (\log \pi_c + \log f(x_i; \mu_c)) \right] $$
+
+$$ \sum_i \sum_c \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = c) \left( \log \pi_c + \log \frac{1}{2\pi} - \frac{1}{2} (x_i - \mu_c)^2 \right) $$ 
+
+Now differentiate this double sum with respect to the mean of one of the components, say $\mu_2$, and set equal to zero:
+
+$$ \sum_i \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 2) (x_i - \mu_2) = 0 $$
+
+$$ \sum_i w_i^2 (x_i - \mu_2) = 0 $$
+
+$$ \hat{\mu}_2 = \frac{\sum_i w_i^2 x_i}{\sum_i w_i^2} $$
