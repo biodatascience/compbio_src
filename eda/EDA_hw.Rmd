@@ -1,0 +1,27 @@
+---
+title: "Homework 1"
+author: "your name here"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+
+# Question 1
+
+Make a ggplot showing the number of pseudogenes over the organism
+`type`. You can use `geom_point`. Sort the `orgs` table to show just
+the rows for the three organisms with the most pseudogenes.
+
+# Question 2
+
+Make a nice looking table using `kable`, which shows the ratio of
+transcripts (`tx`) to the number of genes (just add `coding` and
+`noncoding` genes), averaged for each organism `type`.
+
+# Question 3
+
+Using similar code as in the brain RNA Rmarkdown file, make a PCA
+plot for the samples in the following three regions, {Cortex,
+Hippocampus, and Hypothalamus} and color the samples by region.
+You can have one large chunk where you read in and pre-process the
+data using the same code from the Rmarkdown in class (you don't need
+to break this code into smaller chunks).
