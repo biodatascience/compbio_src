@@ -1,0 +1,128 @@
+---
+title: "Introduction to multiple testing"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+The following file is 60 Mb.
+
+```{r}
+url <- "http://chromovar3d.stanford.edu/QTLs/uncorrectedSignal/DNase_removeBlacklist_Log10PvalueThreshold_5_DATA_MATRIX.gz"
+file <- "DNase_peaks_matrix.gz"
+if (!file.exists(file)) download.file(url, file)
+library(readr)
+dnase <- read_delim(file, delim=" ")
+```
+
+```{r}
+dnase
+dim(dnase)
+```
+
+```{r}
+library(SummarizedExperiment)
+mat <- as.matrix(dnase[,4:ncol(dnase)])
+gr <- GRanges(dnase$chr, IRanges(dnase$start, dnase$end))
+se <- SummarizedExperiment(list(dnase=mat),
+                           rowRanges=gr)
+se
+```
+
+```{r}
+par(mfrow=c(2,2))
+for (i in 1:4) hist(assay(se)[i,], col="grey")
+```
+
+```{r}
+rs <- rowSums(assay(se))
+hist(log10(rs), col="grey")
+```
+
+```{r}
+library(genefilter)
+fake <- factor(rep(1:2,each=ncol(se)/2))
+system.time({
+  ts <- rowttests(assay(se), fake)
+})
+nbins <- 20
+brks <- 0:nbins/nbins
+hist(ts$p.value, col="grey", breaks=brks)
+```
+
+```{r}
+library(ggplot2)
+df <- data.frame(p=ts$p.value,
+                 rowsum=cut(rs, c(0,quantile(rs,1:5/6),1e5)))
+ggplot(df, aes(p)) +
+  geom_histogram(breaks=brks,col="black",fill="grey") + 
+  facet_wrap(~ rowsum) +
+  theme_bw()
+```
+
+```{r}
+p <- ts$p.value[rs < 300]
+hist(p, col="grey", breaks=brks)
+abline(h=length(p)/nbins, col="dodgerblue", lwd=3)
+1/nbins
+sum(p < 1/nbins)
+length(p)/nbins
+```
+
+```{r}
+p2 <- p
+p2[1:10000] <- 10^runif(10000,-6,-1)
+```
+
+```{r}
+padj.bonf <- p.adjust(p2, method="bonferroni")
+hist(padj.bonf, col="grey", breaks=brks)
+min(padj.bonf)
+min(p2) * length(p2) == min(padj.bonf)
+```
+
+```{r}
+padj.bh <- p.adjust(p2, method="BH")
+hist(padj.bh, col="grey", breaks=brks)
+min(padj.bh)
+```
+
+```{r}
+nbins <- 20
+brks <- 0:nbins/nbins
+hist(p2, col="grey", breaks=brks)
+abline(h=length(p)/nbins, col="dodgerblue", lwd=3)
+max(padj.bh[p2 < 1/nbins])
+```
+
+```{r}
+nbins <- 100
+brks <- 0:nbins/nbins
+hist(p2, col="grey", breaks=brks)
+abline(h=length(p)/nbins, col="dodgerblue", lwd=3)
+max(padj.bh[p2 < 1/nbins])
+```
+
+```{r}
+padj.sort <- sort(padj.bh)
+plot(-log10(padj.sort[1:2000]))
+plot(-log10(padj.sort[1:1000]))
+```
+
+```{r}
+p.sort <- sort(p2)
+alpha <- min(padj.bh)
+i <- sum(padj.bh == min.padj)
+m <- length(p2)
+plot(1:2000, p.sort[1:2000], ylim=c(0,p.sort[2000]), type="l")
+abline(0, 1/m * alpha, col="red")
+```
+
+```{r}
+library(qvalue)
+res <- qvalue(p2)
+qval.sort <- sort(res$qvalues)
+plot(padj.sort[1:2000], qval.sort[1:2000])
+abline(0,1)
+res$pi0
+1 - 10000/length(p)
+```

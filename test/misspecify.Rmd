@@ -1,0 +1,40 @@
+---
+title: "Mis-specification of distribution vs. correlation"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+```{r}
+n <- 3
+x <- rep(0:1,each=n)
+f <- factor(x)
+library(genefilter)
+betas <- rep(0:2/8, each=10000)
+mu <- outer(betas, x)
+y <- matrix(rnorm(30000 * 2 * n, mean=mu, sd=sqrt(1/12)), nrow=30000)
+t <- rowttests(y, f)
+t$betas <- betas
+library(ggplot2)
+ggplot(t, aes(x=p.value)) + geom_histogram(binwidth=.01) + facet_wrap(~betas)
+```
+
+```{r}
+y2 <- matrix(runif(30000 * 2 * n, min=mu-.5, max=mu+.5), nrow=30000)
+t2 <- rowttests(y2, f)
+t2$betas <- betas
+ggplot(t2, aes(x=p.value)) + geom_histogram(binwidth=.01) + facet_wrap(~betas)
+```
+
+```{r}
+library(MASS)
+Sigma <- diag(2*n)
+cor <- .75
+Sigma[c(2,1),c(1,2)] <- cor * 1/12
+Sigma[c(4,5),c(5,4)] <- cor * 1/12
+diag(Sigma) <- 1/12
+mats <- lapply(0:2/8, function(i) mvrnorm(n=10000, mu=rep(c(0,i),each=n), Sigma))
+y3 <- do.call(rbind, mats) 
+t3 <- rowttests(y3, f)
+t3$betas <- betas
+ggplot(t3, aes(x=p.value)) + geom_histogram(binwidth=.01) + facet_wrap(~betas)
+```

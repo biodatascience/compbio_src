@@ -1,0 +1,87 @@
+---
+title: "Intuition behind local FDR"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+```{r}
+n <- 10
+m <- 20000
+betas <- c(rep(0,.8*m),sort(runif(.2*m,0,2)))
+de <- rep(c(FALSE,TRUE),c(.8,.2)*m)
+x <- rep(0:1,each=n)
+f <- factor(x)
+library(genefilter)
+mu <- outer(betas, x)
+y <- matrix(rnorm(m * 2 * n, mean=mu), nrow=m)
+t <- rowttests(y, f)
+```
+
+```{r}
+library(magrittr)
+t$statistic %<>% (function(x) -1 * x)
+t$dm %<>% (function(x) -1 * x)
+t$de <- factor(de, levels=c(TRUE,FALSE))
+```
+
+```{r}
+plot(t$p.value)
+plot(-log10(t$p.value))
+plot(-log10(t$p.value[de]))
+hist(t$p.value, col="grey", breaks=0:20/20)
+abline(h=.8*m/20, col="blue", lwd=2)
+```
+
+```{r}
+library(ggplot2)
+ggplot(t, aes(x=statistic,fill=de)) + geom_histogram(bins=100)
+```
+
+```{r}
+max.t <- max(abs(t$statistic))
+brks <- seq(from=-max.t, max.t, length=100)
+h <- hist(t$statistic, breaks=brks, col="grey", freq=FALSE)
+pi <- .8
+s <- seq(from=-5,to=5,length=200)
+lines(s, dnorm(s), col="blue", lwd=3)
+lines(s, pi*dnorm(s), col="purple", lwd=3)
+```
+
+```{r}
+delta <- 0.1
+brks <- seq(from=-20, to=20, by=delta)
+h <- hist(t$statistic, breaks=brks, plot=FALSE)
+df <- data.frame(mids=h$mids, counts=h$counts, density=h$density)
+df <- df[df$mids > -3 & df$mids < 0,]
+plot(df$mids, df$counts)
+```
+
+```{r}
+brks <- seq(from=-3, to=0, by=delta)
+expected <- sapply(seq_len(length(brks)-1), function(i) pnorm(brks[i+1]) - pnorm(brks[i]))
+points(df$mids, m*expected, col="blue", type="o")
+```
+
+```{r}
+exp.counts <- m * expected
+plot(sqrt(exp.counts), sqrt(df$counts))
+fit <- lm(sqrt(df$counts) ~ 0 + sqrt(exp.counts))
+abline(0,1, col="blue")
+abline(fit, col="purple")
+pi.hat <- coef(fit)[1]^2
+```
+
+```{r}
+plot(df$mids, df$counts)
+points(df$mids, m*pi.hat*expected, col="purple", type="o")
+```
+
+```{r}
+df <- data.frame(mids=h$mids, counts=h$counts, density=h$density)
+df <- df[df$mids > -1 & df$mids < 5,]
+plot(df$mids, df$counts, ylim=c(0,max(df$counts)))
+lines(lowess(df$counts ~ df$mids, f=.15))
+brks <- seq(from=-1, to=5, by=delta)
+expected <- sapply(seq_len(length(brks)-1), function(i) pnorm(brks[i+1]) - pnorm(brks[i]))
+points(df$mids, m*pi.hat*expected, col="purple", type="o")
+```
