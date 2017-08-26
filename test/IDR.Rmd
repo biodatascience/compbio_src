@@ -6,17 +6,58 @@ output: html_document
 
 IDR is a package on CRAN.
 
-Replace the following with ENCODE ChIP-seq replicate data
+https://arxiv.org/abs/1110.4705
+
+https://www.encodeproject.org/experiments/ENCSR000AKB/
 
 ```{r}
-y1 <- c(rnorm(100,15,2), rnorm(900,10))
-y2 <- c(y1[1:100], rnorm(900,10)) + rnorm(1000,0,.5)
-plot(y1,y2)
+url1 <- "https://www.encodeproject.org/files/ENCFF340NHS/@@download/ENCFF340NHS.bed.gz"
+file1 <- "peaks_rep1.bed.gz"
+if (!file.exists(file1)) download.file(url1, file1)
+url2 <- "https://www.encodeproject.org/files/ENCFF899LRY/@@download/ENCFF899LRY.bed.gz"
+file2 <- "peaks_rep2.bed.gz"
+if (!file.exists(file2)) download.file(url2, file2)
+```
+
+https://genome.ucsc.edu/FAQ/FAQformat.html#format12
+
+```{r}
+library(readr)
+library(GenomicRanges)
+df1 <- read_delim(file1, delim="\t", col_names=FALSE)
+df2 <- read_delim(file2, delim="\t", col_names=FALSE)
+peak1 <- GRanges(df1$X1, IRanges(df1$X2, df1$X3), score=df1$X7)
+peak2 <- GRanges(df2$X1, IRanges(df2$X2, df2$X3), score=df2$X7)
+peak1 <- keepStandardChromosomes(peak1, pruning.mode="coarse")
+peak2 <- keepStandardChromosomes(peak2, pruning.mode="coarse")
+```
+
+```{r}
+fo <- findOverlaps(peak1, peak2)
+length(fo)
+table(duplicated(from(fo)))
+table(duplicated(to(fo)))
+```
+
+```{r}
+fo <- as.data.frame(fo)
+fo2 <- fo[!duplicated(fo$queryHits) & !duplicated(fo$subjectHits),]
+```
+
+```{r}
+y1 <- peak1$score[fo2$queryHits]
+y2 <- peak2$score[fo2$subjectHits]
+plot(y1, y2, cex=.1)
+```
+
+```{r}
+plot(rank(-y1), rank(-y2), cex=.1)
+plot(rank(-y1), rank(-y2), xlim=c(0,1000), ylim=c(0,1000))
 ```
 
 ```{r}
 library(idr)
-res <- est.IDR(cbind(y1,y2), mu=mean(y1), sigma=1, rho=.5, p=.1)
+res <- est.IDR(cbind(y1,y2), mu=mean(y1), sigma=sd(y1), rho=.5, p=.5)
 ```
 
 ```{r}
