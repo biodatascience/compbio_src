@@ -1,0 +1,26 @@
+---
+title: "Irreproducible discovery rate"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+IDR is a package on CRAN.
+
+Replace the following with ENCODE ChIP-seq replicate data
+
+```{r}
+y1 <- c(rnorm(100,15,2), rnorm(900,10))
+y2 <- c(y1[1:100], rnorm(900,10)) + rnorm(1000,0,.5)
+plot(y1,y2)
+```
+
+```{r}
+library(idr)
+res <- est.IDR(cbind(y1,y2), mu=mean(y1), sigma=1, rho=.5, p=.1)
+```
+
+```{r}
+library(ggplot2)
+df <- data.frame(y1=y1,y2=y2,idr=res$idr)
+ggplot(df, aes(y1,y2,col=idr)) + geom_point()
+```
