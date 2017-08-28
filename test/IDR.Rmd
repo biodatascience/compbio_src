@@ -4,22 +4,22 @@ author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
 
-IDR is a package on CRAN.
-
 https://arxiv.org/abs/1110.4705
 
-https://www.encodeproject.org/experiments/ENCSR000AKB/
+https://www.encodeproject.org/experiments/ENCSR841NDX/
+
+https://genome.ucsc.edu/FAQ/FAQformat.html#format12
+
+ELF1 ChIP-seq on human GM12878 (immortalized cell line)
 
 ```{r}
-url1 <- "https://www.encodeproject.org/files/ENCFF340NHS/@@download/ENCFF340NHS.bed.gz"
+url1 <- "https://www.encodeproject.org/files/ENCFF003ZKO/@@download/ENCFF003ZKO.bed.gz"
 file1 <- "peaks_rep1.bed.gz"
 if (!file.exists(file1)) download.file(url1, file1)
-url2 <- "https://www.encodeproject.org/files/ENCFF899LRY/@@download/ENCFF899LRY.bed.gz"
+url2 <- "https://www.encodeproject.org/files/ENCFF093VDW/@@download/ENCFF093VDW.bed.gz"
 file2 <- "peaks_rep2.bed.gz"
 if (!file.exists(file2)) download.file(url2, file2)
 ```
-
-https://genome.ucsc.edu/FAQ/FAQformat.html#format12
 
 ```{r}
 library(readr)
@@ -48,20 +48,33 @@ fo2 <- fo[!duplicated(fo$queryHits) & !duplicated(fo$subjectHits),]
 y1 <- peak1$score[fo2$queryHits]
 y2 <- peak2$score[fo2$subjectHits]
 plot(y1, y2, cex=.1)
+plot(log10(y1), log10(y2), cex=.1)
 ```
 
 ```{r}
 plot(rank(-y1), rank(-y2), cex=.1)
-plot(rank(-y1), rank(-y2), xlim=c(0,1000), ylim=c(0,1000))
 ```
+
+IDR is a package on CRAN, but it is no longer maintained. The authors
+now maintain IDR as a python package.
 
 ```{r}
 library(idr)
-res <- est.IDR(cbind(y1,y2), mu=mean(y1), sigma=sd(y1), rho=.5, p=.5)
+dat <- cbind(log10(y1), log10(y2))
+dat <- dat[sample(nrow(dat),5000),]
+system.time({ 
+  res <- est.IDR(dat, mu=3, sigma=1, rho=.9, p=.5)
+})
+df <- data.frame(rep1=dat[,1],rep2=dat[,2],
+                 rank1=rank(-dat[,1]),rank2=rank(-dat[,2]),
+                 idr=res$idr)
 ```
 
 ```{r}
 library(ggplot2)
-df <- data.frame(y1=y1,y2=y2,idr=res$idr)
-ggplot(df, aes(y1,y2,col=idr)) + geom_point()
+ggplot(df, aes(rep1,rep2,col=idr)) + geom_point()
+```
+
+```{r}
+ggplot(df, aes(rank1,rank2,col=idr)) + geom_point()
 ```
