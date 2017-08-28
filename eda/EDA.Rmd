@@ -34,23 +34,19 @@ the end result to the left-hand side.
 
 We will see other "pipes" from *magrittr* later on.
 
-```{r}
+```{r message=FALSE}
 library(magrittr)
 orgs$type %<>% factor
 ```
 
 Let's make some plots of the number of basepairs in the genomes of
 these organisms, split by the type of organism. There's one plant with
-a really large genome. The `bigpar` command makes the labels really
-large, which is advisable for making plots for slides or posters.
+a really large genome. 
 We use the `stripplot` function, which is in the `lattice` package: 
 this draws points for each level of a factor, similar to a boxplot,
 but is preferred when there are not many observations (e.g. < 20).
 
-```{r stripplots}
-library(rafalib)
-bigpar()
-library(lattice)
+```{r message=FALSE}
 with(orgs, stripplot(bp ~ type))
 with(orgs, stripplot(log10(bp) ~ type))
 ```
@@ -66,11 +62,18 @@ orgs[which.max(orgs$bp),]
 Let's remove it for now to make plots where we can see the range of
 the other organisms.
 
-I plot the number of genes that code for proteins over the total
+```{r}
+orgs <- orgs[orgs$name != "Wheat",]
+```
+
+First, I use the `bigpar` command to make the labels really
+large, which is advisable for making plots for slides or posters.
+Then I plot the number of genes that code for proteins over the total
 number of basepairs:
 
-```{r scatterbase}
-orgs <- orgs[orgs$name != "Wheat",]
+```{r message=FALSE}
+library(rafalib)
+bigpar()
 with(orgs, plot(bp, coding, col=type, pch=20, cex=2))
 legend("topright", levels(orgs$type), col=1:nlevels(orgs$type), pch=20)
 # right click to Esc from identify()
@@ -80,7 +83,7 @@ legend("topright", levels(orgs$type), col=1:nlevels(orgs$type), pch=20)
 Another way to make a plot with labels is using 
 [ggplot2](http://ggplot2.tidyverse.org/reference/):
 
-```{r scattergg}
+```{r}
 library(ggplot2)
 ggplot(orgs, aes(bp, coding, color=type)) +
   geom_point(size=3)
@@ -150,7 +153,7 @@ kable(tab)
 We can use summarization as a mid-point and then send those summaries
 to a plotting function. For example, points and line ranges:
 
-```{r pointrange}
+```{r}
 # here we have to name the median something other than `bp`
 orgs %>%
   group_by(type) %>%
@@ -164,7 +167,7 @@ orgs %>%
 ggplot2 is great for grouping points together with summarizing
 graphical elements, such as lines through sets of points:
 
-```{r linesummary}
+```{r}
 ggplot(orgs, aes(bp, coding, col=type)) +
   geom_point() + geom_smooth(se=FALSE, method="lm")
 ```
@@ -172,7 +175,7 @@ ggplot(orgs, aes(bp, coding, col=type)) +
 Also for "faceting" plots, breaking into multiple scatter plots by
 breaking along a variable:
 
-```{r faceting}
+```{r}
 ggplot(orgs, aes(bp, coding)) +
   geom_point() + facet_wrap(~ type, scales="free")
 ```
@@ -197,20 +200,20 @@ table(dat$type)
 
 It's straightforward to draw these as overlapping densities:
 
-```{r ggdensity}
+```{r}
 ggplot(dat, aes(z, col=type, fill=type)) + geom_density(alpha=0.1)
 ```
 
 Or as histograms:
 
-```{r gghist}
+```{r}
 ggplot(dat, aes(z, col=type, fill=type)) +
   geom_histogram(alpha=0.1, position="identity")
 ```
 
 Another option, putting the bars beside each other:
 
-```{r gghistdodge}
+```{r}
 ggplot(dat, aes(z, col=type, fill=type)) +
   geom_histogram(position="dodge")
 ```
