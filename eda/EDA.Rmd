@@ -43,10 +43,14 @@ Let's make some plots of the number of basepairs in the genomes of
 these organisms, split by the type of organism. There's one plant with
 a really large genome. The `bigpar` command makes the labels really
 large, which is advisable for making plots for slides or posters.
+We use the `stripplot` function, which is in the `lattice` package: 
+this draws points for each level of a factor, similar to a boxplot,
+but is preferred when there are not many observations (e.g. < 20).
 
 ```{r stripplots}
 library(rafalib)
 bigpar()
+library(lattice)
 with(orgs, stripplot(bp ~ type))
 with(orgs, stripplot(log10(bp) ~ type))
 ```
@@ -105,6 +109,8 @@ c(1:9,1000) %>% mean(trim=.1)
 
 Using dplyr, let's show, adding a new column
 which tallies up the number of coding and non-coding genes:
+Here we could also have used just `%<>%` instead of `%>%` and `->` at
+the end.
 
 ```{r}
 library(dplyr)
