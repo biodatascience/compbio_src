@@ -47,14 +47,13 @@ url <- "http://duffel.rail.bio/recount/SRP012682/rse_gene_brain.Rdata"
 file <- "brain.rda"
 if (!file.exists(file)) download.file(url, file)
 load(file)
-ls()
 ```
 
 I've written a simple function which scales the gene expression data.
 It should roughly be *counts* of molecules detected for each gene and
 for each sample. It takes maybe half a minute to do the scaling.
 
-```{r}
+```{r, message=FALSE}
 library(SummarizedExperiment)
 source("../bioc/my_scale_counts.R")
 rse <- my_scale_counts(rse_gene)
@@ -80,7 +79,7 @@ head(condition)
 
 We'll do a little string processing, to chop off the redundant information:
 
-```{r}
+```{r message=FALSE}
 library(magrittr)
 condition %<>% (function(x) sub("Brain - (.*)", "\\1", x))
 condition %<>% factor
