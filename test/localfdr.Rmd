@@ -6,7 +6,23 @@ output: html_document
 
 In a previous [section](multtest.html), we looked at *adjusting*
 p-values to define sets with bounds on the family-wise error or false
-discovery rates. 
+discovery rates. Here I want to show the idea behind a related method
+called *local FDR* calculation. A nice description of this framework
+is presented in the paper, 
+[Large-Scale simultaneous hypothesis testing](http://www.tandfonline.com/doi/abs/10.1198/016214504000000089) 
+by Bradley Efron. There is also an R package implementing the methods,
+which is the 
+[locfdr](https://cran.r-project.org/web/packages/locfdr/index.html)
+package on CRAN.
+
+Here, I will use entirely simulated data, as I want to show a simple
+case of how we might estimate the local FDR. Suppose we have 20k tests
+of some genomic assay, and we have 10 individuals in 2 groups. For 80%
+of the tests, there is no difference between the groups, but for 20%
+of the tests, there is a difference, and I will construct the
+simulation such that the differences are all *positive*. Below I
+construct simulated data according to this paradigm, and then I use a
+t-test to produce t-statistics.
 
 ```{r echo=FALSE}
 knitr::opts_chunk$set(cache=TRUE)
@@ -16,7 +32,7 @@ knitr::opts_chunk$set(cache=TRUE)
 n <- 10
 m <- 20000
 betas <- c(rep(0,.8*m),sort(runif(.2*m,0,2)))
-de <- rep(c(FALSE,TRUE),c(.8,.2)*m)
+diff <- rep(c(FALSE,TRUE),c(.8,.2)*m)
 x <- rep(0:1,each=n)
 f <- factor(x)
 library(genefilter)
@@ -25,25 +41,69 @@ y <- matrix(rnorm(m * 2 * n, mean=mu), nrow=m)
 t <- rowttests(y, f)
 ```
 
+Small note: the `rowttests` function provides test statistics that are
+the opposite sign as many other methods (e.g. `lm` and most other
+Bioconductor packages), so we flip the sign of the statistic so it
+corresponds to a difference of the group x=1 relative to group x=0.
+We do the same for the difference in means `dm`, and we define a
+factor `diff` which tells us whether there is a true difference
+greater than 0.
+
 ```{r}
 library(magrittr)
 t$statistic %<>% (function(x) -1 * x)
 t$dm %<>% (function(x) -1 * x)
-t$de <- factor(de, levels=c(TRUE,FALSE))
+t$diff <- factor(diff, levels=c(TRUE,FALSE))
 ```
+
+Here I plot the p-values for all 20,000 tests.
+On the -log10 scale, you can see the enrichment in small p-values for
+the true alternative hypotheses at the end of the list of 20,000. 
 
 ```{r}
 plot(t$p.value)
 plot(-log10(t$p.value))
-plot(-log10(t$p.value[de]))
+```
+
+Additionally, we can see the set of alternative hypotheses in a
+histogram of p-values. We draw a horizontal line using the known
+proportion of nulls, $\pi_0 = 0.8$.
+
+```{r}
 hist(t$p.value, col="grey", breaks=0:20/20)
 abline(h=.8*m/20, col="blue", lwd=2)
 ```
 
+However, aside from looking at the p-values, we could look at the
+t-statistics alone. Because we used simulation, we can color the tests
+according to belonging to the set of null or alternative hypotheses.
+Note that, we simulated positive differences between the two groups,
+so the t-statistics for the alternative hypotheses form a right tail
+for the total distribution. 
+
+The basic idea of local FDR is that, we
+might try to estimate the null distribution from the total
+distribution. Then we could say for a given observed t-statistic,
+the ratio of blue in a vertical slice is the expected proportion of
+false discoveries for nearby t-statistics (and so "local").
+In the general case, we will not have strictly positive differences
+and so there is quite a lot of complex statistical methods which can
+help to estimate the null distribution from the center of a
+distribution of mixed null and alternative test statistics. See
+Section 3, "Estimating the empirical null distribution", of the paper
+linked above.
+
 ```{r}
 library(ggplot2)
-ggplot(t, aes(x=statistic,fill=de)) + geom_histogram(bins=100)
+ggplot(t, aes(x=statistic,fill=diff)) + geom_histogram(bins=100)
 ```
+
+Here I will sketch out the steps one could use in the case that we
+know the differences are positive. We need to estimate the total
+distribution, and also we need to estimate $\pi_0$. We can see that
+the total distribution in this case basically covers a standard normal
+distribution scaled down by 0.8. (If we wanted to be even more exact, we
+could use a t-distribution with 10-2 degrees of freedom.)
 
 ```{r}
 max.t <- max(abs(t$statistic))
@@ -54,6 +114,11 @@ s <- seq(from=-5,to=5,length=200)
 lines(s, dnorm(s), col="blue", lwd=3)
 lines(s, pi0*dnorm(s), col="purple", lwd=3)
 ```
+
+We can try to estimate $\pi_0$ by looking at the left side of the
+distribution. For example, we observe a certain set of counts along
+bins of t-statistics, and we can plot the expected counts if all of
+the hypotheses were null. 
 
 ```{r}
 delta <- 0.1
@@ -67,6 +132,13 @@ expected <- sapply(seq_len(length(brks)-1), function(i) pnorm(brks[i+1]) - pnorm
 points(df$mids, m*expected, col="blue", type="o")
 ```
 
+Since we are working with counts, we do a bit better by taking the
+square root, which helps with variance stabilization. We can then try
+to fit a line to the observed counts over the expected counts after
+root transformation. We then estimate $\pi_0$ as the slope of this
+line squared. Our estimate is fairly close to the true value of 0.8
+(80% hypotheses are null).
+
 ```{r}
 exp.counts <- m * expected
 plot(sqrt(exp.counts), sqrt(df$counts))
@@ -74,19 +146,43 @@ fit <- lm(sqrt(df$counts) ~ 0 + sqrt(exp.counts))
 abline(0,1, col="blue")
 abline(fit, col="purple")
 pi0.hat <- coef(fit)[1]^2
+pi0.hat
 ```
+
+We can then plot the observed counts of t-statistics on the left side
+of the distribution with our new curve:
 
 ```{r}
 plot(df$mids, df$counts)
 points(df$mids, m*pi0.hat*expected, col="purple", type="o")
 ```
 
+Finally, we plot the distribution on the right side, and put a smooth
+line with the `lowess` function.
+
 ```{r}
 df <- data.frame(mids=h$mids, counts=h$counts, density=h$density)
 df <- df[df$mids > -1 & df$mids < 5,]
+plot(df$mids, df$counts, ylim=c(0,max(df$counts)))
+lines(lowess(df$counts ~ df$mids, f=.15))
+```
+
+When we add the estimated scaled density for the null hypotheses, we
+see something similar to the histogram above, where we colored the
+stacked bars according to whether they belonged to null or alternative
+sets. Here we could estimate the local FDR for a given t-statistic
+using the ratio of the purple line out of the black line.
+
+```{r}
 plot(df$mids, df$counts, ylim=c(0,max(df$counts)))
 lines(lowess(df$counts ~ df$mids, f=.15))
 brks <- seq(from=-1, to=5, by=delta)
 expected <- sapply(seq_len(length(brks)-1), function(i) pnorm(brks[i+1]) - pnorm(brks[i]))
 points(df$mids, m*pi0.hat*expected, col="purple", type="o")
 ```
+
+However, note that these steps we have applied here are very rough,
+and mostly useful for demonstration of the idea. For practical
+analysis purposes you should read and use the links above for the
+local FDR paper and 
+[locfdr](https://cran.r-project.org/web/packages/locfdr/index.html) package.
