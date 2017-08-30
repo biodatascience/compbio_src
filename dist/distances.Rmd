@@ -50,7 +50,7 @@ SummarizedExperiment.
 
 ```{r}
 library(readr)
-pheno <- read_tsv("geuvadis.tsv")
+pheno <- read_tsv(here("dist","geuvadis.tsv"))
 df <- data.frame(pheno[,c("Run_s","Center_Name_s","population_s")])
 df <- data.frame(lapply(df, factor))
 colnames(df) <- c("run","center","population")

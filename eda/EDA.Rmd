@@ -12,9 +12,10 @@ from the [Ensembl](http://ensembl.org) website.
 We start by reading in the TSV (tab-separated value) data
 using the readr package:
 
-```{r}
+```{r message=FALSE}
 library(readr)
-orgs <- read_tsv("organisms_genes.tsv")
+library(here)
+orgs <- read_tsv(here("EDA","organisms_genes.tsv"))
 head(orgs)
 table(orgs$type)
 ```
@@ -47,6 +48,7 @@ this draws points for each level of a factor, similar to a boxplot,
 but is preferred when there are not many observations (e.g. < 20).
 
 ```{r message=FALSE}
+library(lattice)
 with(orgs, stripplot(bp ~ type))
 with(orgs, stripplot(log10(bp) ~ type))
 ```
@@ -115,7 +117,7 @@ which tallies up the number of coding and non-coding genes:
 Here we could also have used just `%<>%` instead of `%>%` and `->` at
 the end.
 
-```{r}
+```{r message=FALSE}
 library(dplyr)
 orgs %>% mutate(genes = coding + noncoding) -> orgs
 orgs$genes
