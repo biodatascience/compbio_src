@@ -4,13 +4,55 @@ author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
 
-https://arxiv.org/abs/1110.4705
+We've discussed the [false discovery rate](multtest.html) 
+and the [local false discovery](localfdr.html)
+rate, which both involve the assumption of two groups of hypotheses in
+the data: a set of null hypotheses, and a set of alternative
+hypotheses. Here, I'd like to introduce a slightly different framework
+for assigning probabilities to high-throughput data, which is called
+the *irreproducible discovery rate*, or IDR. A reference for the IDR
+is the article 
+[Measuring reproducibility of high-throughput experiments](https://arxiv.org/abs/1110.4705)
+by Qunhua Li, James B. Brown, Haiyan Huang, and Peter J. Bickel.
 
-https://www.encodeproject.org/experiments/ENCSR841NDX/
+The main idea is to imagine we have two replicates for a
+high-throughput experiment, each which produce some kind of score for
+many thousands of locations in the genome, and such that higher scores
+are more interesting for the investigators. Rather than trying to
+define what constitutes a null distribution of scores, we ask a
+different question: what is the probability that we see a high score
+in one replicate, but that we would see a lower score if we repeat the
+experiment. We essentially want a set of locations where the scores
+are high and reproducibly so. We will see what this looks like in
+practice, using ChIP-seq data, which is the kind of dataset that the
+method was expressly designed to help with.
 
-https://genome.ucsc.edu/FAQ/FAQformat.html#format12
+ChIP-seq is an experiment which tells us the location of proteins
+bound to DNA along the genome. There are numerous software for
+defining discrete regions, called "peaks", where the sequenced reads
+stack up, which indicates a location where protein was frequently
+bound to DNA, looking across the many cells that are pooled to perform
+a ChIP-seq experiment. Each peak can be given a "score" as to how
+certain we are that a protein may have been bound there, which relates
+to the number of reads that stack up in the peak, and also takes into
+account the "background" of reads. Typically, a control experiment is
+performed without a specific antibody, and the number of reads for the
+specific antibody ChIP-seq is compared relative to the number of reads
+for the control experiment.
 
-ELF1 ChIP-seq on human GM12878 (immortalized cell line)
+The ENCODE project produced many ChIP-seq experiments for various
+proteins and across many cell lines. We will focus on a specific
+experiment which is listed 
+[here](https://www.encodeproject.org/experiments/ENCSR841NDX/).
+This specific experiment is called "ELF1 ChIP-seq on human GM12878"
+(immortalized cell line), which means that the protein of interest was
+ELF1, and the experiment was performed on the GM12878 cell line.
+
+The BED format is described [here](https://genome.ucsc.edu/FAQ/FAQformat.html#format12)
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
 
 ```{r}
 url1 <- "https://www.encodeproject.org/files/ENCFF003ZKO/@@download/ENCFF003ZKO.bed.gz"
@@ -21,7 +63,7 @@ file2 <- "peaks_rep2.bed.gz"
 if (!file.exists(file2)) download.file(url2, file2)
 ```
 
-```{r}
+```{r message=FALSE}
 library(readr)
 library(GenomicRanges)
 df1 <- read_delim(file1, delim="\t", col_names=FALSE)

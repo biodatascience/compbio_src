@@ -44,7 +44,7 @@ ranges is not universal. The BED convention is that the range does
 **not** include the start position of the range. So 101-110 in BED
 format would not include the 101th basepair.)
 
-```{r}
+```{r message=FALSE}
 library(rafalib)
 nullplot(start(range(ir)), end(range(ir))+1, 0, 6, xaxt="n")
 abline(v=100:115, col="grey")
@@ -202,4 +202,73 @@ So roughly 1 gene per 50,000 basepairs, averaging per chromosome.
 
 ```{r}
 mean((lens/tab)[-which(names(tab) == "MT")])
+```
+
+# Finding overlaps
+
+Finally, I want to introduce some functionality we will use a couple
+times later in the course: finding overlaps of sets of genomic ranges.
+One scenario is that we have two sets and we want to know which ranges
+from the two sets overlap each other. We might make a *query* set and
+ask which genes are overlapping the set in our query.
+
+```{r}
+query <- GRanges(1, IRanges((101:110)*1e6 + 1,width=1e6))
+query
+```
+
+We can get the numeric indices of the overlaps using `findOverlaps`.
+Note that we can turn this resulting object into a data.frame, for
+further processing.
+
+```{r}
+fo <- findOverlaps(query, g)
+head(fo)
+tail(fo)
+table(from(fo))
+fo <- as.data.frame(fo)
+```
+
+We can also find out which genes overlap which other genes, by just
+providing a single set of ranges to `findOverlaps`. There are *many*
+overlapping genes in the human genome, though you should note that we
+obtain at least two rows in the resulting *Hits* object for every
+overlap, and so we can filter this object down by insisting that one
+index be strictly less than the other.
+
+```{r}
+fo <- findOverlaps(g)
+head(fo)
+fo <- as.data.frame(fo)
+fo <- fo[fo[,1] < fo[,2],]
+head(fo)
+nrow(fo)
+```
+
+Earlier, when we defined *query*, we didn't consider strand, and so
+the strand of the ranges was defined as `*`. This means that we get
+overlaps of any genes whether + or -. But when we ask whether the
+genes overlap each other, by default `findOverlaps` will not count an
+overlap if the ranges are on different strand. To ask how many genes
+overlap each other ignoring strand, we need to specify
+`ignore.strand=TRUE` (which produces more overlaps).
+
+```{r}
+fo <- findOverlaps(g, ignore.strand=TRUE)
+fo <- as.data.frame(fo)
+fo <- fo[fo[,1] < fo[,2],]
+nrow(fo)
+```
+
+If we just wanted to subset to the genes which overlap a given range,
+we can use `overlapsAny`:
+
+```{r}
+g[overlapsAny(g, query[1])]
+```
+
+This is equivalent to the following:
+
+```{r}
+g[g %over% query[1]]
 ```
