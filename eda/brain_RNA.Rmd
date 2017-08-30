@@ -55,13 +55,18 @@ for each sample. It takes maybe half a minute to do the scaling.
 
 ```{r, message=FALSE}
 library(SummarizedExperiment)
-source("../bioc/my_scale_counts.R")
+library(here)
+source(here("bioc","my_scale_counts.R"))
 rse <- my_scale_counts(rse_gene)
 ```
 
 We will learn about this `rse` object later for now we will just
 extract the information we need to do some EDA (exploratory data
-analysis). We have ~60,000 genes and ~1400 samples.
+analysis). There are smarter ways to work with these objects than
+extracting the matrices, which we will see next week when we explore
+Bioconductor objects.
+
+We have ~60,000 genes and ~1400 samples.
 
 ```{r}
 cts <- assay(rse)

@@ -135,7 +135,8 @@ We use a custom function to produce a matrix which a count of RNA
 fragments for each gene (rows) and each sample (columns)
 
 ```{r}
-source("my_scale_counts.R")
+library(here)
+source(here("bioc","my_scale_counts.R"))
 rse <- my_scale_counts(rse_gene)
 ```
 

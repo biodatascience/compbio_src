@@ -39,7 +39,8 @@ url <- "http://duffel.rail.bio/recount/ERP001942/rse_gene.Rdata"
 file <- "geuvadis_recount2.rda"
 if (!file.exists(file)) download.file(url, file)
 load(file)
-source("../bioc/my_scale_counts.R")
+library(here)
+source(here("bioc","my_scale_counts.R"))
 rse <- my_scale_counts(rse_gene)
 ```
 
