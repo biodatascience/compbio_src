@@ -5,8 +5,8 @@ output: html_document
 ---
 
 We've discussed the [false discovery rate](multtest.html) 
-and the [local false discovery](localfdr.html)
-rate, which both involve the assumption of two groups of hypotheses in
+and the [local false discovery rate](localfdr.html),
+which both involve the assumption of two groups of hypotheses in
 the data: a set of null hypotheses, and a set of alternative
 hypotheses. Here, I'd like to introduce a slightly different framework
 for assigning probabilities to high-throughput data, which is called
@@ -15,40 +15,49 @@ is the article
 [Measuring reproducibility of high-throughput experiments](https://arxiv.org/abs/1110.4705)
 by Qunhua Li, James B. Brown, Haiyan Huang, and Peter J. Bickel.
 
-The main idea is to imagine we have two replicates for a
-high-throughput experiment, each which produce some kind of score for
-many thousands of locations in the genome, and such that higher scores
-are more interesting for the investigators. Rather than trying to
-define what constitutes a null distribution of scores, we ask a
-different question: what is the probability that we see a high score
-in one replicate, but that we would see a lower score if we repeat the
-experiment. We essentially want a set of locations where the scores
-are high and reproducibly so. We will see what this looks like in
+Imagine we have two replicates for a high-throughput experiment, each
+which produce some kind of score for many thousands of locations in
+the genome, where higher scores are the interesting locations. Rather
+than trying to define what constitutes a null distribution of scores,
+we ask a different question: what is the probability that, when we see
+a high score for one experiment, we would see a low score for a
+replicated experiment? We want a set of locations where the scores are
+high and reproducibly so, or at least to define how often we would not
+see reproducibly high scores. We will see what this looks like in
 practice, using ChIP-seq data, which is the kind of dataset that the
-method was expressly designed to help with.
+method was designed to help with.
 
-ChIP-seq is an experiment which tells us the location of proteins
-bound to DNA along the genome. There are numerous software for
-defining discrete regions, called "peaks", where the sequenced reads
-stack up, which indicates a location where protein was frequently
-bound to DNA, looking across the many cells that are pooled to perform
-a ChIP-seq experiment. Each peak can be given a "score" as to how
-certain we are that a protein may have been bound there, which relates
-to the number of reads that stack up in the peak, and also takes into
-account the "background" of reads. Typically, a control experiment is
-performed without a specific antibody, and the number of reads for the
-specific antibody ChIP-seq is compared relative to the number of reads
-for the control experiment.
+# ChIP-seq
 
-The ENCODE project produced many ChIP-seq experiments for various
+[ChIP-seq](https://en.wikipedia.org/wiki/ChIP-sequencing)
+is an experiment to determine the location of proteins bound to DNA
+along the genome. After aligning the sequenced reads to the genome,
+there are numerous software for defining the discrete regions, called
+"peaks", where the sequenced reads stack up, which would indicate a
+location where protein was frequently bound to DNA, looking across the
+many cells that are pooled to perform a ChIP-seq experiment. Each peak
+can be given a "score" as to how certain we are that a protein may
+have been bound there, which relates to the number of reads that stack
+up in the peak, and also takes into account the "background" of
+reads. Typically, a control experiment is performed without a specific
+antibody, and the number of reads for the ChIP experiment is compared
+relative to the number of reads for the control experiment.
+
+The [ENCODE project](https://www.encodeproject.org/)
+produced many ChIP-seq experiments for various
 proteins and across many cell lines. We will focus on a specific
 experiment which is listed 
 [here](https://www.encodeproject.org/experiments/ENCSR841NDX/).
-This specific experiment is called "ELF1 ChIP-seq on human GM12878"
-(immortalized cell line), which means that the protein of interest was
-ELF1, and the experiment was performed on the GM12878 cell line.
-
-The BED format is described [here](https://genome.ucsc.edu/FAQ/FAQformat.html#format12)
+This specific experiment is called "ELF1 ChIP-seq on human GM12878
+(immortalized cell line)", which means that the protein of interest was
+ELF1, and the experiment was performed on the GM12878 cell line. We
+download two files: narrowPeak BED files indicating the peaks for the two
+replicates of the experiment. The narrowPeak BED format is
+described [here](https://genome.ucsc.edu/FAQ/FAQformat.html#format12),
+but the important thing for our purposes is that the first three
+columns indicate the chromosome, start and end of the peak, and the
+seventh column has the score for the peak. We download these
+compressed narrowPeak BED files with the following code:
 
 ```{r echo=FALSE}
 knitr::opts_chunk$set(cache=TRUE)
@@ -63,6 +72,10 @@ file2 <- "peaks_rep2.bed.gz"
 if (!file.exists(file2)) download.file(url2, file2)
 ```
 
+We then read in these narrowPeak BED files using `read_delim`, and
+then construct GRanges objects for each replicate. Finally, we subset
+to just the standard chromosomes (chr1-chr22,chrX,chrY,chrM).
+
 ```{r message=FALSE}
 library(readr)
 library(GenomicRanges)
@@ -74,31 +87,70 @@ peak1 <- keepStandardChromosomes(peak1, pruning.mode="coarse")
 peak2 <- keepStandardChromosomes(peak2, pruning.mode="coarse")
 ```
 
+In order to determine the irreproducible discovery rate, we need to
+first identify the set of peaks that are overlapping in the two
+experiments. To do this, we use the `findOverlap` function. 
+
 ```{r}
 fo <- findOverlaps(peak1, peak2)
+length(peak1)
+length(peak2)
 length(fo)
+```
+
+Many of the peaks in one replicate do not overlap a peak in the other
+experiment. Additionally, there are a number of peaks in one
+experiment which overlap more than one peak in the other
+experiment. Ideally, we would make a more complicated decision here,
+to merge the scores from the multiple overlapping peaks, but here, for
+demonstration of the method, we just remove these peaks with multiple
+overlaps.
+
+```{r}
 table(duplicated(from(fo)))
 table(duplicated(to(fo)))
-```
-
-```{r}
 fo <- as.data.frame(fo)
-fo2 <- fo[!duplicated(fo$queryHits) & !duplicated(fo$subjectHits),]
+fo <- fo[!duplicated(fo$queryHits) & !duplicated(fo$subjectHits),]
 ```
 
-```{r}
-y1 <- peak1$score[fo2$queryHits]
-y2 <- peak2$score[fo2$subjectHits]
+We now define two variables: the set of scores for the two
+replicates. Because we use `fo` to index the `score` column of the
+peaks, we know that `y1` and `y2` now contain the corresponding
+scores. On the raw score scale, we can see the overlapping peaks with
+the highest score are consistently high in both experiments.
+
+```{r fig.width=5, fig.height=5}
+y1 <- peak1$score[fo[,1]]
+y2 <- peak2$score[fo[,2]]
 plot(y1, y2, cex=.1)
+```
+
+On the log scale, we can see that the consistency falls off as the
+scores get lower:
+
+```{r fig.width=5, fig.height=5}
 plot(log10(y1), log10(y2), cex=.1)
 ```
 
-```{r}
+Finally, plotting the ranks (highest to lowest), we can see much more
+clearly how the consistency falls off after around 20,000 peaks. For
+example, note that there are peaks ranked within the top 20,000 for
+one experiment, which are ranked lowest for the replicate experiment.
+
+```{r fig.width=5, fig.height=5}
 plot(rank(-y1), rank(-y2), cex=.1)
 ```
 
-IDR is a package on CRAN, but it is no longer maintained. The authors
-now maintain IDR as a python package.
+We use the `idr` package to estimate the IDR for these replicates. 
+Note that the IDR package authors now maintain IDR as
+a [python package](https://github.com/nboley/idr). The python package
+is reported to be faster than the R package. 
+
+From exploring use of the R package, I noticed it required that the
+scores be log transformed. Here we subset to just
+5,000 randomly sampled peaks to demonstrate use of the package.
+Finally, we combine the results and original data into a data.frame
+`df`. 
 
 ```{r}
 library(idr)
@@ -112,10 +164,17 @@ df <- data.frame(rep1=dat[,1],rep2=dat[,2],
                  idr=res$idr)
 ```
 
+We can plot the log scores for the two replicates and indicate the
+estimated IDR using ggplot2.
+
 ```{r}
 library(ggplot2)
 ggplot(df, aes(rep1,rep2,col=idr)) + geom_point()
 ```
+
+Again, plotting the IDR, now with the ranks for the two
+replicates. Note how the IDR increases in the zones where a high score
+for one replicate is associated with a low score for the other replicate.
 
 ```{r}
 ggplot(df, aes(rank1,rank2,col=idr)) + geom_point()
