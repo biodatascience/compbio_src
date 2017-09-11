@@ -12,68 +12,83 @@ $$ = \textrm{E}_{Z|X,\theta^t} \left[ \sum_i \sum_c \mathbb{1}(z_i = c) (\log \p
 
 $$ \sum_i \sum_c \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = c) \left( \log \pi_c + \log \frac{1}{2\pi} - \frac{1}{2} (x_i - \mu_c)^2 \right) $$ 
 
-Now differentiate this double sum with respect to the mean of one of the components, say $\mu_2$, and set equal to zero:
+Now differentiate this double sum with respect to the mean of one of the components, say $\mu_1$, and set equal to zero:
 
-$$ \sum_i \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 2) (x_i - \mu_2) = 0 $$
+$$ \sum_i \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 1) (x_i - \mu_1) = 0 $$
 
-$$ \sum_i w_i^2 (x_i - \mu_2) = 0 $$
+Define $\textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 1) \equiv w_i$,
+which we can calculate using our probability model, $X$, and
+$\theta^t$. Then we have:
 
-$$ \hat{\mu}_2 = \frac{\sum_i w_i^2 x_i}{\sum_i w_i^2} $$
+$$ \sum_i w_i (x_i - \mu_1) = 0 $$
+
+$$ \hat{\mu}^{t+1}_1 = \frac{\sum_i w_i x_i}{\sum_i w_i} $$
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
 
 ```{r}
 n <- 4000
 true.mus <- c(0, 5)
-true.sigmas <- c(1, 4)
-x <- c(rnorm(n/2, true.mus[1], sqrt(true.sigmas[1])),
-       rnorm(n/2, true.mus[2], sqrt(true.sigmas[2])))
+true.sigma2 <- c(1, 2)
+x <- c(rnorm(n/2, true.mus[1], sqrt(true.sigma2[1])),
+       rnorm(n/2, true.mus[2], sqrt(true.sigma2[2])))
 hist(x, breaks=50, col="grey")
+```
 
+```{r}
 alpha <- c(.5, .5)
 mus <- c(1, 2)
-sigmas <- c(1, 1)
+sigma2 <- c(1, 1)
+```
 
+```{r messages=FALSE}
+niter <- 10
 library(rafalib)
-niter <- 20
-
-nullplot(true.mus[1]-5,true.mus[2]+5,0,niter)
+nullplot(true.mus[1]-5,true.mus[2]+5,0,niter+1,ylab="iterations",xlab="estimates of mu, sigma2")
 abline(v=true.mus,lty=2)
 points(true.mus, rep(0,2), pch=1:2, col="blue")
-arrows(true.mus - sqrt(true.sigmas), rep(0,2),
-       true.mus + sqrt(true.sigmas), rep(0,2),
+arrows(true.mus - sqrt(true.sigma2), rep(0,2),
+       true.mus + sqrt(true.sigma2), rep(0,2),
        length=.1, code=3, col="blue")
-
 points(mus, rep(1,2), pch=1:2)
-arrows(mus - sqrt(sigmas), rep(1,2),
-       mus + sqrt(sigmas), rep(1,2),
+arrows(mus - sqrt(sigma2), rep(1,2),
+       mus + sqrt(sigma2), rep(1,2),
        length=.1, code=3)
-
 for (i in 1:niter) {
-  w <- cbind(alpha[1] * dnorm(x, mus[1], sqrt(sigmas[1])),
-             alpha[2] * dnorm(x, mus[2], sqrt(sigmas[2])))
+  w <- cbind(alpha[1] * dnorm(x, mus[1], sqrt(sigma2[1])),
+             alpha[2] * dnorm(x, mus[2], sqrt(sigma2[2])))
   w <- w / rowSums(w)
   N <- colSums(w)
   alpha <- N / n
   mus <- 1/N * c(sum(w[,1] * x), sum(w[,2] * x))
-  sigmas <- 1/N * c(sum(w[,1] * (x - mus[1])^2),
+  sigma2 <- 1/N * c(sum(w[,1] * (x - mus[1])^2),
                     sum(w[,2] * (x - mus[2])^2))
   points(mus, rep(i+1,2), pch=1:2)
-  arrows(mus - sqrt(sigmas), rep(i+1,2),
-         mus + sqrt(sigmas), rep(i+1,2),
+  arrows(mus - sqrt(sigma2), rep(i+1,2),
+         mus + sqrt(sigma2), rep(i+1,2),
          length=.1, code=3)
 }
-
 ```
 
 <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1345710/>
 
-```{r}
+```{r messages=FALSE}
 library(BSgenome.Hsapiens.UCSC.hg38)
 library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 g <- genes(TxDb.Hsapiens.UCSC.hg38.knownGene)
 promoters <- flank(g, width=1500, both=TRUE)
 seq <- getSeq(Hsapiens, promoters)
+```
+
+```{r}
 gc <- as.vector( letterFrequency(seq, letters="GC") / 3000 )
 cpg <- as.vector( vcountPDict(PDict("CG"), seq) / 3000 )
 norm.cpg <- cpg / (gc/2)^2
+```
+
+```{r}
 hist(norm.cpg, breaks=50, col="grey")
 ```
+
