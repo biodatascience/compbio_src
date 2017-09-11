@@ -1,0 +1,53 @@
+---
+title: "Motif finding with EM"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+```{r}
+n <- 300
+l <- 100
+lc0 <- 10
+code <- sample(1:4, lc0, TRUE)
+x <- matrix(sample(1:4, n * l, TRUE),nrow=n)
+z <- sample(l - lc0 + 1, n, TRUE)
+for (i in seq_len(n)) {
+  x[i, z[i] + 1:lc0 - 1] <- code
+}
+
+lc <- 20
+niter <- 20
+theta <- matrix(runif(lc*4),ncol=lc)
+theta <- theta / colSums(theta)
+library(rafalib)
+nullplot(0,lc,0,niter)
+cols <- c("green3","blue","orange","red")
+points(seq_len(lc0) + (lc-lc0)/2, rep(0,lc0), col=cols[code], pch=15, cex=2)
+for (iter in seq_len(niter)) {
+  theta.max <- apply(theta, 2, which.max)
+  theta.max.p <- apply(theta, 2, max)
+  cols.alpha <- sapply(1:lc, function(i) {
+    adjustcolor(cols[theta.max[i]],(theta.max.p[i] - .25)/.75)
+  })
+  points(seq_len(lc), rep(iter,lc), col=cols.alpha, pch=15, cex=2)
+  z.mat <- matrix(0,nrow=n,ncol=l-lc+1)
+  for (i in seq_len(n)) {
+    for (t in seq_len(l-lc+1)) {
+      snip <- x[i,t + 1:lc - 1]
+      z.mat[i,t] <- prod(theta[1,snip == 1]) *
+        prod(theta[2,snip == 2]) *
+        prod(theta[3,snip == 3]) *
+        prod(theta[4,snip == 4])
+    }
+  }
+  z.mat <- z.mat/rowSums(z.mat)
+  theta <- matrix(0,nrow=4,ncol=lc)
+  for (j in 1:4) {
+    for (i in seq_len(n)) {
+      for (t in seq_len(l-lc+1)) {
+        theta[j,] <- theta[j,] + 1/n * z.mat[i,t] * (x[i,t + 1:lc - 1] == j)
+      }
+    }
+  }
+}
+```
