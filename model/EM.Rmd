@@ -4,6 +4,30 @@ author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
 
+Here I recreate a figure from Ramesh Sridharan's excellent 
+[lecture notes](https://people.csail.mit.edu/rameshvs/content/gmm-em.pdf)
+on the EM algorithm for the Guassian mixture model.
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+```{r echo=FALSE, fig.width=7, fig.height=7}
+x <- rnorm(2e6, 3, 1)
+x <- x[x > .01]
+h1 <- hist(x, breaks=seq(from=.01,to=10,length=100), plot=FALSE)
+h2 <- hist(log(x), breaks=seq(from=log(.01),to=log(10),length=100), plot=FALSE)
+plot(function(x) log(x), xlim=c(0, 5), ylim=c(0,log(5)),
+     main="Jensen's Inequality with log and E")
+lines(h1$mids, h1$density, col="coral3", lwd=3)
+lines(h2$density, h2$mids, col="dodgerblue", lwd=3)
+s <- 2:5
+segments(s,rep(0,length(s)),s,log(s),lty=2)
+segments(rep(0,length(s)),log(s),s,log(s),lty=2)
+arrows(3, .2, 3, 0, col="coral3", lwd=2, length=.1)
+arrows(.5, mean(log(x)), 0, mean(log(x)), col="dodgerblue", lwd=2, length=.1)
+```
+
 $$ \textrm{max}_\theta \textrm{E}_{Z|X,\theta^t} \left[ \log L(\theta; X, Z) \right] $$
 
 $$ = \textrm{E}_{Z|X,\theta^t} \left[ \log \prod_i \prod_c \pi_c f(x_i; \mu_c)^{\mathbb{1}(z_i = c)} \right] $$
@@ -23,10 +47,6 @@ $\theta^t$. Then we have:
 $$ \sum_i w_i (x_i - \mu_1) = 0 $$
 
 $$ \hat{\mu}^{t+1}_1 = \frac{\sum_i w_i x_i}{\sum_i w_i} $$
-
-```{r echo=FALSE}
-knitr::opts_chunk$set(cache=TRUE)
-```
 
 ```{r}
 n <- 4000
