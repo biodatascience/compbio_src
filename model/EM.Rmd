@@ -3,16 +3,79 @@ title: "Expectation maximization"
 author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
+ 
+The theme of this week is statistical modeling. Given the
+prerequisites, you have seen statistical models already, as well as
+the method of maximum likelihood estimation (MLE) to obtain a set of
+model parameters which best describe the data. If not, here is a
+[refresher on statistical models](http://genomicsclass.github.io/book/pages/modeling.html). 
+A straightforward approach to obtain the MLE parameters, is to write
+out the joint density function for the observed data, and often we
+then take the logarithm of the likelihood. If this log likelihood
+has an amenable form, we can compute derivatives with respect to the
+parameters, set this equal to zero and solve the equations. For
+example, this procedure gives the sample mean as the MLE for the $\mu$
+parameter of a Normal distribution.
 
-Here I recreate a figure from Ramesh Sridharan's excellent 
+In computational biology, we often would like to specify models and
+find the MLE for the model parameters, but the above approach does not
+work due to the complexity of the problem. We can lump many such
+complex problems together as those sharing a common property: 
+we can formulate these problem as having a 
+**latent variable**, a special model parameter,
+such that if we knew its value, it would be much easier to estimate
+the other model parameters. Typically the latent variable is
+represented by *Z*, the (other) parameters as $\theta$, and the data
+itself as *X*. Typically, the *Z* takes discrete values (e.g. it may
+be the membership of the observations into multiple groups), *X* is
+either discrete- or continuous-valued, and $\theta$ is typically
+continuous-valued.
+
+*Expectation maximization* (EM) in an algorithm which helps to tackle such
+problems, and was formulated in 
+[1977](https://www.jstor.org/stable/2984875). The authors noted that
+others had proposed the EM algorithm previously in various domains.
+They were however the first to unify the problem and algorithm, and to
+provide statistical motivation for the method. Note that the authors
+of the 1977 work do not use *Z*, $\theta$, and *X* notation, as above.
+
+# Motivation for EM
+
+We would like to maximize the log likelihood with respect to $\theta$,
+but we typically get stuck in that we cannot distribute the log
+to all the terms, which would help simplify the equations.
+This is described in Ramesh Sridharan's excellent
 [lecture notes](https://people.csail.mit.edu/rameshvs/content/gmm-em.pdf)
-on the EM algorithm for the Guassian mixture model.
+for the mixture of Normals model. We usually have a sum of densities
+that cannot be separated, because *Z* is not known. If *Z* were known,
+we could split apart the sums based on which *X* belong to which
+latent groupings according to *Z*. Once the sums of densities are split
+apart, we could easily take derivatives of the log likelihood to
+maximize over the $\theta$ parameters.
+
+The EM algorithm proceeds by taking the expectation of the log
+likelihood *with respect to the conditional distribution of Z given X and*
+$\theta^t$, our best guess of the parameters $\theta$ at step *t* in
+the algorithm. This quantity will fill in for our actual objective,
+which was the log likelihood marginalized over assignments *Z*. 
+Because of Jensen's Inequality, we have that the expected value of
+the log of a random variable is less than or equal to the log of the
+expected value. So we work with a quantity that is a lower bound for
+our actual objective.
+
+The part about Jensen's Inequality can be remembered by sketching a
+diagram of the logarithm function, and the density of a random
+variable *X* and log(*X*), here recreated from Sridharan's notes. The
+expected values are drawn with arrows. Intuitively, the logarithm
+*stretches out* the left tail of the distribution, and *squishes* the
+right tail.
 
 ```{r echo=FALSE}
 knitr::opts_chunk$set(cache=TRUE)
 ```
 
-```{r echo=FALSE, fig.width=7, fig.height=7}
+```{r echo=FALSE, fig.width=6, fig.height=6}
+set.seed(1)
 x <- rnorm(2e6, 3, 1)
 x <- x[x > .01]
 h1 <- hist(x, breaks=seq(from=.01,to=10,length=100), plot=FALSE)
@@ -28,7 +91,42 @@ arrows(3, .2, 3, 0, col="coral3", lwd=2, length=.1)
 arrows(.5, mean(log(x)), 0, mean(log(x)), col="dodgerblue", lwd=2, length=.1)
 ```
 
-$$ \textrm{max}_\theta \textrm{E}_{Z|X,\theta^t} \left[ \log L(\theta; X, Z) \right] $$
+By taking the expectation of the log likelihood with respect to *Z*
+given *X* and $\theta^t$, we obtain better than simply a lower bound:
+we obtain a function which is bounded above by the log likelihood and
+equal to it at $\theta$. One can furthermore show that by optimizing this
+*replacement* log likelihood and obtaining $\theta^{t+1}$, we have 
+$\ell(\theta^t) \le \ell(\theta^{t+1})$, that is, monotonic increases
+in the *original* log likelihood at each iteration 
+(see [Andrew Ng's course notes](http://cs229.stanford.edu/notes/cs229-notes8.pdf) 
+for a proof). The actual algorithm proceeds by first beginning with a
+random initialization of parameters $\theta^0$. We then calculate 
+conditional probabilities for *Z* given *X* and $\theta^0$, and use these in
+calculating the expectation of the log likelihood. These "guesses" for 
+*Z* help to break apart the log likelihood and facilitate
+maximization. Finally, we obtain a new estimate of $\theta$ and repeat
+until convergence. Note that EM is not guaranteed to find 
+*global maxima*, but will find *local maxima*. It is therefore
+sometimes necessary to try multiple random starts.
+
+Ok, that was a lot of text, but most of all I want to show you how
+it's useful. Let's dive into a real example: 
+
+# Mixture of Normals example
+
+Suppose we have observations *X* which arise from two Normal
+distributions. 
+We will index the distributions by *c*, and the observations by *i*.
+The latent variable $z_i$ tells us which distribution a given $x_i$ comes from.
+Define $\theta = (\pi_1, \mu_1, \sigma^2_1, \pi_2, \mu_2, \sigma^2_2)$,
+where the $\pi_c$ represent the proportion of observations from distribution *c*.
+
+Let's see what we get when we write out the expectation of the log
+likelihood with respect to the conditional distribution of *Z* given
+*X* and $\theta^t$. For the moment, let's ignore $\sigma^2_c$ and
+focus on $\mu_c$.
+
+$$ \textrm{E}_{Z|X,\theta^t} \left[ \log L(\theta; X, Z) \right] $$
 
 $$ = \textrm{E}_{Z|X,\theta^t} \left[ \log \prod_i \prod_c \pi_c f(x_i; \mu_c)^{\mathbb{1}(z_i = c)} \right] $$
 
@@ -36,37 +134,81 @@ $$ = \textrm{E}_{Z|X,\theta^t} \left[ \sum_i \sum_c \mathbb{1}(z_i = c) (\log \p
 
 $$ \sum_i \sum_c \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = c) \left( \log \pi_c + \log \frac{1}{2\pi} - \frac{1}{2} (x_i - \mu_c)^2 \right) $$ 
 
-Now differentiate this double sum with respect to the mean of one of the components, say $\mu_1$, and set equal to zero:
+Now differentiate this double sum with respect to one of the
+parameters, say $\mu_1$, and set equal to zero:
 
 $$ \sum_i \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 1) (x_i - \mu_1) = 0 $$
 
 Define $\textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 1) \equiv w_i$,
 which we can calculate using our probability model, $X$, and
-$\theta^t$. Then we have:
+$\theta^t$. We end up with:
 
 $$ \sum_i w_i (x_i - \mu_1) = 0 $$
 
 $$ \hat{\mu}^{t+1}_1 = \frac{\sum_i w_i x_i}{\sum_i w_i} $$
 
+We obtain a weighted sum of the observations that belong to this
+component for our estimate of the mean. If we repeat the same for
+$\sigma^2_1$, we will obtain a similar weighted sum of the squares 
+$(x_i - \mu_1)^2$. 
+
+# Running EM on simulated data
+
+Let's see how this algorithm performs first on simulated data:
+
 ```{r}
 n <- 4000
 true.mus <- c(0, 5)
-true.sigma2 <- c(1, 2)
+true.sigma2 <- c(1, 4)
 x <- c(rnorm(n/2, true.mus[1], sqrt(true.sigma2[1])),
        rnorm(n/2, true.mus[2], sqrt(true.sigma2[2])))
 hist(x, breaks=50, col="grey")
 ```
 
+We start with arbitrary assignments for our parameters:
+
 ```{r}
-alpha <- c(.5, .5)
-mus <- c(1, 2)
-sigma2 <- c(1, 1)
+pi <- c(.5, .5)
+mus <- c(-2, 7)
+sigma2 <- c(.5, .5)
 ```
+
+Given this parameter set, what do we obtain for the condition
+probabilities for *Z*?
+
+```{r}
+w <- cbind(pi[1] * dnorm(x, mus[1], sqrt(sigma2[1])),
+           pi[2] * dnorm(x, mus[2], sqrt(sigma2[2])))
+w <- w / rowSums(w)
+head(w)
+```
+
+We can quickly see what the conditional probabilities look like by
+plotting one column of `w`:
+
+```{r}
+plot(w[,1])
+```
+
+We can also see how this would give us new parameter estimates:
+
+```{r}
+N <- colSums(w)
+N / n # new estimate of pi
+1/N * c(sum(w[,1] * x), sum(w[,2] * x)) # new estimate of mu
+1/N * c(sum(w[,1] * (x - mus[1])^2), # new estimate of sigma2
+        sum(w[,2] * (x - mus[2])^2))
+```
+
+Now we build these two steps into a loop. Notice how quickly the
+estimates go from our initial, quite bad estimates to much better.
 
 ```{r messages=FALSE}
 niter <- 10
+# lay out a plot where we fill in iterative estimates:
 library(rafalib)
-nullplot(true.mus[1]-5,true.mus[2]+5,0,niter+1,ylab="iterations",xlab="estimates of mu, sigma2")
+nullplot(true.mus[1]-3,true.mus[2]+3,0,niter+1,
+         ylab="iterations",xlab="estimates of mu, sigma2")
 abline(v=true.mus,lty=2)
 points(true.mus, rep(0,2), pch=1:2, col="blue")
 arrows(true.mus - sqrt(true.sigma2), rep(0,2),
@@ -76,12 +218,13 @@ points(mus, rep(1,2), pch=1:2)
 arrows(mus - sqrt(sigma2), rep(1,2),
        mus + sqrt(sigma2), rep(1,2),
        length=.1, code=3)
+# the EM loop:
 for (i in 1:niter) {
-  w <- cbind(alpha[1] * dnorm(x, mus[1], sqrt(sigma2[1])),
-             alpha[2] * dnorm(x, mus[2], sqrt(sigma2[2])))
+  w <- cbind(pi[1] * dnorm(x, mus[1], sqrt(sigma2[1])),
+             pi[2] * dnorm(x, mus[2], sqrt(sigma2[2])))
   w <- w / rowSums(w)
   N <- colSums(w)
-  alpha <- N / n
+  pi <- N / n
   mus <- 1/N * c(sum(w[,1] * x), sum(w[,2] * x))
   sigma2 <- 1/N * c(sum(w[,1] * (x - mus[1])^2),
                     sum(w[,2] * (x - mus[2])^2))
@@ -91,6 +234,8 @@ for (i in 1:niter) {
          length=.1, code=3)
 }
 ```
+
+# Promoter CpG content
 
 <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1345710/>
 
@@ -112,3 +257,28 @@ norm.cpg <- cpg / (gc/2)^2
 hist(norm.cpg, breaks=50, col="grey")
 ```
 
+```{r}
+pi <- c(.5, .5)
+mus <- c(0, 1)
+sigma2 <- c(.1, .1)
+x <- norm.cpg
+n <- length(x)
+niter <- 30
+for (i in 1:niter) {
+  w <- cbind(pi[1] * dnorm(x, mus[1], sqrt(sigma2[1])),
+             pi[2] * dnorm(x, mus[2], sqrt(sigma2[2])))
+  w <- w / rowSums(w)
+  N <- colSums(w)
+  pi <- N / n
+  mus <- 1/N * c(sum(w[,1] * x), sum(w[,2] * x))
+  sigma2 <- 1/N * c(sum(w[,1] * (x - mus[1])^2),
+                    sum(w[,2] * (x - mus[2])^2))
+}
+```
+
+```{r}
+hist(x, breaks=50, col="grey", freq=FALSE)
+s <- seq(0,1,length=200)
+lines(s, pi[1]*dnorm(s, mus[1], sqrt(sigma2[1])), col="dodgerblue", lwd=4)
+lines(s, pi[2]*dnorm(s, mus[2], sqrt(sigma2[2])), col="green4", lwd=4)
+```
