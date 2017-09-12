@@ -4,50 +4,222 @@ author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
 
-```{r}
-n <- 300
-l <- 100
-lc0 <- 10
-code <- sample(1:4, lc0, TRUE)
-x <- matrix(sample(1:4, n * l, TRUE),nrow=n)
-z <- sample(l - lc0 + 1, n, TRUE)
-for (i in seq_len(n)) {
-  x[i, z[i] + 1:lc0 - 1] <- code
-}
+I want to give a sense of how the EM algorithm can be used in a variety of
+computational biology problems, beyond the common
+[mixture of distributions model](EM.html).
+Here I will show how EM can be used to find the *sequence motifs*
+associated with DNA binding proteins, like transcription factors. A
+sequence motif is a series of DNA letters (nucleotides) that the DNA binding
+proteins can "recognize". As we discussed in class, when we refer
+loosely to such "recognition", we're actually talking about the
+protein and the DNA sequence in a particular region having
+electrostatic interactions, producing favorable, low energy states. 
+Recall the image of the amino acid residuals "reaching in" to the
+major and minor groove of the DNA double helix, and interacting with
+the 4 possible nucleotides.
 
-lc <- 20
-niter <- 20
-theta <- matrix(runif(lc*4),ncol=lc)
+The following will be an incredibly oversimplified simulation and
+model to show how EM might help us find sequence motifs. For a real
+reference on how EM might be used, please consult the following paper,
+which proposed an EM-based methodology for motif finding:
+
+[MEME: discovering and analyzing DNA and protein sequence motifs](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1538909/)
+
+For homework, you will work with ChIP-seq data for a particular
+transcription factor with a known motif, and you will try to adapt the
+following code to find the motif of this transcription factor from
+data.
+
+# Simulation of motif finding
+
+The over-simplifications we will make here, which result in an unrealistic
+simulation and worse method, but are useful for pedagogical purposes:
+
+* I will only model the motif sequence itself, and not the
+  probability of the "background" sequence.
+* Each DNA sequence will be the same length. In reality, we often will
+  have experimental data that a protein binds to a location, but each
+  genomic range will have a different width.
+* Each DNA sequence will contain the motif. With experimental data, a
+  number of the locations where we find a protein bound to DNA might
+  not contain that protein's motif. It is possible that the protein we
+  are interested in is bound to another protein that is bound to DNA,
+  so our protein is not making direct contact with DNA through its motif.
+* I will only look on one strand of the DNA, instead of on both strands.
+* I will simulate identical DNA sequences as the hidden motif,
+  although in fact, sequence motifs of a DNA binding protein vary
+  across the genome. There are always some, and often many, positions
+  within a motif which allow for a variety of nucleotides.
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+I begin by defining some parameters and simulating our motif that we
+want to find. Here I use numbers 1-4 to represent nucleotides A,C,G,T.
+
+```{r}
+n <- 300 # number of DNA sequences
+l <- 100 # number of nucleotides for each sequence
+motif.len <- 10 # the length of the true motif
+set.seed(5)
+motif <- sample(1:4, motif.len, TRUE)
+motif
+```
+
+Now we will embed the motif into some DNA sequences, which here are
+rows of a matrix *X*. The *Z* variable keeps track of the start
+position of the motif in the DNA sequences in *X*. We therefore setup
+a problem that can be tackled with EM: if we knew the motif, we could
+find the locations *Z*, and if we knew the locations *Z*, we could
+easily determine the motif. We start with neither.
+
+Before we get started, note that EM is not the only way to find these
+motifs. Another, seemingly more direct approach, would be to tabulate
+all the k-mers for a value of k that is large, but less than the
+length of the motif we are looking for. If we look across sequences
+which should occasionally contain the motif, we will likely find sets
+of k-mers that occur more than we would expect in "background" DNA
+sequences. 
+
+```{r}
+x <- matrix(sample(1:4, n * l, TRUE),nrow=n)
+z <- sample(l - motif.len + 1, n, TRUE)
+for (i in seq_len(n)) {
+  x[i, z[i] + 1:motif.len - 1] <- motif
+}
+head(z)
+x[1,]
+x[1,z[1] + 1:motif.len - 1]
+motif
+```
+
+Finally, we describe the parameters $\theta$ we will use to describe
+the motif. We will specify a matrix which has four rows for each of
+the DNA nucleotides, and is wider than the motif itself. This
+extension of the size of the matrix will reduce the chance that we
+hit upon the motif, but some of the nucleotides in the motif fall
+outside of the nucleotides modeled in $\theta$. A column of the matrix
+$\theta$ will represent the probability of observing a given
+nucleotide (A,C,G,T down the rows) at a given position in the
+motif. Note again that the positions in the motifs we recover are
+arbitrarily shifted: if the true motif starts at position 3 or
+position 7 of $\theta$ will both get us to a local maximum of the log
+likelihood. 
+
+```{r}
+set.seed(5)
+theta.len <- 20
+theta <- matrix(runif(theta.len*4),ncol=theta.len)
 theta <- theta / colSums(theta)
+dim(theta)
+theta[,1:5]
+```
+
+Let's first step through one iteration before we run the EM
+algorithm. We start by calculating the conditional probabilities using
+X and our initial guess for $\theta$. We store these in a matrix, with
+one row per DNA sequence, and as many columns as potential starting
+positions for the motif. As I said above, for simplicity, here we just
+focus on the probability of the motif sequence, and ignore the
+background sequence. Let's just calculate the first row, i=1, and the
+first position, t=1.
+
+```{r}
+i <- 1
+t <- 1
+# move a window along row i of x
+snip <- x[i,t + 1:theta.len - 1]
+snip
+# calculate the conditional probability given X and current theta
+prod(theta[1,snip == 1]) * prod(theta[2,snip == 2]) *
+  prod(theta[3,snip == 3]) * prod(theta[4,snip == 4])
+```
+
+Once we've stored these condition probabilities in a matrix, `z.mat`,
+we can use these to maximize our special expectation of the log
+likelihood and update $\theta$. We will add the contribution from each
+sequence out of `n`, and from all positions `t`. As `z.mat` will be
+normalized so that each row sums to 1 (it forms a density along the
+positions), we only need to normalize the contribution of each
+sequence and position by `n`. Our update to $\theta$ for each
+nucleotide is the weighted average of the number of times we saw that
+nucleotide at that position. Here we show the line of code, but it is
+not evaluated, as we haven't yet computed `z.mat`.
+
+```{r eval=FALSE}
+1/n * z.mat[i,t] * (x[i,t + 1:theta.len - 1] == j)
+```
+
+Now we put these two pieces together, within a loop. We also add some
+code which will plot the guesses at each iteration:
+
+```{r message=FALSE, fig.width=6, fig.height=6}
 library(rafalib)
-nullplot(0,lc,0,niter)
+niter <- 10
+nullplot(0, theta.len, 0, niter,
+         xlab="position in motif", ylab="iterations")
 cols <- c("green3","blue","orange","red")
-points(seq_len(lc0) + (lc-lc0)/2, rep(0,lc0), col=cols[code], pch=15, cex=2)
+points(seq_len(motif.len) + (theta.len-motif.len)/2, rep(0,motif.len), col=cols[motif], pch=15, cex=2)
 for (iter in seq_len(niter)) {
+  # the following is just used for plotting our current estimate of theta:
   theta.max <- apply(theta, 2, which.max)
   theta.max.p <- apply(theta, 2, max)
-  cols.alpha <- sapply(1:lc, function(i) {
+  cols.alpha <- sapply(1:theta.len, function(i) {
     adjustcolor(cols[theta.max[i]],(theta.max.p[i] - .25)/.75)
   })
-  points(seq_len(lc), rep(iter,lc), col=cols.alpha, pch=15, cex=2)
-  z.mat <- matrix(0,nrow=n,ncol=l-lc+1)
+  points(seq_len(theta.len), rep(iter,theta.len), col=cols.alpha, pch=15, cex=2)
+  # the EM algorithm:
+  z.mat <- matrix(0,nrow=n,ncol=l-theta.len+1)
   for (i in seq_len(n)) {
-    for (t in seq_len(l-lc+1)) {
-      snip <- x[i,t + 1:lc - 1]
-      z.mat[i,t] <- prod(theta[1,snip == 1]) *
-        prod(theta[2,snip == 2]) *
-        prod(theta[3,snip == 3]) *
-        prod(theta[4,snip == 4])
+    for (t in seq_len(l-theta.len+1)) {
+      # move a window along row i of x
+      snip <- x[i,t + 1:theta.len - 1]
+      # calculate the conditional probability given X and current theta
+      z.mat[i,t] <- prod(theta[1,snip == 1]) * prod(theta[2,snip == 2]) *
+        prod(theta[3,snip == 3]) * prod(theta[4,snip == 4])
     }
   }
+  # normalize Z so rows sum to 1
   z.mat <- z.mat/rowSums(z.mat)
-  theta <- matrix(0,nrow=4,ncol=lc)
+  # now re-estimate theta using expectation of log likelihood
+  # wrt conditional distribution of Z given X and current theta
+  theta <- matrix(0,nrow=4,ncol=theta.len)
   for (j in 1:4) {
     for (i in seq_len(n)) {
-      for (t in seq_len(l-lc+1)) {
-        theta[j,] <- theta[j,] + 1/n * z.mat[i,t] * (x[i,t + 1:lc - 1] == j)
+      for (t in seq_len(l-theta.len+1)) {
+        # for nucleotide j, add the contribution of sequence i,
+        # averaging over all positions t, weighted by Z.
+        # the maximum likelihood is the average count of when the sequence = j here
+        theta[j,] <- theta[j,] + 1/n * z.mat[i,t] * (x[i,t + 1:theta.len - 1] == j)
       }
     }
   }
 }
+```
+
+Looking at the estimates of $\theta$ over iterations, we see that the
+random initialization contained four positions that aligned with the
+true motif. Over the next three iterations, the motif filled in, as
+the density in *Z* concentrated on the true positions. Finally, after
+iteration 5, we see the motif come into strong relief, with the other
+positions evening out to equal probability of all nucleotides.
+
+```{r}
+round(theta, 2)
+```
+
+Note that, the four nucleotides are not in equal abundance in
+"background" sequence in our genomes, and so a better motif finding
+method would additionally model the "background" sequence.
+
+We can also see that the positions with highest density in *Z*
+correspond linearly to the true locations (although with a shift).
+Note that we did not locate the motif for every sequence. In
+particular, when the motif started on the far left or far right side,
+the $\theta$ matrix was too wide.
+
+```{r, fig.width=6, fig.height=6}
+plot(z, apply(z.mat, 1, which.max), ylab="max density in z.mat")
+abline(0,1)
 ```
