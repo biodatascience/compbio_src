@@ -32,22 +32,24 @@ either discrete- or continuous-valued, and $\theta$ is typically
 continuous-valued.
 
 *Expectation maximization* (EM) in an algorithm which helps to tackle such
-problems, and was formulated in 
-[1977](https://www.jstor.org/stable/2984875). The authors noted that
-others had proposed the EM algorithm previously in various domains.
-They were however the first to unify the problem and algorithm, and to
-provide statistical motivation for the method. Note that the authors
-of the 1977 work do not use *Z*, $\theta$, and *X* notation, as above.
+problems. The algorithm had been proposed in various domains as early
+as the 1950s, but a paper
+in [1977](https://www.jstor.org/stable/2984875) unified the
+description of the incomplete data problem (equivalent to *latent variable*) 
+and the EM algorithm, providing a unified statistical context and 
+guarantees on convergence. Note that the authors of the 1977 work do
+not use *Z*, $\theta$, and *X* notation, as above.
 
 # Motivation for EM
 
 We would like to maximize the log likelihood with respect to $\theta$,
-but we typically get stuck in that we cannot distribute the log
+and we don't know the true *Z*.
+We typically get stuck in that we cannot distribute the log
 to all the terms, which would help simplify the equations.
 This is described in Ramesh Sridharan's excellent
 [lecture notes](https://people.csail.mit.edu/rameshvs/content/gmm-em.pdf)
 for the mixture of Normals model. We usually have a sum of densities
-that cannot be separated, because *Z* is not known. If *Z* were known,
+that cannot be separated. If *Z* were known,
 we could split apart the sums based on which *X* belong to which
 latent groupings according to *Z*. Once the sums of densities are split
 apart, we could easily take derivatives of the log likelihood to
@@ -99,7 +101,14 @@ equal to it at $\theta$. One can furthermore show that by optimizing this
 $\ell(\theta^t) \le \ell(\theta^{t+1})$, that is, monotonic increases
 in the *original* log likelihood at each iteration 
 (see [Andrew Ng's course notes](http://cs229.stanford.edu/notes/cs229-notes8.pdf) 
-for a proof). The actual algorithm proceeds by first beginning with a
+for a proof). A diagram of the process of iteratively maximizing functions
+which lower bound the log likelihood can be found 
+[here](https://images.nature.com/full/nature-assets/nbt/journal/v26/n8/extref/nbt1406-S1.pdf), 
+which is a supplemantary PDF associated with 
+[this review](https://www.nature.com/nbt/journal/v26/n8/full/nbt1406.html)
+on the EM algorithm by Chuong Do and Serafim Batzoglou.
+
+The actual algorithm begins with a
 random initialization of parameters $\theta^0$. We then calculate 
 conditional probabilities for *Z* given *X* and $\theta^0$, and use these in
 calculating the expectation of the log likelihood. These "guesses" for 
@@ -123,19 +132,18 @@ where the $\pi_c$ represent the proportion of observations from distribution *c*
 
 Let's see what we get when we write out the expectation of the log
 likelihood with respect to the conditional distribution of *Z* given
-*X* and $\theta^t$. For the moment, let's ignore $\sigma^2_c$ and
-focus on $\mu_c$.
+*X* and $\theta^t$. For the moment, we focus on $\mu_c$.
 
 $$ \textrm{E}_{Z|X,\theta^t} \left[ \log L(\theta; X, Z) \right] $$
 
-$$ = \textrm{E}_{Z|X,\theta^t} \left[ \log \prod_i \prod_c \pi_c f(x_i; \mu_c)^{\mathbb{1}(z_i = c)} \right] $$
+$$ = \textrm{E}_{Z|X,\theta^t} \left[ \log \prod_i \prod_c \pi_c f(x_i; \mu_c, \sigma^2_c)^{\mathbb{1}(z_i = c)} \right] $$
 
-$$ = \textrm{E}_{Z|X,\theta^t} \left[ \sum_i \sum_c \mathbb{1}(z_i = c) (\log \pi_c + \log f(x_i; \mu_c)) \right] $$
+$$ = \textrm{E}_{Z|X,\theta^t} \left[ \sum_i \sum_c \mathbb{1}(z_i = c) (\log \pi_c + \log f(x_i; \mu_c, \sigma^2_c)) \right] $$
 
-$$ \sum_i \sum_c \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = c) \left( \log \pi_c + \log \frac{1}{2\pi} - \frac{1}{2} (x_i - \mu_c)^2 \right) $$ 
+$$ \sum_i \sum_c \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = c) \left( \log \pi_c + \log \frac{1}{\sqrt{2 \pi \sigma^2_c}} - \frac{1}{2 \sigma^2_c} (x_i - \mu_c)^2 \right) $$ 
 
 Now differentiate this double sum with respect to one of the
-parameters, say $\mu_1$, and set equal to zero:
+parameters, say $\mu_1$, and set it equal to zero:
 
 $$ \sum_i \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 1) (x_i - \mu_1) = 0 $$
 
@@ -235,9 +243,56 @@ for (i in 1:niter) {
 }
 ```
 
-# Promoter CpG content
+# Promoter CpG count
 
-<https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1345710/>
+Now let's try running our mixture of Normals EM algorithm on some
+human genome sequence data. We will look at the sequence surrounding
+the transcription start site (TSS) of the genes in the UCSC known gene
+database. These regions are called *promoters*, although the exact
+definition of the size of the promoter may vary for different
+analyses. Here we will use the definition from the following article: 
+
+[A genome-wide analysis of CpG dinucleotides in the human genome distinguishes two distinct classes of promoters](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1345710).
+
+The authors created windows of size 3 kb surrounding the TSS of genes,
+and then counted the number of CpG's, which are C followed by G. Note
+that the count of CpG does not depend on which strand is used, as the
+sequence is its own reverse complement. The authors normalized the
+count of CpG's by the expected count given the amount of C's and G's. 
+
+From the paper's abstract:
+
+> A striking feature of the human genome is the dearth of CpG
+> dinucleotides (CpGs) interrupted occasionally by CpG islands (CGIs),
+> regions with relatively high content of the dinucleotide. CGIs are
+> generally associated with promoters; genes, whose promoters are
+> especially rich in CpG sequences, tend to be expressed in most
+> tissues. 
+
+Further description in the paper:
+
+> The abundance of CpG dinucleotides in human DNA is much lower than
+> expected based on the GC content, which results from the
+> inherent mutability of methylated cytosine. Whereas the product of
+> cytosine deamination, uracil, is readily recognized as aberrant and
+> is repaired, the deamination product of methylated
+> cytosine is thymine, leading to transition mutations in the next
+> round of replication. Consequently, methylated CpGs in the germ line
+> are likely to be lost over time. Ostensibly, CGIs are retained
+> because their CpGs are hypomethylated in the germ line...
+
+We will go over the meaning of this section of the paper in class, but
+the main idea is that the genes which are methylated in the germ line
+lose CpG's, whereas those which are not methylated keep their
+CpG's. Very loosely, one can think of genes which are methylated in
+germ line as having specialized roles in differentiated cell-types
+(e.g. tissue-specific genes). The paper states that:
+
+> Evidence from other studies suggests that CGIs are more frequently
+> associated with "house-keeping" genes than with tissue-specific genes.
+
+Let's take a look at the distribution of normalized CpG count in the
+human genome, using UCSC known genes:
 
 ```{r messages=FALSE}
 library(BSgenome.Hsapiens.UCSC.hg38)
@@ -253,9 +308,16 @@ cpg <- as.vector( vcountPDict(PDict("CG"), seq) / 3000 )
 norm.cpg <- cpg / (gc/2)^2
 ```
 
+The following histogram recreates 
+[Fig 2A](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1345710/figure/fig2/)
+from the paper above.
+
 ```{r}
 hist(norm.cpg, breaks=50, col="grey")
 ```
+
+We can use the same EM algorithm to fit two densities to the observed
+bimodal distribution:
 
 ```{r}
 pi <- c(.5, .5)
@@ -275,6 +337,21 @@ for (i in 1:niter) {
                     sum(w[,2] * (x - mus[2])^2))
 }
 ```
+
+The paper reported means of 0.23 and 0.61, with standard deviations
+0.07 and 0.14 for the two distributions. We can see we get very
+similar parameter estimates. The paper reported the lower CpG
+distribution with $\pi = 0.28$, though this depends heavily on the set
+of genes used for creating promoter regions.
+
+```{r}
+round(mus, 3)
+round(sqrt(sigma2), 3)
+round(pi, 3)
+```
+
+We can also plot the estimated mixture components onto the histogram
+to assess our fit qualitatively:
 
 ```{r}
 hist(x, breaks=50, col="grey", freq=FALSE)
