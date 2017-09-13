@@ -172,7 +172,7 @@ txs <- seqnames(seqinfo(txome))
 head(txs)
 ```
 
-In order to extra a transcript's sequence, we use the transcript name
+In order to extract a transcript's sequence, we use the transcript name
 and we need to know the length of the transcript. We pick a transcript
 at random.
 
@@ -186,3 +186,10 @@ tx.len
 tx.seq <- getSeq(txome, GRanges(seqnames(si)[idx], IRanges(1, tx.len)))
 tx.seq
 ```
+
+The above method is fairly easy for getting a transcript sequence if
+we know the cDNA file exists for the same genome and gene
+version. Another way, if we only have a *GRangesList* for the
+transcripts (not genes) is to use the `getTranscriptSeqs` function
+from the VariantAnnotation package. This function takes two arguments:
+the *GRangesList* of the exons-per-transcript and a *BSgenome* object.
