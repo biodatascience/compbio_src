@@ -43,7 +43,7 @@ not use *Z*, $\theta$, and *X* notation, as above.
 # Motivation for EM
 
 We would like to maximize the log likelihood with respect to $\theta$,
-and we don't know the true *Z*.
+and we don't observe *Z*.
 We typically get stuck in that we cannot distribute the log
 to all the terms, which would help simplify the equations.
 This is described in Ramesh Sridharan's excellent
@@ -59,7 +59,7 @@ The EM algorithm proceeds by taking the expectation of the log
 likelihood *with respect to the conditional distribution of Z given X and*
 $\theta^t$, our best guess of the parameters $\theta$ at step *t* in
 the algorithm. This quantity will fill in for our actual objective,
-which was the log likelihood marginalized over assignments *Z*. 
+which was the log likelihood marginalized over assignments of *Z*. 
 Because of Jensen's Inequality, we have that the expected value of
 the log of a random variable is less than or equal to the log of the
 expected value. So we work with a quantity that is a lower bound for
@@ -123,12 +123,17 @@ it's useful. Let's dive into a real example:
 
 # Mixture of Normals example
 
-Suppose we have observations *X* which arise from two Normal
-distributions. 
+Suppose we have observations *x_i* which arise from two Normal
+distributions.
 We will index the distributions by *c*, and the observations by *i*.
-The latent variable $z_i$ tells us which distribution a given $x_i$ comes from.
+The latent variable $z_i$ will be a binomial which tells us which
+distribution a given $x_i$ comes from, where 0 corresponds to the
+first distribution and 1 corresponds to the second distribution.
+If $z_i = 0$, this means that observation *i* comes from the 1st Normal distribution.
 Define $\theta = (\pi_1, \mu_1, \sigma^2_1, \pi_2, \mu_2, \sigma^2_2)$,
-where the $\pi_c$ represent the proportion of observations from distribution *c*.
+where the $\pi_c$ represent the proportion of observations from
+distribution *c*. $z_i$ then is distributed as a binomial with success
+probability $\pi_2 = (1 - \pi_1)$.
 
 Let's see what we get when we write out the expectation of the log
 likelihood with respect to the conditional distribution of *Z* given
