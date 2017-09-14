@@ -1,0 +1,82 @@
+---
+title: "Hierarchical modeling of variance"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=FALSE)
+```
+
+```{r}
+library(curatedBladderData)
+library(affy)
+data(GSE32894_eset)
+e <- GSE32894_eset
+```
+
+```{r}
+boxplot(exprs(e), range=0)
+boxplot(t(exprs(e)[1:100,]), range=0)
+```
+
+```{r}
+library(matrixStats)
+rv <- rowVars(exprs(e))
+hist(sqrt(rv),breaks=50,col="grey")
+```
+
+```{r}
+m <- 5
+e.sub <- e[,1:m]
+rv.sub <- rowVars(exprs(e.sub))
+plot(sqrt(rv), sqrt(rv.sub), cex=.5, col=rgb(0,0,0,.5))
+```
+
+```{r}
+library(limma)
+design <- model.matrix(~1, data.frame(row.names=1:m))
+fit <- lmFit(exprs(e.sub), design)
+fit <- eBayes(fit)
+```
+
+```{r}
+plot(rv.sub, fit$s2.post, xlim=c(0,.4), ylim=c(0,.4))
+abline(0,1)
+abline(v=fit$s2.prior, h=fit$s2.prior)
+```
+
+```{r}
+library(rafalib)
+nullplot(0,1,0,.4)
+n <- 100
+idx <- sample(nrow(e),n)
+segments(rep(0,n), rv.sub[idx], rep(1,n), fit$s2.post[idx], col=rgb(0,0,0,.4))
+abline(h=fit$s2.prior, col="dodgerblue", lwd=5)
+```
+
+```{r}
+library(rafalib)
+nullplot(0,1,0,14)
+n <- 1000
+idx <- sample(nrow(e),n)
+segments(rep(0,n), rv.sub[idx], rep(1,n), fit$s2.post[idx], col=rgb(0,0,0,.4))
+```
+
+```{r}
+true <- sqrt(rv)
+est1 <- sqrt(rv.sub)
+est2 <- sqrt(fit$s2.post)
+sqrt(mean((est1 - true)^2))
+sqrt(mean((est2 - true)^2))
+median(abs(est1 - true))
+median(abs(est2 - true))
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(est1, est1 - true, col=rgb(0,0,0,.4), xlim=c(0,4), ylim=c(-2.5,2.5))
+abline(h=-2:2,lty=2,col=rgb(0,0,0,.4))
+plot(est2, est2 - true, col=rgb(0,0,0,.4), xlim=c(0,4), ylim=c(-2.5,2.5))
+abline(h=-2:2,lty=2,col=rgb(0,0,0,.4))
+```

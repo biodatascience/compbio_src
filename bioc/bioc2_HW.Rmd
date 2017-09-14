@@ -1,0 +1,126 @@
+---
+title: "Homework 3 - Bioconductor annotation and DNA strings"
+author: "your name here"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+
+# Question 1 - looking up genes by their function
+
+Load the Homo sapiens OrgDb we saw in class with the code below.
+
+Our goal in this question and the next is to look up the genes with
+the GO term "response to virus", which is GO:0009615, and see how
+these genes behaved in the experiment with asthmatic and non-asthmatic
+donors treated with rhinovirus.
+
+The first step is to build a character vector of the IDs of genes
+that are associated with this GO term: GO:0009615. The dataset
+we want to look at uses ENSEMBL ID's on the rows, so you should look
+up the ENSEMBL IDs in the OrgDb. Note that there will be duplicate
+entries when you look up these IDs so you should use the `unique`
+function to de-duplicate.
+
+```{r}
+library(AnnotationHub)
+ah <- AnnotationHub()
+orgdb <- query(ah, c("Homo sapiens","OrgDb"))[[1]]
+```
+
+# Question 2 - plot gene expression
+
+The next step is to see how the genes associated with "response to
+virus" behaved in this experiment where the donors were infected with
+rhinovirus. Use the code below to load the asthma RNA-seq dataset. 
+
+For Windows: I have found a solution for Windows users, which is
+that you should copy the URL below into a web browser and then save
+the file locally into your R working directory with the name
+`asthma.rda`. This avoids the "magic number" error.
+
+After you have loaded and prepared `rse`, find the genes that match
+the ENSEMBL IDs from question 1. Because the rownames have an extra
+version number tacked on to the ENSEMBL ID, I have provided some code
+for creating a new metadata column that just has the ID before the
+version number. 
+
+Note that not all the ENSEMBL IDs from question 1 will have a match in
+the ENSEMBL IDs associated with `rse`. You can drop the IDs from
+question 1 that don't have a match.
+
+Finally, construct a matrix of log2(counts + 1) for these "response to
+virus" genes. Subtract the row mean of this matrix to make the genes
+comparable. Take the column means of this matrix and make a boxplot of
+the column means over `rse$treatment`. How do you interpret this plot?
+
+(We will show a superior transformation than log2(counts + 1) next
+week.) 
+
+```{r}
+url <- "http://duffel.rail.bio/recount/SRP046226/rse_gene.Rdata"
+file <- "asthma.rda"
+if (!file.exists(file)) download.file(url, file)
+load(file)
+library(here)
+library(SummarizedExperiment)
+source(here("bioc","my_scale_counts.R"))
+rse <- my_scale_counts(rse_gene)
+rse$condition <- sapply(rse$characteristics, `[`, 3)
+rse$treatment <- sapply(rse$characteristics, `[`, 4)
+rse$condition %<>% (function(x) {
+  factor(sub("-",".", sub("disease state: (.*)","\\1",x) ))
+  })
+rse$treatment %<>% (function(x) factor(sub("treatment: (.*)","\\1",x)))
+rse$condition %<>% relevel("non.asthmatic")
+rse$treatment %<>% relevel("Vehicle")
+```
+
+```{r}
+head(rownames(rse))
+mcols(rse)$ENSEMBL <- substr(rownames(rse),1,15)
+head(mcols(rse)$ENSEMBL)
+```
+
+# Question 3 - transcript GC content
+
+The next two questions will look at the GC content of the transcripts
+and the exons. Note that the GC content of genes is higher and more
+uniform than the GC content of the genome, which varies greatly over
+large regions called "isochores".
+
+Load the following libraries, and pull out a transcript database.
+
+```{r}
+library(BSgenome.Hsapiens.UCSC.hg38)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
+```
+
+We can use the following code, which I didn't show in class, to obtain
+the transcript sequence of all transcripts in `txdb`, as a DNAStringSet.
+
+```{r}
+ebt <- exonsBy(txdb, by="tx")
+tx.seq <- extractTranscriptSeqs(Hsapiens, ebt)
+tx.seq
+```
+
+Calculate the GC content of the transcripts. GC content is defined as the
+ratio of C's or G'c in a sequence, i.e. count of {C|G} / length of
+sequence, so a value from 0 to 1. Plot a histogram of the GC content,
+and calculate the mean, and the .05 and .95 quantiles. 
+
+# Question 4 - exon GC content
+
+Use the following function to extract the exons GRanges.
+How many exons are there? Then use `getSeq` to obtain the DNA sequence 
+of the exons. Make a histogram of the GC content of the exons. What is
+the mean, and .05 and .95 quantile of the GC content of the exons?
+
+Finally, compare the inner 90% range of the transcript GC content and
+exon GC content. How would you explain the difference?
+
+```{r}
+exons <- exons(txdb)
+```
+
