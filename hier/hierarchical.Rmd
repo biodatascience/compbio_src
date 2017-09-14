@@ -4,79 +4,150 @@ author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
 
+This week we will focus on hierarchical models as they are used in
+genomics, and particularly hierarchical models for estimates of
+variance. A good review of this topic is:
+
+[Analyzing ’omics data using hierarchical models](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2904972/) 
+by Hongkai Ji and X Shirley Liu
+
+Hierarchical models have proven very useful in genomics, when we often
+have precious few biological replicates to assess within-group
+variance. Often experiments themselves, as well as the technical costs
+of sequencing DNA, mean that only 3-5 samples might be generated for
+each biological condition, although there may be many (e.g. dozens) of
+conditions. Ideally, more samples would be generated
+for definitive estimation of differences relative to biological
+variability in each condition. This all depends greatly on what the
+treatments are doing, and the relationship of the replicates to each
+other -- are they mice in a controlled setting with the same genetic
+background, or human donors in a clinic, etc.?
+
+The point of the hierarchical model is summarized nicely in 
+[Figure 1](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2904972/figure/F1/)
+from the paper linked above. The key idea is that, we only observe a
+few samples and therefore, we can potentially have very bad estimates
+of the variance for some genes, either because the samples were
+observe happened to be close to each other (under-estimation) or too
+spread apart (over-estimation), and do not represent the biological
+variability we would see if we had generated more
+replicates. Hierarchical models, and an empirical Bayes procedure to
+adjust the smallest and largest estimates of variance towards the
+*middle* of the distribution of sample variances, helps to avoid
+large mistakes in inference when the estimated variances are used to
+generate test statistics.
+
+One of the most popular methods which made use of the
+hierarchical model for variance estimation is 
+[limma](http://bioinf.wehi.edu.au/limma/), which was originally
+designed for microarray (continuous valued), but has been extended
+recently to work with sequencing data (counts). 
+In this document, I will show the practical effect of running the
+`eBayes` (empirical Bayes) function in limma, and how this modifies
+the variance estimates.
+
 ```{r echo=FALSE}
-knitr::opts_chunk$set(cache=FALSE)
+knitr::opts_chunk$set(cache=TRUE)
 ```
 
-```{r}
+```{r message=FALSE}
 library(curatedBladderData)
 library(affy)
-data(GSE32894_eset)
-e <- GSE32894_eset
+data(GSE13507_eset)
+e <- GSE13507_eset
 ```
 
 ```{r}
-boxplot(exprs(e), range=0)
-boxplot(t(exprs(e)[1:100,]), range=0)
+e <- e[,which(e$summarystage == "invasive")]
+dim(e)
+boxplot(exprs(e)[,1:10], range=0, main="samples")
+boxplot(t(exprs(e)[1:10,]), range=0, main="genes")
 ```
 
-```{r}
+```{r message=FALSE}
 library(matrixStats)
+rm <- rowMeans(exprs(e))
+rv <- rowVars(exprs(e))
+plot(rm, sqrt(rv), cex=.5, col=rgb(0,0,0,.4))
+```
+
+```{r}
+e <- e[rm > 8,]
 rv <- rowVars(exprs(e))
 hist(sqrt(rv),breaks=50,col="grey")
 ```
 
 ```{r}
-m <- 5
-e.sub <- e[,1:m]
-rv.sub <- rowVars(exprs(e.sub))
-plot(sqrt(rv), sqrt(rv.sub), cex=.5, col=rgb(0,0,0,.5))
+hc <- hclust(dist(t(exprs(e)[order(rv,decreasing=TRUE)[1:1000],]))) 
+plot(hc)
 ```
 
-```{r}
+```{r fig.width=6, fig.height=6}
+m <- 5
+sample.idx <- sample(ncol(e), m)
+e.sub <- e[,1:m]
+rv.sub <- rowVars(exprs(e.sub))
+plot(sqrt(rv), sqrt(rv.sub), cex=.5, col=rgb(0,0,0,.5),
+     xlab="sample SD full data", ylab="sample SD subset")
+abline(0,1)
+```
+
+```{r message=FALSE}
 library(limma)
 design <- model.matrix(~1, data.frame(row.names=1:m))
 fit <- lmFit(exprs(e.sub), design)
 fit <- eBayes(fit)
 ```
 
-```{r}
-plot(rv.sub, fit$s2.post, xlim=c(0,.4), ylim=c(0,.4))
+```{r, fig.width=6, fig.height=6}
+plot(rv.sub, fit$s2.post, xlim=c(0,1), ylim=c(0,1),
+     xlab="sample var", ylab="eBayes var")
 abline(0,1)
 abline(v=fit$s2.prior, h=fit$s2.prior)
 ```
 
-```{r}
+```{r message=FALSE, fig.width=5, fig.height=5}
 library(rafalib)
-nullplot(0,1,0,.4)
+nullplot(0,1,0,2,xaxt="n")
+axis(1, c(0,1), c("before","after"))
 n <- 100
 idx <- sample(nrow(e),n)
 segments(rep(0,n), rv.sub[idx], rep(1,n), fit$s2.post[idx], col=rgb(0,0,0,.4))
 abline(h=fit$s2.prior, col="dodgerblue", lwd=5)
 ```
 
-```{r}
-library(rafalib)
-nullplot(0,1,0,14)
-n <- 1000
-idx <- sample(nrow(e),n)
+```{r fig.width=5, fig.height=5}
+nullplot(0,1,0,12,xaxt="n")
+axis(1, c(0,1), c("before","after"))
+n <- 100
+idx <- order(rv.sub, decreasing=TRUE)[1:n]
 segments(rep(0,n), rv.sub[idx], rep(1,n), fit$s2.post[idx], col=rgb(0,0,0,.4))
+abline(h=fit$s2.prior, col="dodgerblue", lwd=5)
 ```
 
 ```{r}
 true <- sqrt(rv)
-est1 <- sqrt(rv.sub)
-est2 <- sqrt(fit$s2.post)
-sqrt(mean((est1 - true)^2))
-sqrt(mean((est2 - true)^2))
-median(abs(est1 - true))
-median(abs(est2 - true))
+samp.sd <- sqrt(rv.sub)
+ebayes.sd <- sqrt(fit$s2.post)
+sqrt(mean((samp.sd - true)^2))
+sqrt(mean((ebayes.sd - true)^2))
+median(abs(samp.sd - true))
+median(abs(ebayes.sd - true))
+```
+
+```{r, fig.width=8, fig.height=5}
+par(mfrow=c(1,2),mar=c(4,2,2,1))
+plot(samp.sd, samp.sd - true, col=rgb(0,0,0,.4), xlim=c(0,4), ylim=c(-1.5,1.5),
+     main="residual over estimate")
+abline(h=-1:1,v=.5,lty=2,col=rgb(1,0,0,.5))
+plot(ebayes.sd, ebayes.sd - true, col=rgb(0,0,0,.4), xlim=c(0,4), ylim=c(-1.5,1.5),
+     main="residual over estimate")
+abline(h=-1:1,v=.5,lty=2,col=rgb(1,0,0,.5))
 ```
 
 ```{r}
-par(mfrow=c(1,2))
-plot(est1, est1 - true, col=rgb(0,0,0,.4), xlim=c(0,4), ylim=c(-2.5,2.5))
-abline(h=-2:2,lty=2,col=rgb(0,0,0,.4))
-plot(est2, est2 - true, col=rgb(0,0,0,.4), xlim=c(0,4), ylim=c(-2.5,2.5))
-abline(h=-2:2,lty=2,col=rgb(0,0,0,.4))
+plot(true, samp.sd, type="n")
+alpha <- ifelse(true > 1.5, .5, ifelse(true > 1, .2, .1))
+arrows(true, samp.sd, true, ebayes.sd, col=rgb(0,0,0,alpha), length=.1)
+abline(0,1)
 ```
