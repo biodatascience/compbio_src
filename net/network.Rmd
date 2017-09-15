@@ -1,0 +1,108 @@
+---
+title: "Network analysis of chromatin loops"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+http://www.biorxiv.org/content/early/2017/05/25/142026
+
+```{r}
+library(readr)
+library(GenomicRanges)
+loops <- read_delim("Table_S3.Loops.Differential.txt.gz", delim="\t")
+anchor1 <- GRanges(loops$anchor1_chrom,
+                   IRanges(loops$anchor1_start, loops$anchor1_end))
+anchor2 <- GRanges(loops$anchor2_chrom,
+                   IRanges(loops$anchor2_start, loops$anchor2_end))
+loop.status <- factor(loops$dynamic_loop_type)
+anchor1$loop.status <- loop.status
+anchor2$loop.status <- loop.status
+enh.mono <- read_delim("MACSpeaks_H3K27ac_CI_THP1_O_peaks.narrowPeak.gz",
+                       delim="\t", col_names=FALSE)
+enh.macro <- read_delim("MACSpeaks_H3K27ac_CI_THP1_A_peaks.narrowPeak.gz",
+                        delim="\t", col_names=FALSE)
+enh <- GRanges(c(enh.mono$X1, enh.macro$X1),
+               IRanges(start=c(enh.mono$X2, enh.macro$X2),
+                       end=c(enh.mono$X3, enh.macro$X3)))
+enh <- sort(enh)
+```
+
+```{r}
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
+g <- genes(txdb)
+g <- keepStandardChromosomes(g, pruning.mode="coarse")
+promoter <- flank(g, width=2000)
+```
+
+```{r}
+enh <- enh[!overlapsAny(enh, promoter)]
+anchor1$promoter <- overlapsAny(anchor1, promoter)
+anchor1$enhancer <- overlapsAny(anchor1, enh)
+anchor2$promoter <- overlapsAny(anchor2, promoter)
+anchor2$enhancer <- overlapsAny(anchor2, enh)
+EE <- loop.status[anchor1$enhancer & anchor2$enhancer]
+PP <- loop.status[anchor1$promoter & anchor2$promoter]
+EP <- loop.status[(anchor1$enhancer & anchor2$promoter) |
+                  (anchor2$enhancer & anchor1$promoter)]
+other <- loop.status[!(anchor1$promoter | anchor1$enhancer) |
+                     !(anchor2$promoter | anchor2$enhancer)]                       
+tab <- cbind(EE=table(EE), PP=table(PP), EP=table(EP), other=table(other))
+prop.tab <- prop.table(tab,margin=1)
+barplot(prop.tab[c(3,1),-4], beside=TRUE, border=NA,
+        col=c("grey","brown"), ylim=c(0,.6))
+```
+
+> One possible explanation for the large proportion of enhancer-enhancer
+> loops is the presence of interaction hubs involving a single promoter
+> and multiple enhancers that all interact with each other. A fully
+> connected hub with only one promoter and N enhancers would contain N
+> enhancer-promoter interactions and (N)! / 2(N-2)!  enhancer-enhancer
+> interactions. For all values greater than N = 3, there would be more
+> enhancer-enhancer loops than enhancer-promoter loops. To determine if
+> our loops were forming such hubs we built interaction networks and
+> detected communities of interacting anchor regions using a fast greedy
+> modularity optimization algorithm (Clauset et al., 2004). We then
+> classified these communities into two subsets: those containing a
+> gained loop and those without....
+
+```{r}
+fo1 <- as.matrix(findOverlaps(anchor1))
+fo2 <- as.matrix(findOverlaps(anchor2))
+fo12 <- as.matrix(findOverlaps(anchor1, anchor2))
+overlaps <- rbind(fo1,fo2,fo12)
+overlaps <- overlaps[overlaps[,1] < overlaps[,2],]
+overlaps <- overlaps[!duplicated(overlaps),]
+```
+
+```{r message=FALSE}
+library(RBGL)
+graph <- ftM2graphNEL(overlaps, edgemode="undirected")
+cc <- connectedComp(graph)
+length(cc)
+```
+
+```{r message=FALSE}
+library(magrittr)
+gained <- as.character(which(loop.status == "gained"))
+community.with.gained <- sapply(cc, function(x) any(x %in% gained))
+community.type <- factor(ifelse(community.with.gained, "gained", "static"))
+community.type %<>% relevel("static")
+community.size <- sapply(cc, length)
+table(community.type)
+boxplot(community.size ~ community.type, log="y", main="loops per community")
+```
+
+```{r}
+num.enhancer <- sapply(cc, function(x) {
+  i <- as.numeric(x)
+  sum(anchor1$enhancer[i] + anchor2$enhancer[i])
+})
+num.promoter <- sapply(cc, function(x) {
+  i <- as.numeric(x)
+  sum(anchor1$promoter[i] + anchor2$promoter[i])
+})
+enh.to.promoter <- ifelse(num.promoter == 0, NA, num.enhancer / num.promoter)
+boxplot(enh.to.promoter ~ community.type, main="E-to-P number", ylim=c(0,10))
+```
+

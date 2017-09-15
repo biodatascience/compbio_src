@@ -1,0 +1,115 @@
+---
+title: "Hidden Markov Models"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+> We selected a subset of the data set presented in Snijders et
+> al. (2001). We are calling this data set coriell. The data correspond
+> to two array CGH studies of fibroblast cell strains. In particular, we
+> chose the studies GM05296 and GM13330. After selecting only the mapped
+> data from chromosomes 1-22 and X, there are 2271 data points. 
+
+```{r}
+library(DNAcopy)
+data(coriell)
+plot(coriell$Coriell.05296)
+cna <- CNA(cbind(coriell$Coriell.05296),
+           coriell$Chromosome,coriell$Position,
+           data.type="logratio", sampleid="c05296")
+smo <- smooth.CNA(cna)
+Y <- smo$c05296
+plot(Y)
+plot(Y, xlim=c(1100,1400))
+abline(h=.25)
+plot(Y)
+abline(h=.25)
+```
+
+
+```{r}
+A <- matrix(c(.96,.04,.04,.96),2)
+pi <- c(.5, .5)
+B <- matrix(c(.8,.2,.2,.8),2) # hidden states x observed states
+#
+T <- 1000
+X <- numeric(T)
+X[1] <- sample(1:2,1,prob=pi)
+swap <- function(x) if (x == 1) 2 else 1
+for (t in 2:T) {
+  prob <- A[X[t-1],swap(X[t-1])] # prob of swap
+  X[t] <- if (rbinom(1,1,prob)) swap(X[t-1]) else X[t-1]
+}
+plot(X)
+Y <- numeric(T)
+xseq <- seq_len(length(pi))
+for (i in xseq) {
+  Y[X == i] <- sample(1:2, sum(X == i), TRUE, prob=B[i,])
+}
+cols <- c("purple","dodgerblue")
+plot(X + .1 * (Y-1) + runif(T,-.01,.01), col=cols[Y], pch=20)
+
+# alpha_i,t = P(Y_1=y_1,...,Y_t=y_t,X_t=i|theta)
+alpha <- matrix(0,nrow=length(pi),ncol=T)
+alpha[,1] <- pi * B[,Y[1]]
+for (t in 2:T) {
+  for (j in xseq) {
+    alpha[j,t] <- B[j,Y[t]] * sum(alpha[,t-1] * A[,j])
+  }
+  alpha[,t] <- alpha[,t] / sum(alpha[,t])
+}
+
+# beta_i,t = P(Y_t+1=y_t+1,...,Y_T=y_T|X_t=i,theta)
+beta <- matrix(0,nrow=length(pi),ncol=T)
+beta[,T] <- 1
+for (t in (T-1):1) {
+  for (i in xseq) {
+    beta[i,t] <- sum(beta[,t+1] * A[i,] * B[,Y[t+1]])
+  }
+  beta[,t] <- beta[,t] / sum(beta[,t])
+}
+
+# gamma_i,t = P(X_t=i|Y,theta)
+gamma <- alpha * beta
+gamma <- t( t(gamma) / colSums(gamma) )
+
+abline(h=1.5, col="red")
+points(seq_len(T), 1.4 + .2 * gamma[2,], type="l")
+
+# xi_i,j,t = P(X_t = i,X_t+1 = j|Y,theta)
+xi <- array(0, dim=c(nrow(B),ncol(B),T-1))
+for (t in seq_len(T-1)) {
+  for (i in xseq) {
+    for (j in seq_len(ncol(B))) {
+      xi[i,j,t] <- alpha[i,t]*A[i,j]*beta[j,t+1]*B[j,Y[t+1]]
+    }
+  }
+  xi[,,t] <- xi[,,t] / sum(xi[,,t])
+}
+
+pi.hat <- gamma[,1]
+A.hat <- apply(xi, c(1,2), sum) / rowSums(gamma[,-T])
+B.hat  <- matrix(c(sum(gamma[1,Y==1]), sum(gamma[1,Y==2]),
+                   sum(gamma[2,Y==1]), sum(gamma[2,Y==2])),
+                 byrow=TRUE, ncol=2) / rowSums(gamma)
+
+# V_i,t is the probability of the most probable sequence up to t,
+# having i as final state
+V <- matrix(0,nrow=length(pi),ncol=T)
+V[,1] <- pi * B[,Y[1]]
+Ptr <- matrix(0,nrow=length(pi),ncol=T)
+for (t in 2:T) {
+  for (i in xseq) {
+    V[i,t] <- B[i,Y[t]] * max(V[,t-1] * A[,i])
+    Ptr[i,t] <- which.max(V[,t-1] * A[,i])
+  }
+  V[,t] <- V[,t] / sum(V[,t])
+}
+x.hat <- numeric(T)
+x.hat[T] <- which.max(V[,T])
+for (t in (T-1):1) {
+  x.hat[t] <- Ptr[x.hat[t+1],t+1]
+}
+
+points(seq_len(T), 1.2 + .6 * (x.hat - 1))
+```
