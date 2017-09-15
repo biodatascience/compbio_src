@@ -35,16 +35,26 @@ replicates. Hierarchical models, and an empirical Bayes procedure to
 adjust the smallest and largest estimates of variance towards the
 *middle* of the distribution of sample variances, helps to avoid
 large mistakes in inference when the estimated variances are used to
-generate test statistics.
+generate test statistics. This is sometimes referred to as *moderation*
+of estimates, and the estimates themselves are sometimes referred to
+as *shrinkage estimators*. 
 
 One of the most popular methods which made use of the
 hierarchical model for variance estimation is 
 [limma](http://bioinf.wehi.edu.au/limma/), which was originally
 designed for microarray (continuous valued), but has been extended
 recently to work with sequencing data (counts). 
+Other methods for count data, such as DESeq2 and edgeR, likewise adopt
+a shrinkage based method similar to the one shown here, but for the
+dispersion parameter of a count distribution.
 In this document, I will show the practical effect of running the
 `eBayes` (empirical Bayes) function in limma, and how this modifies
 the variance estimates.
+
+I start by loading the curatedBladderData package, which has a number
+of *ExpressionSet* objects with gene expression from patients with
+bladder cancer. We load one of the dataset, and examine the experiment
+data.
 
 ```{r echo=FALSE}
 knitr::opts_chunk$set(cache=TRUE)
@@ -55,14 +65,24 @@ library(curatedBladderData)
 library(affy)
 data(GSE13507_eset)
 e <- GSE13507_eset
+str(experimentData(e))
 ```
+We will subset to a set of samples with the same staging. Our goal
+will be to estimate the variance of each gene using a subset of
+samples that is typical of a small experiment (n=5 vs 5), and compare
+to the variance estimate we get using all of the samples.
 
 ```{r}
-e <- e[,which(e$summarystage == "invasive")]
+table(e$summarystage)
+e <- e[,which(e$summarystage == "superficial")]
 dim(e)
-boxplot(exprs(e)[,1:10], range=0, main="samples")
+boxplot(exprs(e), range=0, main="samples")
 boxplot(t(exprs(e)[1:10,]), range=0, main="genes")
 ```
+
+A plot of the variance over the mean for each gene. For this
+demonstration, we will remove the genes with low mean, where the
+variances approach 0. 
 
 ```{r message=FALSE}
 library(matrixStats)
@@ -71,19 +91,35 @@ rv <- rowVars(exprs(e))
 plot(rm, sqrt(rv), cex=.5, col=rgb(0,0,0,.4))
 ```
 
+A histogram of the variances for each gene:
+
 ```{r}
 e <- e[rm > 8,]
 rv <- rowVars(exprs(e))
 hist(sqrt(rv),breaks=50,col="grey")
 ```
 
+Finally, we perform a quick check to see that there are not large
+clusters in the data. 
+
 ```{r}
 hc <- hclust(dist(t(exprs(e)[order(rv,decreasing=TRUE)[1:1000],]))) 
 plot(hc)
 ```
 
+There seems to be a single outlier, which we remove.
+
+```{r}
+e <- e[,-which(colnames(e)=="GSM340606")]
+```
+
+We take a random sub-sample of just 10 to compare with the full
+sample set. Plotting the sample variance of the subset against the
+full sample set shows some correspondence, but many above and below
+the line.
+
 ```{r fig.width=6, fig.height=6}
-m <- 5
+m <- 10
 sample.idx <- sample(ncol(e), m)
 e.sub <- e[,1:m]
 rv.sub <- rowVars(exprs(e.sub))
@@ -92,6 +128,15 @@ plot(sqrt(rv), sqrt(rv.sub), cex=.5, col=rgb(0,0,0,.5),
 abline(0,1)
 ```
 
+# Empirical Bayes shrinkage estimator
+
+The limma package has a function `eBayes` which takes in sample
+variance estimates, calculates the parameters of a prior distribution
+by fitting it to the observed data, and then produces posterior
+estimates for the sample variance. Plotting the posterior estimates
+against the standard sample variances, you can see they have shifted
+toward a central value, which is `s2.prior`.
+
 ```{r message=FALSE}
 library(limma)
 design <- model.matrix(~1, data.frame(row.names=1:m))
@@ -99,12 +144,20 @@ fit <- lmFit(exprs(e.sub), design)
 fit <- eBayes(fit)
 ```
 
-```{r, fig.width=6, fig.height=6}
+```{r, fig.width=5, fig.height=5}
 plot(rv.sub, fit$s2.post, xlim=c(0,1), ylim=c(0,1),
      xlab="sample var", ylab="eBayes var")
 abline(0,1)
 abline(v=fit$s2.prior, h=fit$s2.prior)
 ```
+
+Another way to visualize the posterior estimates is to plot the
+original estimates on the left side, and the new estimates on the
+right side, with segments connecting them. The blue line indicates the
+middle of the prior distribution. Compare the following plot with the
+second figure in 
+[this paper](http://statweb.stanford.edu/~ckirby/brad/other/Article1977.pdf)
+by Bradley Efron and Carl Morris on shrinkage estimators.
 
 ```{r message=FALSE, fig.width=5, fig.height=5}
 library(rafalib)
@@ -116,6 +169,9 @@ segments(rep(0,n), rv.sub[idx], rep(1,n), fit$s2.post[idx], col=rgb(0,0,0,.4))
 abline(h=fit$s2.prior, col="dodgerblue", lwd=5)
 ```
 
+Repeating the above plot by seeing that the highest estimates of
+sample variance are "shrunk" significantly toward the middle.
+
 ```{r fig.width=5, fig.height=5}
 nullplot(0,1,0,12,xaxt="n")
 axis(1, c(0,1), c("before","after"))
@@ -124,6 +180,10 @@ idx <- order(rv.sub, decreasing=TRUE)[1:n]
 segments(rep(0,n), rv.sub[idx], rep(1,n), fit$s2.post[idx], col=rgb(0,0,0,.4))
 abline(h=fit$s2.prior, col="dodgerblue", lwd=5)
 ```
+
+We can show that we have reduced both the root mean squared error, as
+well as the median absolute error with our new estimators, compared to
+"true": the sample variance using all the samples.
 
 ```{r}
 true <- sqrt(rv)
@@ -135,7 +195,20 @@ median(abs(samp.sd - true))
 median(abs(ebayes.sd - true))
 ```
 
-```{r, fig.width=8, fig.height=5}
+It helps to zoom into individual genes, to see how we have reduced the
+large errors, or residuals, comparing our estimate on a small
+sub-sample to the full dataset. Two things to note: 
+(i) when the estimates are low, they tend to be too low, and when the
+estimates are high, they tend to be too high. This phenomenon is
+sometimes referred to as "winner's curse".
+(ii) most of the posterior variance estimates are close to 0.5, so we
+have reduced the number of genes on the left side, where the variance
+estimate is very low, and underestimated. These genes would lead to
+false positives, by inflating the *t* statistic. Similarly, using the
+posterior, there are fewer genes with large overestimates of the
+variance.
+
+```{r, fig.width=7, fig.height=4}
 par(mfrow=c(1,2),mar=c(4,2,2,1))
 plot(samp.sd, samp.sd - true, col=rgb(0,0,0,.4), xlim=c(0,4), ylim=c(-1.5,1.5),
      main="residual over estimate")
@@ -145,9 +218,19 @@ plot(ebayes.sd, ebayes.sd - true, col=rgb(0,0,0,.4), xlim=c(0,4), ylim=c(-1.5,1.
 abline(h=-1:1,v=.5,lty=2,col=rgb(1,0,0,.5))
 ```
 
-```{r}
-plot(true, samp.sd, type="n")
-alpha <- ifelse(true > 1.5, .5, ifelse(true > 1, .2, .1))
-arrows(true, samp.sd, true, ebayes.sd, col=rgb(0,0,0,alpha), length=.1)
+One final plot to show the change is to draw arrows when the two
+estimates disagree, over the "true" sample variance from the full
+dataset. Note that, the posterior estimates are not perfect, and in
+some cases we have moved the estimates in the wrong
+direction. However, overall, we have improved more estimates than we
+have made worse.
+
+
+```{r, fig.width=6, fig.height=6}
+plot(true, samp.sd, type="n", ylab="sample SD --> eBayes SD")
+idx <- abs(samp.sd - ebayes.sd) > .1
+arrows(true[idx], samp.sd[idx],
+       true[idx], ebayes.sd[idx],
+       col=rgb(0,0,0,0.3), length=.1)
 abline(0,1)
 ```
