@@ -1,5 +1,5 @@
 ---
-title: "Hierarchical modeling of variance"
+title: "James Stein estimators"
 author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
