@@ -19,6 +19,7 @@ cna <- CNA(cbind(coriell$Coriell.05296),
            data.type="logratio", sampleid="c05296")
 smo <- smooth.CNA(cna)
 Y <- smo$c05296
+Y <- Y[!is.na(Y)]
 plot(Y)
 plot(Y, xlim=c(1100,1400))
 abline(h=.25)
@@ -26,35 +27,26 @@ plot(Y)
 abline(h=.25)
 ```
 
-
 ```{r}
-A <- matrix(c(.96,.04,.04,.96),2)
-pi <- c(.5, .5)
-B <- matrix(c(.8,.2,.2,.8),2) # hidden states x observed states
-#
-T <- 1000
-X <- numeric(T)
-X[1] <- sample(1:2,1,prob=pi)
-swap <- function(x) if (x == 1) 2 else 1
-for (t in 2:T) {
-  prob <- A[X[t-1],swap(X[t-1])] # prob of swap
-  X[t] <- if (rbinom(1,1,prob)) swap(X[t-1]) else X[t-1]
+T <- length(Y)
+# initial guess
+n <- 3
+pi <- rep(1/n, n)
+xseq <- seq_len(n)
+A <- matrix(.01, nrow=n, ncol=n)
+diag(A) <- .99
+A[1,n] <- A[n,1] <- 0 # only makes sense for CNV here
+mus <- c(-.5,0,.5)
+B <- function(j, Y) {
+  dnorm(Y,mus[j],.1)
 }
-plot(X)
-Y <- numeric(T)
-xseq <- seq_len(length(pi))
-for (i in xseq) {
-  Y[X == i] <- sample(1:2, sum(X == i), TRUE, prob=B[i,])
-}
-cols <- c("purple","dodgerblue")
-plot(X + .1 * (Y-1) + runif(T,-.01,.01), col=cols[Y], pch=20)
 
 # alpha_i,t = P(Y_1=y_1,...,Y_t=y_t,X_t=i|theta)
-alpha <- matrix(0,nrow=length(pi),ncol=T)
-alpha[,1] <- pi * B[,Y[1]]
+alpha <- matrix(0,nrow=nstates,ncol=T)
+alpha[,1] <- pi * B(1:nstates,Y[1])
 for (t in 2:T) {
   for (j in xseq) {
-    alpha[j,t] <- B[j,Y[t]] * sum(alpha[,t-1] * A[,j])
+    alpha[j,t] <- B(j,Y[t]) * sum(alpha[,t-1] * A[,j])
   }
   alpha[,t] <- alpha[,t] / sum(alpha[,t])
 }
@@ -64,7 +56,7 @@ beta <- matrix(0,nrow=length(pi),ncol=T)
 beta[,T] <- 1
 for (t in (T-1):1) {
   for (i in xseq) {
-    beta[i,t] <- sum(beta[,t+1] * A[i,] * B[,Y[t+1]])
+    beta[i,t] <- sum(beta[,t+1] * A[i,] * B(1:nstates,Y[t+1]))
   }
   beta[,t] <- beta[,t] / sum(beta[,t])
 }
@@ -73,15 +65,45 @@ for (t in (T-1):1) {
 gamma <- alpha * beta
 gamma <- t( t(gamma) / colSums(gamma) )
 
-abline(h=1.5, col="red")
-points(seq_len(T), 1.4 + .2 * gamma[2,], type="l")
+par(mfrow=c(2,1),mar=c(3,3,4,1))
+plot(Y, xlab="", ylab="", main="data: X_t")
+plot(seq_len(T), gamma[2,], type="l", xlab="", ylab="",
+     main="P(X_t = state 1 | Y,theta)")
+```
+
+```{r}
+# V_i,t is the probability of the most probable sequence up to t,
+# having i as final state
+V <- matrix(0,nrow=n,ncol=T)
+V[,1] <- pi * B(1:n,Y[1])
+Ptr <- matrix(0,nrow=length(pi),ncol=T)
+for (t in 2:T) {
+  for (i in xseq) {
+    V[i,t] <- B(i,Y[t]) * max(V[,t-1] * A[,i])
+    Ptr[i,t] <- which.max(V[,t-1] * A[,i])
+  }
+  V[,t] <- V[,t] / sum(V[,t])
+}
+x.hat <- numeric(T)
+x.hat[T] <- which.max(V[,T])
+for (t in (T-1):1) {
+  x.hat[t] <- Ptr[x.hat[t+1],t+1]
+}
+par(mfrow=c(2,1),mar=c(3,3,4,1))
+plot(Y, xlab="", ylab="", main="data: X_t")
+plot(seq_len(T), x.hat, type="l", xlab="", ylab="",
+     main="The Viterbi sequence")
+```
+
+```{r}
+### fix this for continuous Y...
 
 # xi_i,j,t = P(X_t = i,X_t+1 = j|Y,theta)
 xi <- array(0, dim=c(nrow(B),ncol(B),T-1))
 for (t in seq_len(T-1)) {
   for (i in xseq) {
     for (j in seq_len(ncol(B))) {
-      xi[i,j,t] <- alpha[i,t]*A[i,j]*beta[j,t+1]*B[j,Y[t+1]]
+      xi[i,j,t] <- alpha[i,t]*A[i,j]*beta[j,t+1]*B(j,Y[t+1])
     }
   }
   xi[,,t] <- xi[,,t] / sum(xi[,,t])
@@ -93,23 +115,5 @@ B.hat  <- matrix(c(sum(gamma[1,Y==1]), sum(gamma[1,Y==2]),
                    sum(gamma[2,Y==1]), sum(gamma[2,Y==2])),
                  byrow=TRUE, ncol=2) / rowSums(gamma)
 
-# V_i,t is the probability of the most probable sequence up to t,
-# having i as final state
-V <- matrix(0,nrow=length(pi),ncol=T)
-V[,1] <- pi * B[,Y[1]]
-Ptr <- matrix(0,nrow=length(pi),ncol=T)
-for (t in 2:T) {
-  for (i in xseq) {
-    V[i,t] <- B[i,Y[t]] * max(V[,t-1] * A[,i])
-    Ptr[i,t] <- which.max(V[,t-1] * A[,i])
-  }
-  V[,t] <- V[,t] / sum(V[,t])
-}
-x.hat <- numeric(T)
-x.hat[T] <- which.max(V[,T])
-for (t in (T-1):1) {
-  x.hat[t] <- Ptr[x.hat[t+1],t+1]
-}
-
-points(seq_len(T), 1.2 + .6 * (x.hat - 1))
+###
 ```
