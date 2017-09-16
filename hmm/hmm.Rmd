@@ -40,31 +40,39 @@ mus <- c(-.5,0,.5)
 B <- function(j, Y) {
   dnorm(Y,mus[j],.1)
 }
+```
 
+```{r}
 # alpha_i,t = P(Y_1=y_1,...,Y_t=y_t,X_t=i|theta)
-alpha <- matrix(0,nrow=nstates,ncol=T)
-alpha[,1] <- pi * B(1:nstates,Y[1])
+alpha <- matrix(0,nrow=n,ncol=T)
+alpha[,1] <- pi * B(1:n,Y[1])
 for (t in 2:T) {
   for (j in xseq) {
     alpha[j,t] <- B(j,Y[t]) * sum(alpha[,t-1] * A[,j])
   }
   alpha[,t] <- alpha[,t] / sum(alpha[,t])
 }
+```
 
+```{r}
 # beta_i,t = P(Y_t+1=y_t+1,...,Y_T=y_T|X_t=i,theta)
 beta <- matrix(0,nrow=length(pi),ncol=T)
 beta[,T] <- 1
 for (t in (T-1):1) {
   for (i in xseq) {
-    beta[i,t] <- sum(beta[,t+1] * A[i,] * B(1:nstates,Y[t+1]))
+    beta[i,t] <- sum(beta[,t+1] * A[i,] * B(1:n,Y[t+1]))
   }
   beta[,t] <- beta[,t] / sum(beta[,t])
 }
+```
 
+```{r}
 # gamma_i,t = P(X_t=i|Y,theta)
 gamma <- alpha * beta
 gamma <- t( t(gamma) / colSums(gamma) )
+```
 
+```{r}
 par(mfrow=c(2,1),mar=c(3,3,4,1))
 plot(Y, xlab="", ylab="", main="data: X_t")
 plot(seq_len(T), gamma[2,], type="l", xlab="", ylab="",
@@ -89,6 +97,9 @@ x.hat[T] <- which.max(V[,T])
 for (t in (T-1):1) {
   x.hat[t] <- Ptr[x.hat[t+1],t+1]
 }
+```
+
+```{r}
 par(mfrow=c(2,1),mar=c(3,3,4,1))
 plot(Y, xlab="", ylab="", main="data: X_t")
 plot(seq_len(T), x.hat, type="l", xlab="", ylab="",
@@ -96,24 +107,23 @@ plot(seq_len(T), x.hat, type="l", xlab="", ylab="",
 ```
 
 ```{r}
-### fix this for continuous Y...
-
 # xi_i,j,t = P(X_t = i,X_t+1 = j|Y,theta)
-xi <- array(0, dim=c(nrow(B),ncol(B),T-1))
+xi <- array(0, dim=c(n,n,T-1))
 for (t in seq_len(T-1)) {
   for (i in xseq) {
-    for (j in seq_len(ncol(B))) {
+    for (j in 1:n) {
       xi[i,j,t] <- alpha[i,t]*A[i,j]*beta[j,t+1]*B(j,Y[t+1])
     }
   }
   xi[,,t] <- xi[,,t] / sum(xi[,,t])
 }
+```
 
+```{r}
 pi.hat <- gamma[,1]
 A.hat <- apply(xi, c(1,2), sum) / rowSums(gamma[,-T])
-B.hat  <- matrix(c(sum(gamma[1,Y==1]), sum(gamma[1,Y==2]),
-                   sum(gamma[2,Y==1]), sum(gamma[2,Y==2])),
-                 byrow=TRUE, ncol=2) / rowSums(gamma)
-
-###
+mu.hat <- rowSums(t(t(gamma) * Y)) / rowSums(gamma)
+sigma.hat <- sapply(1:n, function(i) {
+  sqrt(sum(gamma[i,] * (Y - mu.hat[i])^2) / sum(gamma[i,]))
+})
 ```
