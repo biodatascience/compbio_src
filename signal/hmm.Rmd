@@ -37,8 +37,9 @@ A <- matrix(.01, nrow=n, ncol=n)
 diag(A) <- .99
 A[1,n] <- A[n,1] <- 0 # only makes sense for CNV here
 mus <- c(-.5,0,.5)
+sigma <- .1
 B <- function(j, Y) {
-  dnorm(Y,mus[j],.1)
+  dnorm(Y,mus[j],sigma)
 }
 ```
 
@@ -127,3 +128,24 @@ sigma.hat <- sapply(1:n, function(i) {
   sqrt(sum(gamma[i,] * (Y - mu.hat[i])^2) / sum(gamma[i,]))
 })
 ```
+
+```{r}
+library(rafalib)
+mypar(1,2)
+plot(Y, col=x.hat)
+abline(h=mus, col=1:3)
+plot(Y, col=x.hat)
+abline(h=mu.hat, col=1:3)
+```
+
+```{r}
+sigma
+sigma.hat[2]
+sd(Y[x.hat == 2])
+```
+
+```{r}
+sum(x.hat == 1)
+1/A.hat[1,2]
+```
+
