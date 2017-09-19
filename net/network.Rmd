@@ -1,16 +1,101 @@
 ---
-title: "Network analysis of chromatin loops"
+title: "Network analysis of DNA loops"
 author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
 
-http://www.biorxiv.org/content/early/2017/05/25/142026
+In this document, we will cover how considering certain datasets in
+the context of *networks* can help us understand statistical
+properties of the data on a more biologically meaningful level. We
+will use as an example dataset the list of DNA loops (chromatin
+interaction data) found using deeply sequenced in situ Hi-C. The
+published article is:
+
+[Static and Dynamic DNA Loops form AP-1-Bound Activation Hubs during Macrophage Development](http://dx.doi.org/10.1016/j.molcel.2017.08.006) 
+by Douglas Phanstiel
+
+A preprint of the article can also be found [here](http://www.biorxiv.org/content/early/2017/05/25/142026).
+
+The article describes in detail the set of DNA loops which are gained
+and lost as a precursor monocyte differentiates into a mature
+macrophage. The summary of the article is below. Note in particular
+the highlighted sentence which discusses multi-loop hubs (or
+communities). 
+
+> The three-dimensional arrangement of the human genome comprises a
+> complex network of structural and regulatory chromatin loops
+> important for coordinating changes in transcription during human
+> development. To better understand the mechanisms underlying
+> context-specific 3D chromatin structure and transcription during
+> cellular differentiation, we generated comprehensive in situ Hi-C
+> maps of DNA loops in human monocytes and differentiated
+> macrophages. We demonstrate that dynamic looping events are
+> regulatory rather than structural in nature and uncover widespread
+> coordination of dynamic enhancer activity at preformed and acquired
+> DNA loops. **Enhancer-bound loop formation and enhancer activation of
+> preformed loops together form multi-loop activation hubs at key
+> macrophage genes. Activation hubs connect 3.4 enhancers per promoter**
+> and exhibit a strong enrichment for activator protein 1
+> (AP-1)-binding events, suggesting that multi-loop activation hubs
+> involving cell-type-specific transcription factors represent an
+> important class of regulatory chromatin structures for the
+> spatiotemporal control of transcription. 
+
+A DNA loop as detected by Hi-C is a link between two regions of DNA,
+called *anchors*, detected by summing up non-duplicated fragments
+connecting 10 kb windows and performing some statistical test for the
+significance of seeing so high a count. As we can see in the summary
+above, a key part of the analysis was to consider how multiple DNA
+loops might form a hub. For example, suppose we have region 1 and
+region 2 detected as a loop, and region 3 and region 4 detected as a
+loop. If region 2 overlaps region 3 in the linear genome, then we can
+describe a community of loops which are in proximity to each
+other. The authors note that, when considering each community as
+the unit of study, they found 3.4 enhancers per promoter for those
+communities which were characterized as *activation hubs*. We will
+recapitulate these analyses below (albeit in a simple manner that the
+methods of the paper, simplified for pedagogical purposes).
+
+# Reading in DNA loop data
+
+To download the data for this analysis, you can either use the
+following code chunk which does the downloading, unzipping and moving
+of files from within R; or you can download the files manually from
+GitHub. For the latter, go to the following GitHub repo:
+
+<https://github.com/biodatascience/network_data>
+
+...click the green button to Download ZIP to your working
+directory. We will use the three files in this repo in this
+document. You will need to unzip the directory and move the three
+files into your working directory.
+
+You do not need to gunzip the three files themselves, we will
+read them in using `read_delim`. 
 
 ```{r echo=FALSE}
 knitr::opts_chunk$set(cache=TRUE)
 ```
 
-```{r}
+```{r eval=FALSE}
+url <- "https://github.com/biodatascience/network_data/archive/master.zip"
+file <- "network_data.zip"
+if (!file.exists(file)) {
+  download.file(url, file)
+  unzip(file)
+  system("mv network_data-master/* .")
+}
+```
+
+Now we will read in the data and create Bioconductor objects. The
+following code chunk reads in the full set of DNA loops (in hg19
+coordinates), which are saved as two GRanges objects: `anchor1` and
+`anchor2`. Here *anchors* refers to the two regions that form a DNA
+loop, as detected by Hi-C. We also assign the `loop.status`, which is
+whether the loop was gained (only seen in macrophage), static (seen in
+both cell types), or lost (only seen in monocytes).
+
+```{r message=FALSE}
 library(readr)
 library(GenomicRanges)
 loops <- read_delim("Table_S3.Loops.Differential.txt.gz", delim="\t")
@@ -19,8 +104,17 @@ anchor1 <- GRanges(loops$anchor1_chrom,
 anchor2 <- GRanges(loops$anchor2_chrom,
                    IRanges(loops$anchor2_start, loops$anchor2_end))
 loop.status <- factor(loops$dynamic_loop_type)
+table(loop.status)
 anchor1$loop.status <- loop.status
 anchor2$loop.status <- loop.status
+```
+
+We also read in the definitions (in hg19 coordinates) for enhancers in
+monocytes (O) and macrophages (A), as measured by H3K27ac ChIP-seq
+experiments. We put both sets of enhancers together into a single
+GRanges, and sort it by position.
+
+```{r}
 enh.mono <- read_delim("MACSpeaks_H3K27ac_CI_THP1_O_peaks.narrowPeak.gz",
                        delim="\t", col_names=FALSE)
 enh.macro <- read_delim("MACSpeaks_H3K27ac_CI_THP1_A_peaks.narrowPeak.gz",
@@ -31,13 +125,33 @@ enh <- GRanges(c(enh.mono$X1, enh.macro$X1),
 enh <- sort(enh)
 ```
 
-```{r}
+We also need to define promoter regions for the hg19 genome, and for
+this we can use the UCSC known genes (this was the set of gene
+locations that was used in the article). Promoters are defined as 2 kb
+windows upstream of the transcription start site (TSS).
+
+```{r message=FALSE}
 library(TxDb.Hsapiens.UCSC.hg19.knownGene)
 txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
 g <- genes(txdb)
 g <- keepStandardChromosomes(g, pruning.mode="coarse")
 promoter <- flank(g, width=2000)
 ```
+
+# Computing anchor, enhancer, and promoter overlaps
+
+The following chunk of code annotates the anchors as either
+overlapping a promoter or enhancer, and then defines three groups of
+DNA loops: those connecting an enhancer to an enhancer, a promoter to
+a promoter, or an enhancer to a promoter. Finally, we define a group
+called "other" in which one or both of the anchors do not overlap an
+enhancer or promoter.
+
+The first line below simply removes from the enhancer GRanges any
+regions overlapping a promoter. Note that, in the following
+categories, a loop can potentially be counted to multiple categories,
+because it is possible that an anchor might overlap both an enhancer
+and a promoter (although those two regions themselves do not overlap).
 
 ```{r}
 enh <- enh[!overlapsAny(enh, promoter)]
@@ -49,17 +163,48 @@ EE <- loop.status[anchor1$enhancer & anchor2$enhancer]
 PP <- loop.status[anchor1$promoter & anchor2$promoter]
 EP <- loop.status[(anchor1$enhancer & anchor2$promoter) |
                   (anchor2$enhancer & anchor1$promoter)]
-other <- loop.status[!(anchor1$promoter | anchor1$enhancer) |
-                     !(anchor2$promoter | anchor2$enhancer)]                       
-tab <- cbind(EE=table(EE), PP=table(PP), EP=table(EP), other=table(other))
-prop.tab <- prop.table(tab,margin=1)
-barplot(prop.tab[c(3,1),-4], beside=TRUE, border=NA,
-        col=c("grey","brown"), ylim=c(0,.6))
+other <- loop.status[!((anchor1$promoter | anchor1$enhancer) & 
+                       (anchor2$promoter | anchor2$enhancer))]
 ```
 
+We can then cross-tabulate the loop status for the different
+categories, and make a barplot to compare them. Compare with 
+[Figure 4E](http://www.cell.com/action/showImagesData?pii=S1097-2765%2817%2930603-2)
+in the paper.
+
+```{r}
+tab <- cbind(EE=table(EE), PP=table(PP), EP=table(EP), other=table(other))
+prop.tab <- prop.table(tab,margin=1)
+cols <- c("grey","brown")
+barplot(prop.tab[c(3,1),-4], beside=TRUE, border=NA,
+        col=cols, ylim=c(0,.6))
+legend("topright", rownames(prop.tab)[c(3,1)], fill=cols,
+       border=NA, cex=1.5, bty="n")
+```
+
+# Stepping back
+
+Looking at the barplot above, a first impression is that, when DNA
+loops are added during macrophage differentiation, most of what is
+going on is the addition of enhancer-enhancer interactions, and there
+are a few more enhancer-promoter interactions. As we hinted at in the
+beginning, this treats the DNA loop as the unit of study, while we
+might also consider multiple connected DNA loops as a community or
+hub. This is a good example of stepping back from an analysis and
+thinking critically about what is being measured and why. Another
+feature of this paper is
+[Figure 4F](http://www.cell.com/action/showImagesData?pii=S1097-2765%2817%2930603-2)
+which shows examples of 20 randomly chosen communities either
+containing or not containing loops. Just by looking at the example
+data, one can see that the communities tend to be larger when they
+contain a gained loop, and that most communities containing a gained
+loop contain a promoter.
+
+With this in mind, the barplot above is interpreted in the paper as follows:
+
 > One possible explanation for the large proportion of enhancer-enhancer
-> loops is the presence of interaction hubs involving a single promoter
-> and multiple enhancers that all interact with each other. A fully
+> loops is **the presence of interaction hubs involving a single promoter
+> and multiple enhancers that all interact with each other**. A fully
 > connected hub with only one promoter and N enhancers would contain N
 > enhancer-promoter interactions and (N)! / 2(N-2)!  enhancer-enhancer
 > interactions. For all values greater than N = 3, there would be more
@@ -70,14 +215,31 @@ barplot(prop.tab[c(3,1),-4], beside=TRUE, border=NA,
 > classified these communities into two subsets: those containing a
 > gained loop and those without....
 
+We can use `findOverlap` to start connecting anchors to each other,
+to build networks. The following chunk of code constructs a
+non-redundant matrix of overlaps of DNA loop anchors.
+
 ```{r}
 fo1 <- as.matrix(findOverlaps(anchor1))
 fo2 <- as.matrix(findOverlaps(anchor2))
 fo12 <- as.matrix(findOverlaps(anchor1, anchor2))
 overlaps <- rbind(fo1,fo2,fo12)
+head(overlaps)
 overlaps <- overlaps[overlaps[,1] < overlaps[,2],]
 overlaps <- overlaps[!duplicated(overlaps),]
 ```
+
+# Identifying connected components of a network
+
+Once we have the matrix of which DNA loops connect to others, we can
+build a *graph* or network using the Bioconductor package RBGL. This
+package provides an R interface to the *Boost graph library*, a set of
+algorithms for computing on graphs (networks). The first function
+creates a graph from a matrix of edge definitions, and the second
+function outputs a list of connected components (communities) within
+the graph. A connected component is a set of nodes (here, DNA loops)
+that are connected by edges (here, loops which overlap other loops at
+at least one anchor in the linear genome).
 
 ```{r message=FALSE}
 library(RBGL)
@@ -85,6 +247,19 @@ graph <- ftM2graphNEL(overlaps, edgemode="undirected")
 cc <- connectedComp(graph)
 length(cc)
 ```
+
+# Computing statistics per community
+
+Finally, we want to compare the communities which contain gained
+loops to those communities which do not (systematically make
+comparisons of the type in Figure 4F). To do so, we first compute a
+character vector of the numeric index of the loops which were
+categorized as gained in macrophage differentiation. We then iterate
+through all of the communities defined above to see which contained a
+gained loop. Finally, we calculate the size of the communities, and
+make a boxplot, clearly showing that gained loops belong to much
+larger communities, such that we would expect more enhancer-enhancer
+loops in the barplot above.
 
 ```{r message=FALSE}
 library(magrittr)
@@ -97,6 +272,14 @@ table(community.type)
 boxplot(community.size ~ community.type, log="y", main="loops per community")
 ```
 
+We can also tabulate the number of enhancers and promoters per
+community. Note that here we perform a slightly different analysis
+than in the paper, for simplicity of code. Here we add up the
+number of enhancers and promoters per loop, and then add this tally to
+for all the loops in the community. This ends up double counting when
+anchors appear in multiple loops. A better analysis would focus on
+anchors here rather than loops (this was the analysis done in the paper).
+
 ```{r}
 num.enhancer <- sapply(cc, function(x) {
   i <- as.numeric(x)
@@ -107,6 +290,15 @@ num.promoter <- sapply(cc, function(x) {
   sum(anchor1$promoter[i] + anchor2$promoter[i])
 })
 enh.to.promoter <- ifelse(num.promoter == 0, NA, num.enhancer / num.promoter)
-boxplot(enh.to.promoter ~ community.type, main="E-to-P number", ylim=c(0,10))
 ```
 
+We can see however that the number of enhancers-per-promoter increases
+for those communities that contain a gained loop:
+
+```{r}
+boxplot(enh.to.promoter ~ community.type, main="E-to-P number", ylim=c(0,10))
+static.E2P <- enh.to.promoter[community.type == "static"]
+gained.E2P <- enh.to.promoter[community.type == "gained"]
+mean(static.E2P, na.rm=TRUE)
+mean(gained.E2P, na.rm=TRUE)
+```
