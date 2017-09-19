@@ -1,8 +1,21 @@
 ---
-title: "Hidden Markov Models"
+title: "Hidden Markov Models and Dynamic Programming"
 author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
+
+Here we will present the Hidden Markov Model (HMM), and apply it to
+detect copy number variants in *arrayCGH* data. Array comparative
+genomic hybridization (arrayCGH) is a microarray technology which
+compares, at a set of regions tiling the genome, the amount of DNA
+from a sample compared to a reference. Glossing over the technological
+details, if the signal is around 0 it means the sample has the same
+number of copies of DNA as the reference; consistent stretches of
+higher or lower values than 0 indicate amplifications and deletions,
+respectively. Let's dive in a take a look. We load an arrayCGH dataset
+from a Bioconductor package, DNAcopy. (Aside: DNAcopy implements
+another useful signal processing algorithm, called *circular binary
+segmentation*. If we have time we will also cover this algorithm.)
 
 > We selected a subset of the data set presented in Snijders et
 > al. (2001). We are calling this data set coriell. The data correspond
@@ -10,89 +23,253 @@ output: html_document
 > chose the studies GM05296 and GM13330. After selecting only the mapped
 > data from chromosomes 1-22 and X, there are 2271 data points. 
 
+If we draw all the values, lined up along the genome, it looks like this:
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
 ```{r}
 library(DNAcopy)
 data(coriell)
 plot(coriell$Coriell.05296)
+```
+
+One can clearly see two amplifications and one deletion by eye. There
+are also many stray points, which are likely just noise. The authors
+of the DNAcopy have a simple method to smooth away the singleton
+points. We ignore the warning about repeated positions...
+
+```{r}
 cna <- CNA(cbind(coriell$Coriell.05296),
            coriell$Chromosome,coriell$Position,
            data.type="logratio", sampleid="c05296")
 smo <- smooth.CNA(cna)
-Y <- smo$c05296
-Y <- Y[!is.na(Y)]
-plot(Y)
-plot(Y, xlim=c(1100,1400))
+y <- smo$c05296
+y <- y[!is.na(y)]
+plot(y)
+```
+
+As I said previously, we can clearly identify the three regions that
+correspond to large variants in this dataset. So why do we need to
+use a sophisticated model? A couple of reasons: (1) we would like to
+have an automated procedure, so we don't have to check such plots by
+eye. Always imagine, suppose the dataset grows from one sample to
+10,000 samples. Will the check-by-eye procedure still work? (2)
+Suppose the samples have different noise level. We want a procedure
+which works fairly well for various signal-to-noise ratios. Even given
+the current, fairly high signal-to-noise data, we cannot simply draw a
+line to separate, for example, the amplification in the middle of the
+sequence. If we try a line roughly in between, it works for the local
+region, but would also call lots of singletons outside of the region,
+as shown in the following two plots.
+
+```{r}
+plot(y, xlim=c(1080,1220))
 abline(h=.25)
-plot(Y)
+plot(y)
 abline(h=.25)
 ```
 
+# Markov Models
+
+One intuitive model for segmenting this data into regions is the
+Hidden Markov Model (HMM). If you haven't yet seen 
+[Markov chains](https://en.wikipedia.org/wiki/Markov_chain#Formal_definition),
+they are very useful and not too hard to understand. An order-1 Markov
+chain is a sequence, $X_1, X_2, ...$ such that the probability the
+chain is in a given state at time *t* given all of the previous time
+points is equal to the probability the chain is in that state at time
+*t* given the only the *t-1* time point. We can discard all the
+information before time *t-1* and still have the complete information
+for knowing the probabilities the chain will be in a given state at
+time *t*.
+
+A Hidden Markov Model then consists of a Markov chain, which we do not
+observe directly. The chain has some discrete set of states, and some
+probabilities for transitioning from one state to another. At time
+*t*, we write that the hidden chain is in state *i* by writing $X_t = i$.
+Instead of $X_t$, what we observe is an outcome $Y_t = y_t$, and the
+probability density function for $Y_t$ will depend on which state
+$X_t$ is in. The most common formulation is that $Y_t$ also takes on
+discrete values, but here we will have $Y_t$ take on continuous
+values, with Normal distributions indexed by *i*.
+
+As a reference, we note that the following paper proposed an HMM to
+segment arrayCGH data, although we will use different notation, and a
+more simple HMM approach here.
+
+[Hidden Markov models approach to the analysis of array CGH data](http://www.sciencedirect.com/science/article/pii/S0047259X04000260) - Fridlyand et al
+
+The key components to modeling data as an HMM are: a starting
+distribution $\pi$ for $X_1$ over the states, a transition matrix *A*,
+with entries $A_{i,j}$ indicating the probability that *X* will
+transition from state *i* to state *j* in one step in the chain, and
+the emission probabilities *B*. If *Y* takes on discrete values, then
+*B* can be represented as a matrix, but here we will write $B_{i,y_t}$
+to be the value of a density evaluated at $y_t$ using a series of
+probability density functions indexed by *i*. This can be seen clearly
+in the code below. We specify three states for *X*: `n=3`. We will
+encapsulate all variables as $\theta = (\pi, A, B)$.
+
+The final line in the code chunk below only makes sense for this
+particular application, where we enforce a probability of 0 for
+transitioning from state 1 to 3 or vice versa. This means that, we
+expect the chain will go first to state 2 (normal copy number).
+
 ```{r}
-T <- length(Y)
-# initial guess
+T <- length(y)
 n <- 3
-pi <- rep(1/n, n)
-xseq <- seq_len(n)
-A <- matrix(.01, nrow=n, ncol=n)
-diag(A) <- .99
+pi <- rep(1/n, n) # equal starting probabilities
+A <- matrix(.01, nrow=n, ncol=n) # the transition matrix
+diag(A) <- .99 # high density on diagonal usually stay in same state
 A[1,n] <- A[n,1] <- 0 # only makes sense for CNV here
-mus <- c(-.5,0,.5)
+A
+```
+
+The following encodes the emission probabilities. Note that we make
+some really bad guesses for the means of the three probability density
+functions. We do this on purpose, to show the improvement when we
+later use the HMM to update these parameters 
+using the [EM algorithm](../model/EM.html).
+
+```{r}
+mus <- c(-.4,0,.4) # bad guesses! to show improvement later
 sigma <- .1
-B <- function(j, Y) {
-  dnorm(Y,mus[j],sigma)
+B <- function(j, y) {
+  dnorm(y,mus[j],sigma)
 }
 ```
 
+# Useful variables for analyzing the HMM
+
+Here we will use the definitions of variables from 
+[An Introduction to hidden Markov models](http://ieeexplore.ieee.org/abstract/document/1165342)
+by Lawrence Rabiner and Biing-Hwang Juang. We use a small notation
+change, using *Y* for the observed variables and *X* for the hidden
+variables instead of *O* and *I*, as it is difficult to see the
+difference between *I* and the condition bar. The *Y* and *X* notation
+can be found on the Wikipedia page for the 
+[Baum-Welch algorith](https://en.wikipedia.org/wiki/Baum%E2%80%93Welch_algorithm).
+
+The following variables denote (with phrasing from Rabiner and Juang):
+
+* $\alpha_{i,t}$ - the probability of the partial observation sequence until time *t*
+and state *i*, given the model $\theta$
+* $\beta_{i,t}$ - the probability of the partial observation sequence
+  from *t+1* to the end, given state *i* and the model $\theta$
+* $\gamma_{i,t}$ - the probability of state *i* at time *t* given the
+  entire observation sequence and the model $\theta$
+  
+It's useful to see these as formula:
+
+$$ \alpha_{i,t} = P(Y_1=y_1,...,Y_t=y_t,X_t=i|\theta) $$
+
+$$ \beta_{i,t} = P(Y_{t+1}=y_{t+1},...,Y_T=y_T|X_t=i,\theta) $$
+
+$$ \gamma_{i,t} = P(X_t=i|Y,\theta) $$
+
+The magic of the HMM is that, we can calculate these probabilities
+quite efficiently using *dynamic programming*, and relying on the
+key property of the Markov chain. If we consider $\alpha_{i,t}$, we
+need only to examine the probabilities at time *t-1* to evaluate the
+probabilities at time *t*. All of the information about the chain that
+we need to calculate probabilities at time *t* is encoded in the
+probabilities one step behind in time. And likewise for $\beta_{i,t}$,
+but running time forward instead of backward. These two sets of
+equations are called the 
+[Forward-Backward algorithm](https://en.wikipedia.org/wiki/Forward%E2%80%93backward_algorithm).
+
+Let's step through how we will calculate each column of
+$\alpha_{i,t}$. We start with the initial probabilities $\pi$, and the
+observed value $Y_1 = y_1$. Then at time *t=2* and for state *i*, we
+take the sum of probabilities from all possible states at time *t=1*,
+multiply by the probability of transitioning to state *i*, and the
+multiply by the probability of observed $Y_2 = y_2$. Because of the
+Markov property, we can repeat this step until the end of the
+sequence, only looking back one time point at each step. This
+property, of only having to look back at the previous stage to know
+how to move forward, is part of
+[dynamic programming](https://en.wikipedia.org/wiki/Dynamic_programming).
+Typical dynamic programs use this efficiency to calculate, for example, the 
+[shortest path through a graph](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
+by first solving the shortest path through a smaller part of the graph.
+
 ```{r}
-# alpha_i,t = P(Y_1=y_1,...,Y_t=y_t,X_t=i|theta)
 alpha <- matrix(0,nrow=n,ncol=T)
-alpha[,1] <- pi * B(1:n,Y[1])
+alpha[,1] <- pi * B(1:n,y[1])
 for (t in 2:T) {
-  for (j in xseq) {
-    alpha[j,t] <- B(j,Y[t]) * sum(alpha[,t-1] * A[,j])
+  for (i in 1:n) {
+    alpha[i,t] <- sum(alpha[,t-1] * A[,i]) * B(i,y[t])
   }
-  alpha[,t] <- alpha[,t] / sum(alpha[,t])
+  alpha[,t] <- alpha[,t] / sum(alpha[,t]) # scale to 1 to prevent small probs
 }
 ```
 
+We can see the same pattern at work for $\beta_{i,t}$
+
 ```{r}
-# beta_i,t = P(Y_t+1=y_t+1,...,Y_T=y_T|X_t=i,theta)
-beta <- matrix(0,nrow=length(pi),ncol=T)
+beta <- matrix(0,nrow=n,ncol=T)
 beta[,T] <- 1
 for (t in (T-1):1) {
-  for (i in xseq) {
-    beta[i,t] <- sum(beta[,t+1] * A[i,] * B(1:n,Y[t+1]))
+  for (i in 1:n) {
+    beta[i,t] <- sum(beta[,t+1] * A[i,] * B(1:n,y[t+1]))
   }
   beta[,t] <- beta[,t] / sum(beta[,t])
 }
 ```
 
+Finally, note that we can obtain $\gamma_{i,t}$ using $\alpha_{i,t}$
+and $\beta_{i,t}$.
+
+$$ \gamma_{i,t} = P(X_t=i|Y,\theta) $$
+
+$$ = \frac{P(X_t=i,Y|\theta)}{P(Y|\theta)} $$ 
+
+$$ = \frac{P(Y_1=y_1,...,Y_t=y_t,X_t=i|\theta) P(Y_{t+1}=y_{t+1},...,Y_T=y_T|X_t=i,\theta)}{P(Y|\theta)} $$
+
 ```{r}
-# gamma_i,t = P(X_t=i|Y,theta)
 gamma <- alpha * beta
 gamma <- t( t(gamma) / colSums(gamma) )
 ```
 
-```{r}
-par(mfrow=c(2,1),mar=c(3,3,4,1))
-plot(Y, xlab="", ylab="", main="data: X_t")
-plot(seq_len(T), gamma[2,], type="l", xlab="", ylab="",
-     main="P(X_t = state 1 | Y,theta)")
-```
+This is interesting to plot, the probability that we are in a given
+state at a given time point. Note that this does not tell us the most
+likely path of states, which is described below.
 
 ```{r}
-# V_i,t is the probability of the most probable sequence up to t,
-# having i as final state
+par(mfrow=c(2,1),mar=c(3,3,3,1))
+plot(y, xlab="", ylab="", main="data: X_t")
+plot(seq_len(T), gamma[2,], type="l", xlab="", ylab="",
+     main="P(X_t = state 1 | Y, theta)")
+```
+
+# The Viterbi sequence
+
+The Viterbi sequence can be used to give the most likely path of
+states. We write $V_{i,t}$ as the probability of the most probable
+sequence up to *t*, having *i* as its final state. While we calculate
+these probabilities of most probable sequences, we will also keep
+another variable *Ptr* which points us back along that path.
+
+```{r}
 V <- matrix(0,nrow=n,ncol=T)
-V[,1] <- pi * B(1:n,Y[1])
-Ptr <- matrix(0,nrow=length(pi),ncol=T)
+V[,1] <- pi * B(1:n,y[1])
+Ptr <- matrix(0,nrow=n,ncol=T)
 for (t in 2:T) {
-  for (i in xseq) {
-    V[i,t] <- B(i,Y[t]) * max(V[,t-1] * A[,i])
+  for (i in 1:n) {
+    V[i,t] <- B(i,y[t]) * max(V[,t-1] * A[,i])
     Ptr[i,t] <- which.max(V[,t-1] * A[,i])
   }
   V[,t] <- V[,t] / sum(V[,t])
 }
+```
+
+Once we are done, we can run backwards from *T* to *1*, and
+re-construct the most probably sequence of states, here stored as
+`x.hat`. 
+
+```{r}
 x.hat <- numeric(T)
 x.hat[T] <- which.max(V[,T])
 for (t in (T-1):1) {
@@ -100,52 +277,95 @@ for (t in (T-1):1) {
 }
 ```
 
+Note that, even though we had pretty bad guesses for the mean values,
+we still accurately segment the amplifications and deletions, apart
+from the normal copy number state.
+
 ```{r}
-par(mfrow=c(2,1),mar=c(3,3,4,1))
-plot(Y, xlab="", ylab="", main="data: X_t")
+par(mfrow=c(2,1),mar=c(3,3,3,1))
+plot(y, xlab="", ylab="", main="data: X_t")
 plot(seq_len(T), x.hat, type="l", xlab="", ylab="",
      main="The Viterbi sequence")
 ```
 
+# Updating parameters: the Baum-Welch algorithm
+
+Finally, we show the algorithm used for updating our estimates of the
+parameters $\theta = (\pi,A,B)$, which is called the
+[Baum-Welch algorith](https://en.wikipedia.org/wiki/Baum%E2%80%93Welch_algorithm),
+a special case of the [EM algorithm](../model/EM.html). We define a
+variable, $\xi_{i,j,t}$ as the probability of a path being in
+state *i*, and transitioning to state *j* at time *t+1*, given the
+observation sequence and the model $\theta$.
+
+$$ \xi_{i,j,t} = P(X_t=i,X_{t+1}=j|Y,\theta) $$
+
+$$ = \frac{\alpha_{i,t} A_{i,j} B_{j,y_{t+1}} \beta_{j,t+1}}{P(Y|\theta)} $$ 
+
+We can compute these probabilities, for all *i,j,t*, using the Forward
+algorithm, multiplying one set of transition probabilities with *A*,
+an emission probability with *B*, followed by the Backward
+algorithm. As shown above, all of these values are already available,
+we just need to iterate through all the values for *i,j,t*, and then
+scale appropriately. 
+
 ```{r}
-# xi_i,j,t = P(X_t = i,X_t+1 = j|Y,theta)
 xi <- array(0, dim=c(n,n,T-1))
 for (t in seq_len(T-1)) {
-  for (i in xseq) {
+  for (i in 1:n) {
     for (j in 1:n) {
-      xi[i,j,t] <- alpha[i,t]*A[i,j]*beta[j,t+1]*B(j,Y[t+1])
+      xi[i,j,t] <- alpha[i,t]*A[i,j]*B(j,y[t+1])*beta[j,t+1]
     }
   }
   xi[,,t] <- xi[,,t] / sum(xi[,,t])
 }
 ```
 
+Finally, we can update parameters in the M step by maximizing their
+values using $\gamma_{i,t}$ and $\xi_{i,j,t}$ as the conditional
+probabilities for the chain of states and transitions. For means and
+variances, we use weighted sample mean and weighted sample variance
+calculations. If *Y* took discrete values, we would just count up the
+number of times it took each value, weighted by the probability for a
+given state.
+
 ```{r}
 pi.hat <- gamma[,1]
 A.hat <- apply(xi, c(1,2), sum) / rowSums(gamma[,-T])
-mu.hat <- rowSums(t(t(gamma) * Y)) / rowSums(gamma)
+mu.hat <- rowSums(t(t(gamma) * y)) / rowSums(gamma)
 sigma.hat <- sapply(1:n, function(i) {
-  sqrt(sum(gamma[i,] * (Y - mu.hat[i])^2) / sum(gamma[i,]))
+  sqrt(sum(gamma[i,] * (y - mu.hat[i])^2) / sum(gamma[i,]))
 })
 ```
 
+We can see how we did with our new estimates for $\mu$, which are
+greatly improved. Note that, we could improve even more by specifying
+a fourth state for the amplification on the far right.
+
 ```{r}
-library(rafalib)
-mypar(1,2)
-plot(Y, col=x.hat)
-abline(h=mus, col=1:3)
-plot(Y, col=x.hat)
-abline(h=mu.hat, col=1:3)
+library(RColorBrewer)
+palette(brewer.pal(6, "Paired"))
+par(mfrow=c(1,2))
+plot(y, col=x.hat * 2 - 1)
+abline(h=mus, col=1:3 * 2, lwd=3)
+plot(y, col=x.hat * 2 - 1)
+abline(h=mu.hat, col=1:3 * 2, lwd=3)
 ```
+
+Our initial guess for $\sigma$ has also been improved, see how close
+it is to the variance of the *y* values for the normal copy number state.
 
 ```{r}
 sigma
 sigma.hat[2]
-sd(Y[x.hat == 2])
+sd(y[x.hat == 2])
 ```
+
+Finally, the transition probabilities also make sense, and roughly
+correspond to what we would expect given the length of the runs in the
+predicted segmentation:
 
 ```{r}
 sum(x.hat == 1)
 1/A.hat[1,2]
 ```
-

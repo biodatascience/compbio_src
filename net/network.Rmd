@@ -6,6 +6,10 @@ output: html_document
 
 http://www.biorxiv.org/content/early/2017/05/25/142026
 
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
 ```{r}
 library(readr)
 library(GenomicRanges)
