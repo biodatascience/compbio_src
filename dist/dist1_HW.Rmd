@@ -1,0 +1,151 @@
+---
+title: "Homework 4 - Distances and normalization"
+author: "your name here"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: 
+  html_document:
+    fig_height: 7
+---
+
+# Question 1 - Median ratio vs column sum part I
+
+We discussed in class one way to estimate a scalar factor to account
+for variable sequencing depth, which was the median of ratios of a
+sample compared to the geometric mean. Here you will compare this estimator
+to the column sum. While the data and papers here discuss RNA-seq, the
+concepts are useful generally for thinking about normalization of many
+types of quantitative sequencing assays (experiments).
+
+Many have written about the problems with the column sum. Two references are here:
+
+[A scaling normalization method for differential expression analysis of RNA-seq data](https://genomebiology.biomedcentral.com/articles/10.1186/gb-2010-11-3-r25)
+
+> Using TMM normalization in a statistical test for DE (see Materials
+> and methods) results in a similar number of genes significantly
+> higher in liver (47%) and kidney (53%). By contrast, the standard
+> normalization (to the **total number of reads** as originally used in
+> [6]) results in the majority of DE genes being significantly higher
+> in kidney (77%). Notably, less than 70% of the genes identified as
+> DE using standard normalization are still detected after TMM
+> normalization (Table 1). In addition, we find the log-fold-changes
+> for a large set of housekeeping genes (from [16]) are, on average,
+> offset from zero very close to the estimated TMM factor, thus giving
+> credibility to our robust estimation procedure. Furthermore, using
+> the non-adjusted testing procedure, 8% and 70% of the housekeeping
+> genes are significantly up-regulated in liver and kidney,
+> respectively. After TMM adjustment, the proportion of DE
+> housekeeping genes changes to 26% and 41%, respectively, which is a
+> lower total number and more symmetric between the two tissues. 
+
+[Evaluation of statistical methods for normalization and differential expression in mRNA-Seq experiments](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2838869/)
+
+> The simplest form of normalization is achieved by scaling gene
+> counts, in lane i, by a single lane-specific factor di. In essence,
+> these global scaling factors define the null hypothesis of no
+> differential expression: if a gene has the same proportions of
+> counts across lanes as the proportions determined by the vector of
+> di's, then it is deemed non-differentially expressed. The standard
+> **total-count normalization** results in low variation across lanes,
+> flow-cells, and library preparations, as discussed above. What has
+> not been understood previously, is that this normalization technique
+> reflects the behavior of a relatively small number of high-count
+> genes: 5% of the genes account for approximately 50% of the total
+> counts in both Brain and UHR. These genes are not guaranteed to have
+> similar levels of expression across different biological conditions
+> and, in the case of the MAQC-2 dataset, they are noticeably
+> over-expressed in Brain, as compared to the majority of the genes
+> (Figure ​5). 
+
+Install the `parathyroidSE` package from
+Bioconductor, which contains RNA-seq data of cultured parathyroid
+samples from four donors, subjected to a variety of treatments.
+
+```{r}
+library(parathyroidSE)
+data(parathyroidGenesSE)
+rse <- parathyroidGenesSE
+library(DESeq2)
+dds <- DESeqDataSet(rse, ~treatment)
+dds <- dds[rowSums(counts(dds)) > 0,]
+```
+
+You will recreate a plot similar to 
+[Figure 5a](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2838869/figure/F5/) 
+from the second paper above. 
+To do so, calculate the row sum of the raw counts across all genes in
+the dataset. Sort the row sum from the gene with the highest counts to
+the smallest counts. Then calculate the cumulative sum of the sorted
+row sums. Plot the contribution of the first 5%, 10%, 15%, 20%, 25%,
+30%, 35% of genes (highest count to lowest) towards the total count
+(so a scatterplot like Figure 5a - you can use `type="b"` to show lines).
+Just from looking at the plot, roughly what percent of the total count
+is from the top 5% of genes? 
+Also from looking at the plot, roughly at what percent of genes
+contributing do we have more than 80% of the total count?
+
+# Question 2 - Median ratio vs columns sum part II
+
+We will examine what happens when the genes with the highest count are
+potentially differentially expressed across condition, as mentioned by
+the second paper above. We will do so by manipulating the counts in
+the parathyroid dataset such that the top 20 genes by count are
+doubled, and we resave the dataset as `dds.prime`:
+
+```{r}
+dds.prime <- dds
+o <- order(rowSums(counts(dds)), decreasing=TRUE)[1:20]
+cts <- 2 * counts(dds)[o,dds$treatment == "DPN"]
+mode(cts) <- "integer"
+counts(dds.prime)[o,dds$treatment == "DPN"] <- cts
+```
+
+Construct three MA plots to see the effect of this manipulation of the
+top 20 genes:
+
+1) Take the original dataset `dds`, and make an MA plot of DPN samples
+vs Control samples. You can use `normTransform` which will median-ratio
+correct and log2 transform the data. Then calculate the `rowMeans` for
+DPN samples and Control samples. Plot the y=0 line as in `distances.Rmd`.
+2) Do the same for `dds.prime`, using `normTransform` and plot the
+y=0 line.
+3) Finally, instead of median-ratio scaling with `normTransform`, this
+time you will perform your own scaling of each column by a factor
+correlated with column sum. Calculate: (number of samples) * (column sum)
+/ (total sum of all counts) and use this as the correction
+factor. Then log2 transform and make an MA plot.
+
+How does the plot change using median-ratio vs column sum when the top
+20 genes are differentially expressed?
+
+# Question 3 - Hierarchical clustering methods
+
+In the last question, we will look at the qualitative differences
+between different clustering methods. 
+
+First, calculate distances on the top 500 genes by variance as in
+`hclust.Rmd`. Now create a function which has arguments `method`,
+`dists` and `vsd`, which plots a dendrogram with labels indicated by
+`vsd$id` and colors by `vsd$patient`. The function should use `hclust`
+with `method=method`, so that you can easily change the method and
+draw a new dendrogram plot.
+
+Finally, loop through the following methods below and fill in the
+following grid of 2 x 3 with 6 dendrograms. Note that two of the dendrograms will
+have strange looking branch points (sometimes upside down). This is
+not an error in the plot. How would you group the different methods,
+and describe them qualitatively.
+
+```{r}
+library(matrixStats)
+library(dendextend)
+library(RColorBrewer)
+vsd <- vst(dds)
+vsd$id <- paste(vsd$treatment, vsd$patient, vsd$time, sep="_")
+```
+
+```{r}
+methods <- c("complete","median","centroid",
+             "single","ward.D","ward.D2")
+par(mfrow=c(2,3), mar=c(7,3,3,1))
+palette(brewer.pal(8, "Dark2"))
+```
