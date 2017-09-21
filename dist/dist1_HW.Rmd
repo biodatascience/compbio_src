@@ -108,11 +108,11 @@ correct and log2 transform the data. Then calculate the `rowMeans` for
 DPN samples and Control samples. Plot the y=0 line as in `distances.Rmd`.
 2) Do the same for `dds.prime`, using `normTransform` and plot the
 y=0 line.
-3) Finally, instead of median-ratio scaling with `normTransform`, this
-time you will perform your own scaling of each column by a factor
-correlated with column sum. Calculate: (number of samples) * (column sum)
-/ (total sum of all counts) and use this as the correction
-factor. Then log2 transform and make an MA plot.
+3) Finally, only for `dds.prime`, instead of median-ratio scaling with
+`normTransform`, this time you will perform your own scaling of each
+column by a factor correlated with column sum. Calculate: (number of
+samples) * (column sum) / (total sum of all counts) and use this as
+the correction factor. Then log2 transform and make an MA plot.
 
 How does the plot change using median-ratio vs column sum when the top
 20 genes are differentially expressed?
