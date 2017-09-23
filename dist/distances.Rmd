@@ -301,7 +301,6 @@ separating, and not by the center which prepared the sample.
 ```{r}
 library(DESeq2)
 dds <- DESeqDataSet(rse, ~1)
-dds <- estimateSizeFactors(dds)
 ntd <- normTransform(dds)
 plotPCA(ntd, c("center"))
 ```
@@ -332,6 +331,7 @@ and then compute the sum of normalized counts from those genes:
 
 ```{r}
 chrY <- as.logical(seqnames(rowRanges(ntd)) == "chrY")
+dds <- estimateSizeFactors(dds)
 chrYexprs <- colSums(counts(dds, normalized=TRUE)[chrY,])
 hist(chrYexprs, breaks=100, col="grey")
 ```
@@ -365,7 +365,6 @@ don't see much clustering by the sequencing center overall:
 
 ```{r}
 dds.f <- dds[,!dds$male]
-dds.f <- estimateSizeFactors(dds.f)
 ntd.f <- normTransform(dds.f)
 plotPCA(ntd.f, c("center"))
 ```
