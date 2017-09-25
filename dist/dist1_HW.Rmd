@@ -121,6 +121,8 @@ How does the plot change using median-ratio vs column sum when the top
 
 In the last question, we will look at the qualitative differences
 between different clustering methods. 
+We will continue with the `dds` object from the first two questions
+(the RNA-seq data on parathyroid samples).
 
 First, calculate distances on the top 500 genes by variance as in
 `hclust.Rmd`. Now create a function which has arguments `method`,
