@@ -1,0 +1,167 @@
+---
+title: "Homework 5 - Modeling to correct for batch effects"
+author: "your name here"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+
+# Question 1 - Direct modeling of technical bias using splines
+
+In the first question, you will implement something roughly
+approximating the direct modeling approach of CQN, and then in the
+second question you will compare your estimates to those given by
+CQN. We will use the Bottomly RNA-seq experiment data that we showed
+the `sva.Rmd`, although here we will use a version of the dataset that
+is already prepared as a SummarizedExperiment, and so it already has a
+GRangesList associated with the rows. This will make it easier to get
+the GC content and length of the genes. 
+
+To begin, download the file `bottomly_sumexp.RData` which appears at
+the bottom of the page here:
+
+<http://www-huber.embl.de/DESeq2paper/>
+
+Next we do some cleanup on the `colData`, and we reduce the
+`rowRanges` so that we only have unique exon sequence associated with
+each row of the SummarizedExperiment.
+For convenience, we want to
+use the Bioconductor genome package `BSgenome.Mmusculus.UCSC.mm9`,
+which lines up with the `rowRanges` of our SummarizedExperiment,
+however, we will need to remove some genes which are listed on
+chromosomes that are not present in this genome. We also need to
+change the style of the sequence names from "NCBI" to "UCSC" to use
+the genome above. The code chunk below accomplishes all of these steps
+for you.
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+```{r message=FALSE}
+library(SummarizedExperiment)
+load("bottomly_sumexp.RData")
+bottomly <- updateObject(bottomly)
+library(magrittr)
+levels(bottomly$strain) %<>% (function(x) sub("/",".",x))
+bottomly$batch <- factor(bottomly$experiment.number)
+rowRanges(bottomly) <- reduce(rowRanges(bottomly))
+seqlevelsStyle(rowRanges(bottomly)) <- "UCSC"
+chrs <- paste0("chr", c(1:22,"X","Y","M"))
+keep <- all(seqnames(bottomly) %in% chrs)
+bottomly <- bottomly[keep,]
+```
+
+Now you should be ready to extract the GC content and length of the
+genes, as was done in `batch.Rmd`. Remember, you have the reduced
+exon regions associated with each gene stored as `rowRanges` of the
+SummarizedExperiment already.
+
+Once you have the GC content and length of each gene, make a
+`data.frame` with one column for the GC content, and then three columns of
+counts from three samples, one from each batch. You can use
+`which(bottomly$batch == "4")`, for example, to find out which samples
+come from each batch. So the `data.frame` should have four columns in
+the end.
+
+Finally, fit three Poisson generalized linear models to the counts,
+using natural spline terms for GC content. You may not have seen the
+use of spline terms in R, but it's really very simple, you just wrap
+a covariate inside of a function like `ns` and then include it in a
+formula as you would any other variable. If you haven't seen the use
+of `glm`, this is also very similar to `lm`, but you additionally
+specify a distributional *family*, here the Poisson.
+
+For the sample from batch 4, the model would look like this:
+
+`library(splines)`
+
+`fit4 <- glm(counts4 ~ ns(gc, knots=ks), family=poisson, data=df)`
+
+where the knots are given by:
+
+`ks <- c(.4,seq(from=.45,to=.55,by=.025),.6)`
+
+Finally, plot the log of the fitted values for the three models, over
+the GC content in the data frame. You should end up with three curves
+on the same plot. 
+
+Before making the plot, call:
+
+```
+library(rafalib)
+bigpar()
+```
+
+... which will give you a nice color palette for this problem and the
+next one. Color the lines using `col=1`, `col=2`, and `col=3` (green,
+orange, and lavendar).
+
+Which of the three experiments has an upward sloping dependence on GC
+content from the range 0.4 to 0.55?
+
+# Question 2 - Modeling of bias using Conditional Quantile Normalization (CQN)
+
+In the previous question, we ignored gene length, and simply modeled
+gene count on the GC content of the gene. In this question we
+will use CQN, as in `batch.Rmd` which includes modeling improvements
+over the approach above, including fitting the relationship to GC
+content and gene length simultaneously. 
+
+Fit a `cqn` model to the counts in `assay(bottomly)` (the object
+prepared at the end of the given code 
+chunk above), using the GC content and gene length that you
+calculated in problem 1. Then use `cqnplot` with `n=1` and then `n=2`
+to draw the GC content and gene length dependence plots. 
+
+Before plotting, run the following two lines:
+
+```
+library(rafalib)
+bigpar()
+```
+
+Color the lines in the CQN plots using `col=bottomly$batch`. For the
+GC content plot, use `xlim=c(.35,.65)`, and for the length plot use
+`xlim=c(-2,55)`.
+
+Which batch deviates from the other two in the dependence on GC
+content? Does this match what you saw in `sva.Rmd` using the SVA
+method to identify technical biases? Is there a single sample from one
+of the other groups that shows up with the outlier group? Is this also
+the same as you saw in `sva.Rmd`?
+
+# Question 3 - Finding (known) batch using Surrogate Variable Analysis (SVA)
+
+Here we will run SVA to find hidden batches, but we will use a dataset
+where we know the batches: the GEUVADIS dataset from `batch.Rmd` and
+previous distance workflows. We begin by loading the `geuvadis.rda`
+object prepared in `distances.Rmd`. We remove the YRI samples, as
+these have an outlier that disrupts the SVA analysis. We then subset
+to 100 samples randomly, and drop any factor levels that are now
+missing samples.
+
+```{r}
+library(DESeq2)
+library(magrittr)
+load("geuvadis.rda")
+dds <- dds[,dds$population != "YRI"]
+table(dds$population, dds$center)
+set.seed(1)
+idx <- sample(ncol(dds), 100)
+dds <- dds[,idx]
+dds$population %<>% droplevels
+dds$center %<>% droplevels
+table(dds$population, dds$center)
+```
+
+As in `sva.Rmd`, you should run `sva` with `n.sv=2` on the normalized
+counts in `dds`, using a full model of `~population` and a reduced
+model of `~1`. This should take ~30 seconds or less.
+
+Then, make a plot using ggplot2 of surrogate variables 1 and 2, with
+the `center` indicated by color and the `population` indicated by
+shape. By definition, the surrogate variables will not be associated
+with population, because this was provided in the full model. Did the
+two surrogate variables capture some variation associated with
+sequencing center?
+
