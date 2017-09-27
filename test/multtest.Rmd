@@ -128,9 +128,10 @@ variable called `fake` and perform row-wise t-tests across all the
 250k peaks in the data. I then look at the distribution of p-values
 across 20 bins defined on [0,1].
 
-```{r}
+```{r message=FALSE}
 set.seed(1)
-fake <- factor(sample(rep(1:2,each=ncol(se)/2)))
+fake <- factor(sample(rep(1:2,each=ncol(mat)/2)))
+library(genefilter)
 ts <- rowttests(mat, fake)
 nbins <- 20
 brks <- 0:nbins/nbins
@@ -260,6 +261,7 @@ tests in order of p-value along the x-axis, with the value of p on
 the y-axis. For the first 2000 tests, this looks like:
 
 ```{r}
+p.sort <- sort(p2)
 plot(1:2000, p.sort[1:2000], ylim=c(0,p.sort[2000]), type="l", xlab="i", ylab="p")
 ```
 
@@ -271,7 +273,6 @@ assigned the same adjusted p-value. They could only have a smaller
 adjusted p-value if the line had touches the sorted p-values earlier.
 
 ```{r}
-p.sort <- sort(p2)
 q <- min(padj.bh)
 i <- sum(padj.bh == q)
 m <- length(p2)
