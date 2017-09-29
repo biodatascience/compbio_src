@@ -39,12 +39,12 @@ file <- "bottomly_phenodata.txt"
 if (!file.exists(file)) download.file(url, file)
 ```
 
-This experiment consisted of 10 and 11 mice from two different
-species. But useful for our demonstration of SVA, it is key that the
+This experiment consisted of 10 and 11 mice of two different
+strains. But useful for our demonstration of SVA, it is key that the
 experiment was performed in three batches. We will pretend in the
 following code that we *do not know the batches*, although we do. We
 will estimate technical variation using only the information about
-which mouse comes from which species.
+which mouse is of which strain.
 
 ```{r}
 library(magrittr)
@@ -55,7 +55,7 @@ levels(coldata$strain) %<>% (function(x) sub("/",".",x))
 ```
 
 We use DESeq2 to produce a normalized count matrix, which is the input
-to SVA. Note that the biological groups (mouse species) were present
+to SVA. Note that the biological groups (mouse strain) were present
 in all batches, so a block design. 
 
 ```{r message=FALSE}
