@@ -10,7 +10,7 @@ output: html_document
 In the first question, you will implement something roughly
 approximating the direct modeling approach of CQN, and then in the
 second question you will compare your estimates to those given by
-CQN. We will use the Bottomly RNA-seq experiment data that we showed
+CQN. We will use the Bottomly mouse RNA-seq experiment data that we showed
 the `sva.Rmd`, although here we will use a version of the dataset that
 is already prepared as a SummarizedExperiment, and so it already has a
 GRangesList associated with the rows. This will make it easier to get
@@ -122,7 +122,7 @@ bigpar()
 
 Color the lines in the CQN plots using `col=bottomly$batch`. For the
 GC content plot, use `xlim=c(.35,.65)`, and for the length plot use
-`xlim=c(-2,55)`.
+`xlim=c(-2,5)`.
 
 Which batch deviates from the other two in the dependence on GC
 content? Does this match what you saw in `sva.Rmd` using the SVA
