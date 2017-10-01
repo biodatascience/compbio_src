@@ -46,7 +46,7 @@ following code that we *do not know the batches*, although we do. We
 will estimate technical variation using only the information about
 which mouse is of which strain.
 
-```{r}
+```{r message=FALSE}
 library(magrittr)
 cts <- read.table("bottomly_count_table.txt", header=TRUE, row.names=1)
 coldata <- read.table("bottomly_phenodata.txt", header=TRUE, row.names=1)
@@ -92,9 +92,12 @@ high-throughput datasets, although we must be careful not to overfit
 and remove *too much* of the variation in the data -- some of which
 represents natural biological variations of samples.
 
-```{r}
+```{r message=FALSE, fig.width=6, fig.height=6}
 library(rafalib)
 bigpar()
 dds$strain.int <- as.integer(dds$strain) + 15
-plot(fit$sv[,1:2], col=dds$batch, pch=dds$strain.int, cex=2)
+plot(fit$sv[,1:2], col=dds$batch, pch=dds$strain.int, cex=2,
+     xlab="SV1", ylab="SV2")
+legend("top", levels(dds$batch), pch=16,
+       col=1:3, cex=.8, ncol=3, title="batch")
 ```
