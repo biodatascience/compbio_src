@@ -123,8 +123,7 @@ it's useful. Let's dive into a real example:
 
 # Mixture of Normals example
 
-Suppose we have observations *x_i* which arise from two Normal
-distributions.
+Suppose we have observations $x_i$ which arise from two Normal distributions.
 We will index the distributions by *c*, and the observations by *i*.
 The latent variable $z_i$ will be a binomial which tells us which
 distribution a given $x_i$ comes from, where 0 corresponds to the
@@ -216,7 +215,7 @@ N / n # new estimate of pi
 Now we build these two steps into a loop. Notice how quickly the
 estimates go from our initial, quite bad estimates to much better.
 
-```{r messages=FALSE}
+```{r message=FALSE}
 niter <- 10
 # lay out a plot where we fill in iterative estimates:
 library(rafalib)
@@ -299,7 +298,7 @@ germ line as having specialized roles in differentiated cell-types
 Let's take a look at the distribution of normalized CpG count in the
 human genome, using UCSC known genes:
 
-```{r messages=FALSE}
+```{r message=FALSE}
 library(BSgenome.Hsapiens.UCSC.hg38)
 library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 g <- genes(TxDb.Hsapiens.UCSC.hg38.knownGene)
