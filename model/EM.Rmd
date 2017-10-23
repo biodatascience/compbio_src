@@ -25,9 +25,9 @@ we can formulate these problem as having a
 **latent variable**, a special model parameter,
 such that if we knew its value, it would be much easier to estimate
 the other model parameters. Typically the latent variable is
-represented by *Z*, the (other) parameters as $\theta$, and the data
-itself as *X*. Typically, the *Z* takes discrete values (e.g. it may
-be the membership of the observations into multiple groups), *X* is
+represented by $z_i$, the (other) parameters as $\theta$, and the data
+itself as $x_i$. Typically, the *z* takes discrete values (e.g. it may
+be the membership of the observations into multiple groups), *x* is
 either discrete- or continuous-valued, and $\theta$ is typically
 continuous-valued.
 
@@ -38,20 +38,20 @@ in [1977](https://www.jstor.org/stable/2984875) unified the
 description of the incomplete data problem (equivalent to *latent variable*) 
 and the EM algorithm, providing a unified statistical context and 
 guarantees on convergence. Note that the authors of the 1977 work do
-not use *Z*, $\theta$, and *X* notation, as above.
+not use *z*, $\theta$, and *x* notation, as above.
 
 # Motivation for EM
 
 We would like to maximize the log likelihood with respect to $\theta$,
-and we don't observe *Z*.
+and we don't observe $z_i$ for each observation of data $x_i$.
 We typically get stuck in that we cannot distribute the log
 to all the terms, which would help simplify the equations.
 This is described in Ramesh Sridharan's excellent
 [lecture notes](https://people.csail.mit.edu/rameshvs/content/gmm-em.pdf)
 for the mixture of Normals model. We usually have a sum of densities
-that cannot be separated. If *Z* were known,
-we could split apart the sums based on which *X* belong to which
-latent groupings according to *Z*. Once the sums of densities are split
+that cannot be separated. If *z* were known,
+we could split apart the sums based on which *x* belong to which
+latent groupings according to *z*. Once the sums of densities are split
 apart, we could easily take derivatives of the log likelihood to
 maximize over the $\theta$ parameters.
 
@@ -59,7 +59,7 @@ The EM algorithm proceeds by taking the expectation of the log
 likelihood *with respect to the conditional distribution of Z given X and*
 $\theta^t$, our best guess of the parameters $\theta$ at step *t* in
 the algorithm. This quantity will fill in for our actual objective,
-which was the log likelihood marginalized over assignments of *Z*. 
+which was the log likelihood marginalized over assignments for *Z*. 
 Because of Jensen's Inequality, we have that the expected value of
 the log of a random variable is less than or equal to the log of the
 expected value. So we work with a quantity that is a lower bound for
@@ -112,7 +112,7 @@ The actual algorithm begins with a
 random initialization of parameters $\theta^0$. We then calculate 
 conditional probabilities for *Z* given *X* and $\theta^0$, and use these in
 calculating the expectation of the log likelihood. These "guesses" for 
-*Z* help to break apart the log likelihood and facilitate
+*z* help to break apart the log likelihood and facilitate
 maximization. Finally, we obtain a new estimate of $\theta$ and repeat
 until convergence. Note that EM is not guaranteed to find 
 *global maxima*, but will find *local maxima*. It is therefore
@@ -134,11 +134,24 @@ where the $\pi_c$ represent the proportion of observations from
 distribution *c*. $z_i$ then is distributed as a binomial with success
 probability $\pi_2 = (1 - \pi_1)$.
 
+Before we start with the EM steps, it's useful to recall that if we observed 
+the data $x_i$ and the latent variable $z_i$ we could work on the log likelihood:
+
+$$ \ell(\theta) = \sum_i \sum_c \log \pi_c f(x_i; \mu_c, \sigma^2_c)^{\mathbb{1}(z_i = c)} $$
+
+However, we don't observe the $z_i$ and so if we attempted maximum 
+likelihood estimation, we would be stuck with the probability given 
+the parameters $\theta$, which has a sum over components *c* preventing 
+us from distributing the log and breaking up terms for differentiation
+with respect to elements of $\theta$:
+
+$$ \ell(\theta) = \sum_i \log \sum_c \pi_c f(x_i; \mu_c, \sigma^2_c) $$
+
 Let's see what we get when we write out the expectation of the log
 likelihood with respect to the conditional distribution of *Z* given
 *X* and $\theta^t$. For the moment, we focus on $\mu_c$.
 
-$$ \textrm{E}_{Z|X,\theta^t} \left[ \log L(\theta; X, Z) \right] $$
+$$ \textrm{E}_{Z|X,\theta^t} \left[ \ell(\theta) \right] $$
 
 $$ = \textrm{E}_{Z|X,\theta^t} \left[ \log \prod_i \prod_c \pi_c f(x_i; \mu_c, \sigma^2_c)^{\mathbb{1}(z_i = c)} \right] $$
 
@@ -152,7 +165,7 @@ parameters, say $\mu_1$, and set it equal to zero:
 $$ \sum_i \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 1) (x_i - \mu_1) = 0 $$
 
 Define $\textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 1) \equiv w_i$,
-which we can calculate using our probability model, $X$, and
+which we can calculate using our probability model, $x$, and
 $\theta^t$. We end up with:
 
 $$ \sum_i w_i (x_i - \mu_1) = 0 $$
