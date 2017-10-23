@@ -140,8 +140,7 @@ the data $x_i$ and the latent variable $z_i$ we could work on the log likelihood
 $$ \ell(\theta) = \sum_i \sum_c \log \pi_c f(x_i; \mu_c, \sigma^2_c)^{\mathbb{1}(z_i = c)} $$
 
 However, we don't observe the $z_i$ and so if we attempted maximum 
-likelihood estimation, we would be stuck with the probability given 
-the parameters $\theta$, which has a sum over components *c* preventing 
+likelihood estimation, we would be stuck with a sum over components *c* preventing 
 us from distributing the log and breaking up terms for differentiation
 with respect to elements of $\theta$:
 
