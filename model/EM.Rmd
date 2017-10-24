@@ -31,8 +31,9 @@ be the membership of the observations into multiple groups), *x* is
 either discrete- or continuous-valued, and $\theta$ is typically
 continuous-valued.
 
-*Expectation maximization* (EM) in an algorithm which helps to tackle such
-problems. The algorithm had been proposed in various domains as early
+*Expectation maximization* (EM) is a class of algorithms 
+that help us tackle such problems. 
+The algorithm had been proposed in various domains as early
 as the 1950s, but a paper
 in [1977](https://www.jstor.org/stable/2984875) unified the
 description of the incomplete data problem (equivalent to *latent variable*) 
