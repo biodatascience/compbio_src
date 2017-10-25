@@ -57,8 +57,9 @@ the 2 motif databases we showed in class?
 Instead of maximizing the expectation of the log likelihood with
 respect to the condition distribution of Z given X and theta, what
 happens when we modify this step into a sampling-based step? So after
-calculating the condition distribution of Z given X and theta, just
-pick a most likely position `z` for each sequence, and use this to
-update theta. Can this sampling-based optimization procedure also find
-the motif? Try it 5 times. Is it faster than EM?
+calculating the conditional distribution of Z given X and theta, you
+should use the probabilities to *sample* a single position `z` for each
+sequence, and use this to update theta. Can this sampling-based
+optimization procedure also find the motif? Try it 5 times. Is it
+faster than EM?
 
