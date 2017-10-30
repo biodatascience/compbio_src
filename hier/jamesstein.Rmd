@@ -1,5 +1,5 @@
 ---
-title: "James Stein estimators"
+title: "James-Stein estimators"
 author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
 ---
@@ -13,11 +13,12 @@ model I will show is from the following article:
 by Bradley Efron and Carl Morris
 
 The model is, suppose $k \ge 3$ parameters $\theta_1, ..., \theta_k$.
-For each $\theta_i$, we have a single observation:
+For each $\theta_i$, we have a single observation $X_i$ drawn from 
+the following distribution:
 
-$$ x_i \sim N(\theta_i, 1) $$
+$$ X_i \sim N(\theta_i, 1) $$
 
-As stated in the article above, you can think of $x_i$ as the sample
+As stated in the article above, you can think of $X_i$ as the sample
 mean for *n* observations $Y_{ij} \sim N(\theta_i, \sigma^2)$, where
 then the above model scales such that $\sigma^2 / n = 1$.
 Furthermore we will assume that the $\theta$ are normally distributed with
@@ -42,9 +43,13 @@ k <- 100
 sigma.theta <- 1
 plotJS <- function(k, sigma.theta) {
   theta <- rnorm(k, 0, sigma.theta)
+  # oracle estimator: what if we knew sigma_theta^2,
+  # which Efron and Morris denote as 'A'
+  B.oracle <- 1/(1 + sigma.theta^2) 
   x <- rnorm(k, theta, 1)
   B <- (k - 2)/sum(x^2)
   eb <- (1 - B) * x
+  oracle <- (1 - B.oracle) * x
   par(mfrow=c(2,1), mar=c(5,5,3,1))
   plot(theta, x)
   points(theta, eb, col="red")
@@ -52,11 +57,14 @@ plotJS <- function(k, sigma.theta) {
   legend("topleft","James-Stein estimators",col="red",pch=1)
   s <- seq(from=0,to=1,length=100)
   par(mar=c(5,5,1,1))
-  sse <- sapply(s, function(b) sum((theta - (1 - b)*x)^2))
+  sse.f <- function(b) sum((theta - (1 - b)*x)^2)
+  sse <- sapply(s, sse.f)
   plot(s, sse, ylim=c(0, max(sse)), type="l",
        xlab="possible values for B", ylab="sum squared error")
-  points(B, sum((theta - eb)^2),col="red",pch=16)
-  legend("top","James-Stein B",col="red",pch=16)
+  points(B, sum((theta - eb)^2), col="red", pch=16)
+  points(B.oracle, sum((theta - oracle)^2), col="blue", pch=16)
+  points(0, sse[1], col="black", pch=16)
+  legend("top",c("James-Stein B","oracle","MLE"), col=c("red","blue","black"), pch=16)
 }
 set.seed(1)
 plotJS(k, sigma.theta)
