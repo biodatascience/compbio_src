@@ -1,0 +1,65 @@
+---
+title: "Homework 6 - EM algorithm for modeling sequence motifs"
+author: "your name here"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+
+# Question 1 - Run the EM from class on genomic sequence
+
+I've prepared a dataset of binding sites for the YY1 transcription
+factor. To do so, I downloaded YY1 ChIP-seq peaks in GM12878 cells
+using AnnotationHub, then took peaks with high signal (> 100), trimmed
+the peaks down to 100 basepairs centered on the summit, to make things
+easier, I've filtered and reverse complemented as necessary so that
+every sequence contains a recognizable YY1 binding site (I used
+`vmatchPattern` to find motif hits), and finally, I've converted the
+DNA sequence to integers, as we saw in class. This last step was done
+with the following chunk of code:
+
+```{r eval=FALSE}
+chars <- as.character(seqs)
+map2ints <- function(x) ifelse(x=="A",1,ifelse(x=="C",2,ifelse(x=="G",3,4)))
+ints <- t(sapply(chars, function(c) map2ints(strsplit(c, "")[[1]])))
+```
+
+You can now read in the matrix of binding site sequence. We have 100 bp
+of DNA sequence from 346 locations in the genome.
+
+```{r}
+x <- as.matrix(read.table("yy1_seqs.csv.gz"))
+dim(x)
+```
+
+We will use this color scheme:
+
+```{r}
+cols <- c("green3","blue","orange","red")
+plot(1:4, pch=c("A","C","G","T"), col=cols, cex=5,
+     xlim=c(0,5), ylim=c(0,5), xaxt="n", yaxt="n", xlab="", ylab="")
+```
+
+Run the EM that we saw from class on these sequences. You can wrap up
+the necessary code to draw the plot of iterations that we saw in class
+into a function, and then run the function 3 times to see how it
+performs with different random initialization of `theta`. In this
+case, you don't know the true `motif`, so you can't draw it at the
+bottom of the plot. As in class, use `theta.len=20`, which is wider
+than the YY1 motif. Instead of 10 iterations, use 15.
+
+What do you obtain as the YY1 motif? What do you get when you search
+the 2 motif databases we showed in class?
+
+# Bonus question - how could you make the M-step ~33% faster?
+
+# Question 2 - sampling instead of using expectation
+
+Instead of maximizing the expectation of the log likelihood with
+respect to the condition distribution of Z given X and theta, what
+happens when we modify this step into a sampling-based step? So after
+calculating the conditional distribution of Z given X and theta, you
+should use the probabilities to *sample* a single position `z` for each
+sequence, and use this to update theta. Can this sampling-based
+optimization procedure also find the motif? Try it 5 times. Is it
+faster than EM?
+
