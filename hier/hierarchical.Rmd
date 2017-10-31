@@ -113,6 +113,12 @@ There seems to be a single outlier, which we remove.
 e <- e[,-which(colnames(e)=="GSM340606")]
 ```
 
+Let's recalculate the sample variance of each row, for use later:
+
+```{r}
+rv <- rowVars(exprs(e))
+```
+
 We take a random sub-sample of just 10 to compare with the full
 sample set. Plotting the sample variance of the subset against the
 full sample set shows some correspondence, but many above and below
