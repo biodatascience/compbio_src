@@ -125,9 +125,10 @@ full sample set shows some correspondence, but many above and below
 the line.
 
 ```{r fig.width=6, fig.height=6}
-m <- 10
-sample.idx <- sample(ncol(e), m)
-e.sub <- e[,1:m]
+n <- 10
+set.seed(1)
+sample.idx <- sample(ncol(e), n)
+e.sub <- e[,sample.idx]
 rv.sub <- rowVars(exprs(e.sub))
 plot(sqrt(rv), sqrt(rv.sub), cex=.5, col=rgb(0,0,0,.5),
      xlab="sample SD full data", ylab="sample SD subset")
@@ -145,7 +146,7 @@ toward a central value, which is `s2.prior`.
 
 ```{r message=FALSE}
 library(limma)
-design <- model.matrix(~1, data.frame(row.names=1:m))
+design <- model.matrix(~1, data.frame(row.names=1:n))
 fit <- lmFit(exprs(e.sub), design)
 fit <- eBayes(fit)
 ```
@@ -202,7 +203,7 @@ median(abs(ebayes.sd - true))
 ```
 
 It helps to zoom into individual genes, to see how we have reduced the
-large errors, or residuals, comparing our estimate on a small
+large errors comparing our estimate on a small
 sub-sample to the full dataset. Two things to note: 
 (i) when the estimates are low, they tend to be too low, and when the
 estimates are high, they tend to be too high. This phenomenon is
@@ -217,10 +218,10 @@ variance.
 ```{r, fig.width=7, fig.height=4}
 par(mfrow=c(1,2),mar=c(4,2,2,1))
 plot(samp.sd, samp.sd - true, col=rgb(0,0,0,.4), xlim=c(0,4), ylim=c(-1.5,1.5),
-     main="residual over estimate")
+     main="'error' over estimate")
 abline(h=-1:1,v=.5,lty=2,col=rgb(1,0,0,.5))
 plot(ebayes.sd, ebayes.sd - true, col=rgb(0,0,0,.4), xlim=c(0,4), ylim=c(-1.5,1.5),
-     main="residual over estimate")
+     main="'error' over estimate")
 abline(h=-1:1,v=.5,lty=2,col=rgb(1,0,0,.5))
 ```
 
