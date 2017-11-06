@@ -363,7 +363,9 @@ sd(y[x.hat == 2])
 
 Finally, the transition probabilities also make sense, and roughly
 correspond to what we would expect given the length of the runs in the
-predicted segmentation:
+predicted segmentation: the run length for state *i* can be considered a 
+[geometric random variable](https://en.wikipedia.org/wiki/Geometric_distribution)
+with success probability $A_{i,i}$.
 
 ```{r}
 sum(x.hat == 1)
