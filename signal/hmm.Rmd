@@ -243,7 +243,7 @@ likely path of states, which is described below.
 par(mfrow=c(2,1),mar=c(3,3,3,1))
 plot(y, xlab="", ylab="", main="data: X_t")
 plot(seq_len(T), gamma[2,], type="l", xlab="", ylab="",
-     main="P(X_t = state 1 | Y, theta)")
+     main="P(X_t = state 2 | Y, theta)")
 ```
 
 # The Viterbi sequence
