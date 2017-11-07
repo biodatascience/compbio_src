@@ -136,10 +136,10 @@ later use the HMM to update these parameters
 using the [EM algorithm](../model/EM.html).
 
 ```{r}
-mus <- c(-.4,0,.4) # bad guesses! to show improvement later
-sigma <- .1
+mu <- c(-.4,0,.4) # bad guesses! to show improvement later
+sigma <- rep(.1, 3)
 B <- function(j, y) {
-  dnorm(y,mus[j],sigma)
+  dnorm(y,mu[j],sigma[j])
 }
 ```
 
@@ -349,7 +349,7 @@ library(RColorBrewer)
 palette(brewer.pal(6, "Paired"))
 par(mfrow=c(1,2))
 plot(y, col=x.hat * 2 - 1)
-abline(h=mus, col=1:3 * 2, lwd=3)
+abline(h=mu, col=1:3 * 2, lwd=3)
 plot(y, col=x.hat * 2 - 1)
 abline(h=mu.hat, col=1:3 * 2, lwd=3)
 ```
