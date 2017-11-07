@@ -52,7 +52,7 @@ algorithm implemented in *DNAcopy* by typing
 segments than our HMM's Viterbi path? How do the fitted means compare
 qualitatively?
 
-# Question 2
+# Question 2 - Use HMM to segment chromosome into isochores
 
 In this last question, we will segment regions of a human chromosome
 according to average GC content in windows of length
