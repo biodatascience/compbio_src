@@ -171,6 +171,12 @@ $$ \beta_{i,t} = P(Y_{t+1}=y_{t+1},...,Y_T=y_T|X_t=i,\theta) $$
 
 $$ \gamma_{i,t} = P(X_t=i|Y,\theta) $$
 
+Note that the $\alpha$ and $\beta$ do not have a correspondence to the
+A and B matrices, these are just the fairly universal symbols that are
+used for the forward and backward probabilities, and the transition
+and emission matrices. $\alpha$ and $\beta$ will include both A and B
+in their calculation.
+
 The magic of the HMM is that, we can calculate these probabilities
 quite efficiently using *dynamic programming*, and relying on the
 key property of the Markov chain. If we consider $\alpha_{i,t}$, we
@@ -260,7 +266,7 @@ V[,1] <- pi * B(1:n,y[1])
 Ptr <- matrix(0,nrow=n,ncol=T)
 for (t in 2:T) {
   for (i in 1:n) {
-    V[i,t] <- B(i,y[t]) * max(V[,t-1] * A[,i])
+    V[i,t] <- max(V[,t-1] * A[,i]) * B(i,y[t])
     Ptr[i,t] <- which.max(V[,t-1] * A[,i])
   }
   V[,t] <- V[,t] / sum(V[,t])
