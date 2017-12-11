@@ -14,7 +14,7 @@ In [distances](distances.html), we noticed many genes where
 we see differences in measurements across the sequencing center, and
 in [hclust](hclust.html), we saw high level clustering of samples by
 sequencing center, when we focused on a single human population. These
-technical differences in high-throughput measurements as often
+technical differences in high-throughput measurements are often
 referred to as "batch effects", a term which encompasses any kind of
 technical artifact due to the lab or time at which a sample was
 processed. Note that the time of sample preparation, the *batch*, can
