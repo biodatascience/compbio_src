@@ -36,7 +36,6 @@
 * $
 * subset
 * with
-* more complex: use dplyr
 
 # conditions
 
