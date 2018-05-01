@@ -5,7 +5,7 @@
 
 # R variables
 
-* numeric, seq, seq_len, seq_along:
+* numeric, seq, seq_len, seq_along
 * character
 * matrix
 * factor, relevel, table
