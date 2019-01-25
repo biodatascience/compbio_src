@@ -27,11 +27,12 @@ Before we get started, you need to know how to install Bioconductor
 packages. The most important details are:
 
 * Bioconductor is a package repository, like CRAN
-* All Bioconductor packages **must** be installed with `biocLite()`
+* All Bioconductor packages **must** be installed following the
+  instructions here: <https://bioconductor.org/install>
 * Bioconductor packages are linked in their versions, both to each
   other and to the version of R
-* `biocLite()` will look up your version of R and give you the
-  appropriate versions of Bioconductor packages
+* Bioconductor's installation function will look up your version of R
+  and give you the appropriate versions of Bioconductor packages
 * If you want the latest version of Bioconductor, you need to use the
   latest version of R
 
@@ -39,9 +40,9 @@ How do you know if a package is a Bioconductor package? For one thing,
 you can just google the package name and you'll see either CRAN or
 Bioconductor as a first result (packages must be in one or the other,
 they are not allowed to be on both repositories). But also, you can
-use `biocLite()` to install any packages, even ones on CRAN. By the
-way, you can install multiple packages at once by making a string
-vector: `biocLite(c("foo","bar"))`
+use Bioconductor's installation function to install any packages, even
+ones on CRAN. By the way, you can install multiple packages at once by
+making a string vector: `BiocManager::install(c("foo","bar"))`
 
 Why all this stress on versioning? This is because the packages in
 Bioconductor are highly *interdependent*, and also some are very dependent on

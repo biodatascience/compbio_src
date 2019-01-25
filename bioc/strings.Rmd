@@ -131,7 +131,7 @@ res$sourceurl
 We could then download one of these files using double square
 brackets, to pick which of the genomes in `res`. We won't do that.
 Instead, we will work with the package described above, which can be
-downloaded with `biocLite()`
+downloaded with Bioconductor's installation function.
 
 ```{r}
 library(BSgenome.Hsapiens.UCSC.hg38)
