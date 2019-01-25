@@ -35,8 +35,9 @@ First we need to install the *SummarizedExperiment* R package, which is hosted o
 Bioconductor:
 
 ```{r eval=FALSE}
-source("http://bioconductor.org/biocLite.R")
-biocLite("SummarizedExperiment")
+if (!requireNamespace("BiocManager"))
+  install.packages("BiocManager")
+BiocManager::install("SummarizedExperiment")
 ```
 
 We can then download the summarized experiment data (note, it is 200
