@@ -1,0 +1,58 @@
+---
+title: "Homework 0 - Basic inference and GitHub submission"
+author: "your name here"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+
+# Question 1
+
+Given $X_i$ where $i = 1, ..., 10$, a random sample from a
+distribution with cdf 
+
+$$ F(x) = 1 - e^{-a x} $$
+
+for $x \ge 0$ and zero otherwise, derive and calculate for the given
+sample the maximum likelihood estimate (MLE) of $a$. 
+
+```{r}
+set.seed(1)
+a <- 5
+x <- rexp(10, rate=a)
+```
+
+$$ f(x) = \dots $$
+
+$$ L(a | X_1, ..., X_{10}) = \dots $$
+
+# Question 2
+
+Suppose we have a bivariate distribution with 
+
+$$f(x, y) = x y^2 / 13 $$
+
+with support $\{(1,1), (1,2), (2,2)\}$. Compute $E(X|Y=2)$
+
+```{r echo=FALSE}
+f <- function(x,y) x * y^2 / 13
+barplot(c(f(1,1), f(1,2), f(2,2)),
+        names.arg=c("(1,1)","(1,2)", "(2,2)"),
+        ylim=c(0,1), xlab="(x,y)", ylab="density", xaxt="n")
+```
+
+# Question 3
+
+There are three coins in a bag, two are fair with $P(\textrm{heads}) =
+0.5$ and one is biased with $P(\textrm{heads}) = 0.75$. Suppose we
+pull a coin out and flip it 4 times, getting heads 3 times. What is
+the posterior probability the coin was the biased one?
+
+```{r}
+coin <- c(1,1,0,1)
+```
+
+$~$
+
+$~$
+
+$~$
