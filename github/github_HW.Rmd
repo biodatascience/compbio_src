@@ -35,9 +35,9 @@ with support $\{(1,1), (1,2), (2,2)\}$. Compute $E(X|Y=2)$
 
 ```{r echo=FALSE}
 f <- function(x,y) x * y^2 / 13
-barplot(c(f(1,1), f(1,2), f(2,2)),
-        names.arg=c("(1,1)","(1,2)", "(2,2)"),
-        ylim=c(0,1), xlab="(x,y)", ylab="density", xaxt="n")
+feval <- c(f(1,1), f(1,2), f(2,2))
+barplot(feval, names.arg=c("(1,1)","(1,2)","(2,2)"),
+        ylim=c(0,1), xlab="(x,y)", ylab="density")
 ```
 
 # Question 3
