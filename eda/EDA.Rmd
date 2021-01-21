@@ -53,6 +53,12 @@ with(orgs, stripplot(bp ~ type))
 with(orgs, stripplot(log10(bp) ~ type))
 ```
 
+If you haven't seen `with(...)` before, it's a way to temporarily
+use the variables (columns) of a *data.frame* as if they were
+variables in the environment, that is, without using the `$`. As we
+will see below, `ggplot2` also offers such a convenient syntax for
+working with column names.
+
 Most of the organisms have around 1 billion basepairs in their genome.
 
 That large genome is wheat.
@@ -114,12 +120,10 @@ c(1:9,1000) %>% mean(trim=.1)
 
 Using dplyr, let's show, adding a new column
 which tallies up the number of coding and non-coding genes:
-Here we could also have used just `%<>%` instead of `%>%` and `->` at
-the end.
 
 ```{r message=FALSE}
 library(dplyr)
-orgs %>% mutate(genes = coding + noncoding) -> orgs
+orgs %<>% mutate(genes = coding + noncoding)
 orgs$genes
 ```
 
@@ -129,17 +133,21 @@ for each type, the mean ratio of genes which are coding and the
 standard deviation of the ratio.
 
 ```{r}
-orgs %>% group_by(type) %>% summarize(n=n(),
-                                      cr.avg=mean(coding/genes),
-                                      cr.sd=sd(coding/genes))
+orgs %>%
+  group_by(type) %>%
+  summarize(n=n(),
+            cr.avg=mean(coding/genes),
+            cr.sd=sd(coding/genes))
 ```
 
 Let's save this as a new table, `tab`:
 
 ```{r}
-orgs %>% group_by(type) %>% summarize(n=n(),
-                                      cr.avg=mean(coding/genes),
-                                      cr.sd=sd(coding/genes)) -> tab
+tab <- orgs %>%
+  group_by(type) %>%
+  summarize(n=n(),
+            cr.avg=mean(coding/genes),
+            cr.sd=sd(coding/genes))
 ```
 
 Two packages with functions for printing tables (as Latex or
