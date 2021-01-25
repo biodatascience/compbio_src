@@ -198,3 +198,7 @@ pheatmap(corrs, breaks=-10:10/10, color=cols,
          annotation_col=df,
          show_rownames=FALSE, show_colnames=FALSE)
 ```
+
+```{r}
+sessionInfo()
+```
