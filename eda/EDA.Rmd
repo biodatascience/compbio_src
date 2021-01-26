@@ -15,7 +15,7 @@ using the readr package:
 ```{r message=FALSE}
 library(readr)
 library(here)
-orgs <- read_tsv(here("EDA","organisms_genes.tsv"))
+orgs <- read_tsv(here("eda","organisms_genes.tsv"))
 head(orgs)
 table(orgs$type)
 ```
