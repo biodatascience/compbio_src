@@ -42,7 +42,7 @@ information about individual genes on websites such as Ensembl, Wikipedia,
 GeneCards, or GTEx. Look over these pages. Briefly (one sentence), 
 what role does CHRD have in development?
 
-* http://ensembl.org/Homo_sapiens/Gene/Ontologies/biological_process?db=core;g=ENSG00000090539;r=3:184380073-184390736
+* http://ensembl.org/Homo_sapiens/Gene/Ontologies/biological_process?db=core;g=ENSG00000090539
 * https://www.genecards.org/cgi-bin/carddisp.pl?gene=CHRD
 * https://en.wikipedia.org/wiki/Chordin
 * https://www.gtexportal.org/home/gene/CHRD
