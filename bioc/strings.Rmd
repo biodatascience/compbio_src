@@ -85,6 +85,15 @@ elementNROWS(matches)
 matches[[4]]
 ```
 
+These functions from Biostrings are fast when run in vectorized
+fashion (providing a vector of strings to match). Note that if you had
+millions of strings to match against a reference (e.g. short read
+RNA-seq), there are dedicated command line tools to perform such
+mapping/alignment (and which may take into account introns when
+aligning RNA reads to the genome). We will discuss these tools in a
+later lecture. There are also Bioconductor packages which can perform
+alignment, including *Rsubread* and *gmapR*.
+
 # Working with genomes
 
 Many genomes exist as packages on Bioconductor, for example:
@@ -125,7 +134,7 @@ package). We look for the files labeled `dna.primary_assembly`:
 
 ```{r}
 res <- query(ah, c("ensembl","GRCh38","dna.primary_assembly"))
-res$sourceurl
+head(res$sourceurl)
 ```
 
 We could then download one of these files using double square
@@ -134,17 +143,18 @@ Instead, we will work with the package described above, which can be
 downloaded with Bioconductor's installation function.
 
 ```{r}
-library(BSgenome.Hsapiens.UCSC.hg38)
+library(BSgenome.Hsapiens.NCBI.GRCh38)
 Hsapiens
 ```
 
 We can extract particular sequences from a reference genome using
-*GRanges*. Note that the difference between the "UCSC" and
-"NCBI/Ensembl" style of chromosomes is `chr1` vs `1`.
+*GRanges*. Here we choose the `NCBI` version of the genome. 
+Note that the difference between the "UCSC" and "NCBI/Ensembl" style
+of chromosomes is `chr1` vs `1`.
 
 ```{r}
 seqinfo(Hsapiens)
-gr <- GRanges("chr1", IRanges(1e6 + c(1,101,201), width=100))
+gr <- GRanges("1", IRanges(1e6 + c(1,101,201), width=100))
 gr
 dna <- getSeq(Hsapiens, gr)
 dna
@@ -158,13 +168,19 @@ strand, then the cDNA will be the reverse complement of the reference
 genome, the `Hsapiens` object above.
 
 ```{r}
-txome <- query(ah, c("ensembl","GRCh38","cdna.all","release-87"))[[1]]
+txome <- query(ah, c("ensembl","GRCh38","cdna.all","release-86"))[[1]]
 ```
 
 The `seqnames` in this case are not the chromosomes, they are the
 names of the transcripts, and there are 178,000 of them. Note that the
-transcript names have a `.` and an extra number on the end. We will
-have to chop this extra number off later.
+transcript names have a `.` and an extra number on the end. This is a
+version number (if you noticed, we saw these version numbers
+previously on the `rowRanges` of the human airway epithelial data in
+the [SummarizedExperiment](SE.html) lecture note).
+
+We will have to chop this extra number off later in order to match
+with a set of transcript identifiers that do not have the version
+number.
 
 ```{r}
 seqinfo(txome)
@@ -179,17 +195,47 @@ at random.
 ```{r}
 si <- seqinfo(txome)
 idx <- 5000
-tx.name <- seqnames(si)[idx]
-tx.name
-tx.len <- seqlengths(si)[idx]
-tx.len
-tx.seq <- getSeq(txome, GRanges(seqnames(si)[idx], IRanges(1, tx.len)))
-tx.seq
+txp.name <- seqnames(si)[idx]
+txp.name
+txp.len <- seqlengths(si)[idx]
+txp.len
+txp.seq <- getSeq(txome, GRanges(seqnames(si)[idx], IRanges(1, txp.len)))
+txp.seq
 ```
 
 The above method is fairly easy for getting a transcript sequence if
 we know the cDNA file exists for the same genome and gene
 version. Another way, if we only have a *GRangesList* for the
-transcripts (not genes) is to use the `getTranscriptSeqs` function
-from the VariantAnnotation package. This function takes two arguments:
-the *GRangesList* of the exons-per-transcript and a *BSgenome* object.
+transcripts (not genes) is to use the `extractTranscriptSeqs` function
+from the GenomicFeatures package. This function takes two arguments:
+a *BSgenome* object and the *GRangesList* of the exons-by-transcript.
+
+```{r}
+library(EnsDb.Hsapiens.v86)
+edb <- EnsDb.Hsapiens.v86
+```
+
+The following line of code can take some time, so I save the file for
+future use.
+
+```{r}
+if (file.exists("ebt.rda")) {
+  load("ebt.rda")
+} else {
+  ebt <- exonsBy(edb, by="tx") # exons-by-transcript
+  save(ebt, file="ebt.rda")
+}
+```
+
+```{r}
+txp.name2 <- sub("\\..*","",txp.name) # cut version number
+txp <- ebt[txp.name2]
+library(GenomicFeatures)
+txp.seq2 <- extractTranscriptSeqs(Hsapiens, txp)
+txp.seq2
+txp.seq == txp.seq2
+```
+
+```{r}
+sessionInfo()
+```

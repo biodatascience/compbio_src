@@ -157,3 +157,7 @@ go <- go[go$ONTOLOGY == "BP",] # biological processes
 go2 <- select(GO.db, go$GO, c("TERM","DEFINITION"), "GOID")
 go2$TERM
 ```
+
+```{r}
+sessionInfo()
+```

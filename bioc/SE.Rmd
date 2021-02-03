@@ -91,6 +91,12 @@ query <- GRanges("1", IRanges(25000,40000))
 se.sub <- se[overlapsAny(se, query), ]
 ```
 
+We could have equivalently used the shorthand code:
+
+```{r}
+se.sub <- se[se %over% query,]
+```
+
 We get just three ranges, and three rows of the SummarizedExperiment:
 
 ```{r}
@@ -243,4 +249,8 @@ library(pheatmap)
 pheatmap(assay(vsd)[head(order(rv, decreasing=TRUE),100),],
          annotation_col=anno.col,
          show_rownames=FALSE, show_colnames=FALSE)
+```
+
+```{r}
+sessionInfo()
 ```
