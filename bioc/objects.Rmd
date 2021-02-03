@@ -242,3 +242,6 @@ pheatmap(exprs(e)[o,],
          show_rownames=FALSE, show_colnames=FALSE)
 ```
 
+```{r}
+sessionInfo()
+```

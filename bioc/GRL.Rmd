@@ -243,3 +243,7 @@ plotTracks(list(gax,grt), chromosome="20",
            from=44619522 - 10000, to=44652233 + 10000,
            A="orange", B="dodgerblue")
 ```
+
+```{r}
+sessionInfo()
+```
