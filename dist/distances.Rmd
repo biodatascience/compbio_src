@@ -170,7 +170,7 @@ a 2D plot the inter-relationships between samples in the dataset. Note
 that multidimensional scaling (MDS) on a Euclidean distance matrix
 produces an equivalent plot as PCA. 
 
-Performing PCA on unnormalized counts will allow us to see the extent
+Performing PCA on unscaled counts will allow us to see the extent
 to which sequencing depth contributes to total variance (of
 log-transformed counts).  Computing PCA on such a large matrix ~58,000
 x ~660 takes a long time, so we subset to the top 20,000 genes by
@@ -216,7 +216,7 @@ system.time({
 plot(cspm[-outlier], pc$x[,1])
 ```
 
-# Normalization for sequencing depth
+# Scaling for sequencing depth
 
 We will discuss in class the reasons that the column sum is a bad
 estimator for a sequencing depth correction. Briefly, it is because
@@ -228,10 +228,10 @@ factors involve a robust estimator of the center of the log
 ratios. Two of the most used methods are the median of ratios, used by
 *DESeq* and *DESeq2* and the trimmed mean of log ratios, used by
 *edgeR*. Here we will show how the median ratio method works for
-RNA-seq counts. (Note that these normalization methods may work well
-for some sequencing datasets, such as *bulk* RNA-seq, but not with
-others, such as metagenomic data or single-cell RNA-seq. We will
-discuss these additional kinds of datasets in class. 
+RNA-seq counts. (Note that these methods for finding technical scaling
+factors may work well for some sequencing datasets, such as *bulk*
+RNA-seq, but not with others, such as metagenomic data or single-cell
+RNA-seq.
 
 We start by constructing a *pseudo-reference* sample, which will be
 the geometric mean for each row. If a single sample has a 0, this
@@ -288,7 +288,7 @@ abline(h=0, col="red", lwd=3)
 abline(h=median.lfc, col="blue", lwd=3)
 ```
 
-# What do we see after normalization
+# What do we see after scaling
 
 Instead of doing all this computation manually, we can use a
 Bioconductor package *DESeq2* to do it for us. We will explore more
@@ -297,6 +297,16 @@ just divide each column by a scaling factor, add 1 and take the
 logarithm (base 2). The `plotPCA` automatically just looks at the top
 genes by their unsupervised variance. We clearly see two groups
 separating, and not by the center which prepared the sample.
+
+**Note:** here, and in other functions, you may see the word
+*normalization*, which really just refers to *scaling* to remove the
+influence of the sequencing depth. I've tried to stop using the word
+*normalization* in this context as I've found it confuses
+collaborators. For example, the data is not *normally distributed*
+after scaling to adjust for sequencing depth, it is still right
+skewed. After appropriate *transformation*, the data are more
+symmetric (and we will discuss the topic of transformations more in
+the next lecture).
 
 ```{r}
 library(DESeq2)
@@ -327,7 +337,7 @@ chromosomes, or biological sex, it is important to use the correct
 term "sex" and not "gender".
 
 We find out which `rowRanges` of the dataset are on `chrY`,
-and then compute the sum of normalized counts from those genes:
+and then compute the sum of scaled counts from those genes:
 
 ```{r}
 chrY <- as.logical(seqnames(rowRanges(ntd)) == "chrY")
@@ -377,10 +387,10 @@ plotPCA(ntd.f, c("population"))
 
 Finally, I note that, although we didn't see clustering by sequencing
 center in the top two PCs above, there is still some technical
-variation present in the normalized counts, associated with sequencing
+variation present in the scaled counts, associated with sequencing
 center. For example, we can run F-tests on each row to find
-association of log normalized counts with center. We then plot the log
-normalized counts for the gene with the smallest p-value (uncorrected).
+association of log scaled counts with center. We then plot the log
+scaled counts for the gene with the smallest p-value (uncorrected).
 
 ```{r message=FALSE}
 library(genefilter)
@@ -396,4 +406,8 @@ with sequencing center.
 
 ```{r}
 hist(tests$p.value, col="grey")
+```
+
+```{r}
+sessionInfo()
 ```
