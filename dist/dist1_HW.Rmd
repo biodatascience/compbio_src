@@ -1,5 +1,5 @@
 ---
-title: "Homework 4 - Distances and normalization"
+title: "Homework 3 - Distances and scaling"
 author: "your name here"
 date: "`r format(Sys.time(), '%m/%d/%Y')`"
 output: 
@@ -9,14 +9,18 @@ output:
 
 # Question 1 - Median ratio vs column sum part I
 
-We discussed in class one way to estimate a scalar factor to account
-for variable sequencing depth, which was the median of ratios of a
-sample compared to the geometric mean. Here you will compare this estimator
-to the column sum. While the data and papers here discuss RNA-seq, the
-concepts are useful generally for thinking about normalization of many
-types of quantitative sequencing assays (experiments).
+We discussed in class one method to estimate a scalar factor to
+account for variable *sequencing depth* (remember, the column sums
+being very different across samples). That method was to estimate the
+median of ratios of a sample compared to a pseudo-reference sample:
+the geometric mean applied to each gene. Here you will compare this
+estimator to the simple column sum. While the data and papers here
+discuss RNA-seq, the concepts are useful generally for thinking about
+scaling/normalization of many types of quantitative sequencing assays
+(experiments).
 
-Many have written about the problems with the column sum. Two references are here:
+Many have written about the problems with using the column sum to
+scale genomic data. Two references are here:
 
 [A scaling normalization method for differential expression analysis of RNA-seq data](https://genomebiology.biomedcentral.com/articles/10.1186/gb-2010-11-3-r25)
 
@@ -54,100 +58,184 @@ Many have written about the problems with the column sum. Two references are her
 > similar levels of expression across different biological conditions
 > and, in the case of the MAQC-2 dataset, they are noticeably
 > over-expressed in Brain, as compared to the majority of the genes
-> (Figure ​5). 
+> (Figure 5). 
 
 Install the `parathyroidSE` package from
 Bioconductor, which contains RNA-seq data of cultured parathyroid
 samples from four donors, subjected to a variety of treatments.
 
-```{r}
+```{r message=FALSE}
 library(parathyroidSE)
 data(parathyroidGenesSE)
-rse <- parathyroidGenesSE
-library(DESeq2)
-dds <- DESeqDataSet(rse, ~treatment)
-dds <- dds[rowSums(counts(dds)) > 0,]
+se <- parathyroidGenesSE
+# the experimental design (not used yet):
+as.data.frame(colData(se)[,3:5])
+# filter out zero count genes:
+se <- se[rowSums(assay(se)) > 0,]
 ```
 
-You will recreate a plot similar to 
+You should recreate a plot similar to
 [Figure 5a](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2838869/figure/F5/) 
-from the second paper above. 
-To do so, calculate the row sum of the raw counts across all genes in
+from the second paper above, which plots the percent of total count
+over the percent of genes contributing to the total count.
+(Note the data are different so the curves will not be identical to
+that figure.)
+
+To do so, calculate the row sum of the (unscaled) counts across all genes in
 the dataset. Sort the row sum from the gene with the highest counts to
-the smallest counts. Then calculate the cumulative sum of the sorted
-row sums. Plot the contribution of the first 5%, 10%, 15%, 20%, 25%,
-30%, 35% of genes (highest count to lowest) towards the total count
-(so a scatterplot like Figure 5a - you can use `type="b"` to show lines).
-Just from looking at the plot, roughly what percent of the total count
-is from the top 5% of genes? 
-Also from looking at the plot, roughly at what percent of genes
-contributing do we have more than 80% of the total count?
+the smallest counts (`decreasing=TRUE`). Then calculate the cumulative
+sum of the sorted row sums. There is a function in R for calculating
+the cumulative sum (try `cumsum(5:1)`).
+
+Plot the contribution of the first 5%, 10%, 15%, 20% of genes 
+(from highest count to lowest) towards the total count.
+
+Roughly what percent of the total count is from the top 10% of genes? 
 
 # Question 2 - Median ratio vs columns sum part II
 
 We will examine what happens when the genes with the highest count are
 potentially differentially expressed across condition, as mentioned by
-the second paper above. We will do so by manipulating the counts in
-the parathyroid dataset such that the top 20 genes by count are
-doubled, and we resave the dataset as `dds.prime`:
+the second paper above. How does this affect a robust scaling factor
+(median ratio) and how does it affect a simple scaling factor (column
+sums)?
+
+We will do so by artificially manipulating the counts in the
+parathyroid dataset such that the top 20 genes by count are doubled,
+and we resave the new dataset as `se2`:
 
 ```{r}
-dds.prime <- dds
-o <- order(rowSums(counts(dds)), decreasing=TRUE)[1:20]
-cts <- 2 * counts(dds)[o,dds$treatment == "DPN"]
-mode(cts) <- "integer"
-counts(dds.prime)[o,dds$treatment == "DPN"] <- cts
+se2 <- se # make a copy
+o <- order(rowSums(assay(se)), decreasing=TRUE)[1:20]
+cts <- 2 * assay(se)[o, se$treatment == "DPN"]
+assay(se2)[o, se$treatment == "DPN"] <- cts
 ```
 
-Construct three MA plots to see the effect of this manipulation of the
-top 20 genes:
+Construct two MA plots to see the effect of this manipulation. The
+MA plots should be as we saw in class `y - x` on the vertical axis, and 
+`0.5 (x + y)` on the horizontal axis, where `x` and `y` are both on
+the log scale. `x` should be the mean of the log scale expression
+(counts) for the control samples, and `y` should be the mean of the
+log scale expression (counts) for the DPN samples. 
 
-1) Take the original dataset `dds`, and make an MA plot of DPN samples
-vs Control samples. You can use `normTransform` which will median-ratio
-correct and log2 transform the data. Then calculate the `rowMeans` for
-DPN samples and Control samples. Plot the y=0 line as in `distances.Rmd`.
-2) Do the same for `dds.prime`, using `normTransform` and plot the
-y=0 line.
-3) Finally, only for `dds.prime`, instead of median-ratio scaling with
-`normTransform`, this time you will perform your own scaling of each
-column by a factor correlated with column sum. Calculate: (number of
-samples) * (column sum) / (total sum of all counts) and use this as
-the correction factor. Then log2 transform and make an MA plot.
-
-How does the plot change using median-ratio vs column sum when the top
-20 genes are differentially expressed?
-
-# Question 3 - Hierarchical clustering methods
-
-In the last question, we will look at the qualitative differences
-between different clustering methods. 
-We will continue with the `dds` object from the first two questions
-(the RNA-seq data on parathyroid samples).
-
-First, calculate distances on the top 500 genes by variance as in
-`hclust.Rmd`. Now create a function which has arguments `method`,
-`dists` and `vsd`, which plots a dendrogram with labels indicated by
-`vsd$id` and colors by `vsd$patient`. The function should use `hclust`
-with `method=method`, so that you can easily change the method and
-draw a new dendrogram plot.
-
-Finally, loop through the following methods below and fill in the
-following grid of 2 x 3 with 6 dendrograms. Note that two of the dendrograms will
-have strange looking branch points (sometimes upside down). This is
-not an error in the plot. How would you group the different methods,
-and describe them qualitatively.
+For the original dataset, this looks like:
 
 ```{r}
-library(matrixStats)
-library(dendextend)
-library(RColorBrewer)
+library(DESeq2)
+# using the original dataset, 'se':
+dds <- DESeqDataSet(se, design=~1) # ignore the design...
+dds <- estimateSizeFactors(dds) # median ratio scaling
+ntd <- normTransform(dds) # log2 of scaled data
+```
+
+Note that you can pull out the log2 scaled data with `assay`. E.g. the
+matrix of log2 scale expression values for the control samples:
+
+```{r}
+ctrl.mat <- assay(ntd)[,ntd$treatment == "Control"]
+```
+
+Note that you can provide alternative scaling factors before running
+`normTransform` with the setter function, `sizeFactors(x) <-`.
+It's a good idea to divide out the geometric mean of any scaling
+factors, so they are centered around 1. Here's an example with dummy
+scaling factors:
+
+```{r}
+mySF <- abs(rnorm(27, mean=0, sd=10)) # dummy values for scaling factors
+mySF <- colSumSF / exp(mean(log(colSumSF))) # divide out geo mean
+sizeFactors(dds) <- mySF # set the 'size factors' to use for scaling
+ntd <- normTransform(dds) # log2 of scaled data, using custom scaling factors
+```
+
+Make an MA plot for `se2` using median ratio scaling (default) and
+alternatively using the column sum to compute scaling factors. Comment
+on the qualitative difference, on datasets with large differences
+affecting the most highly expressed genes.
+
+# Question 3 - derive VST for two distributions
+
+An approximate variance stabilizing transformation is one which, after
+applying to the data provides roughly flat variance (across samples)
+regardless of the mean value of the feature (across samples). There is
+a formula which provides the VST. First let us define a variance mean
+relationship as follows, for feature $i$:
+
+$$ \sigma^2_i = g(\mu_i) $$
+
+We will seek a VST $f(.)$ such that $Var(f(Y_i))$ is approximately
+constant.
+
+Consider the first order Taylor series approximation of $f(Y_i)$:
+
+$$ f(Y_i) \approx f(\mu_i) + (Y_i - \mu_i) f'(\mu_i) $$
+then
+
+$$
+\begin{align}
+Var(f(Y_i)) &\approx [f'(\mu_i)]^2 Var[(Y_i - \mu_i)] \\
+&\approx [f'(\mu_i)]^2 \sigma^2_i
+\end{align}
+$$
+
+So we seek $f(.)$ such that:
+
+$$ [f'(\mu_i)]^2 = 1/g(\mu_i) $$
+By re-arranging terms and integrating with respect to $\mu_i$ we have:
+
+$$ f(\mu) = \int \frac{d\mu}{\sqrt{g(\mu)}} $$ 
+
+Derive VST for the following two datasets. The first one is Poisson
+with $Var(Y_i) = \mu_i$ and the second is log-Normal with 
+$Var(Y_i) \propto \mu_i^2$.
+
+```{r}
+library(vsn)
+mu <- seq(from=1,to=100,length=2000)
+mat <- matrix(rpois(10*length(mu), mu), ncol=10)
+meanSdPlot(mat, ranks=FALSE)
+```
+
+```{r}
+mu2 <- log(seq(from=1,to=100,length=2000))
+mat2 <- matrix(exp(rnorm(10*length(mu2), mu2)), ncol=10)
+meanSdPlot(mat2, ranks=FALSE)
+```
+
+# Bonus Question - clustering genes changing over time
+
+Examine the parathyroid dataset, focusing on the control samples. Even
+when a sample is sitting in a petri dish, the expression is still
+changing. Here, primary cultures were kept for up to 48 hours. First,
+we take the 24 and 48 hour timepoints for the control samples. We
+collapse technical replicates (these refer to extra sequencing runs,
+and the counts are added together using the function below).
+
+```{r}
+dds <- DESeqDataSet(se, design=~patient + time)
+dds <- dds[,dds$treatment == "Control"]
+dds <- collapseReplicates(dds, dds$experiment)
+keep <- rowSums(counts(dds) >= 10) >= 4
+dds <- dds[keep,]
+```
+
+The following code chunk runs the VST and then uses the *limma*
+package to remove the patient differences (they are removed with a
+simple mean shift). We then focus on the top 200 genes by variance.
+
+```{r}
 vsd <- vst(dds)
-vsd$id <- paste(vsd$treatment, vsd$patient, vsd$time, sep="_")
+assay(vsd) <- limma::removeBatchEffect(assay(vsd), vsd$patient)
+rv <- rowVars(assay(vsd))
+vsd <- vsd[head(order(rv, decreasing=TRUE),200),]
 ```
 
-```{r}
-methods <- c("complete","median","centroid",
-             "single","ward.D","ward.D2")
-par(mfrow=c(2,3), mar=c(7,3,3,1))
-palette(brewer.pal(8, "Dark2"))
-```
+After subtracting the mean for these 200 genes, perform hierarchical
+clustering of the *genes* (in class we clustered the samples). Split
+the genes into three groups according to the clustering. Which cluster
+has genes that are most related to the biological process,
+*extracellular matrix organization* (a GO term)? 
+
+Make a plot of the centered, transformed expression values for the
+genes in this cluster. Do the expression values for this cluster go up
+or down over time?
