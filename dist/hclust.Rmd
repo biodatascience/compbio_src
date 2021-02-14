@@ -21,13 +21,14 @@ dds.f <- dds[,!dds$male]
 
 # Picking a transformation
 
-Last time I showed how we could normalize the data for sequencing
-depth differences, and then take the log of the scaled counts. Here I
-want to emphasize that the logarithm, while convenient, is not optimal 
-for computing distances between samples. We use the `normTransform`
-function to produce log normalized counts, and then we use the
-`meanSdPlot` function to plot the standard deviation of the log
-normalized counts for each gene over the mean:
+Last time I showed how we could scale the data to account for
+sequencing depth differences, and then take the log of the scaled
+counts. Here I want to emphasize that the logarithm, while convenient,
+is not necessarily an optimal transformation for computing distances
+between samples. We use the `normTransform` function to produce log
+scaled counts, and then we use the `meanSdPlot` function to plot the
+standard deviation of the log scaled counts for each gene over the
+mean:
 
 ```{r message=FALSE}
 ntd <- normTransform(dds.f)
@@ -58,7 +59,7 @@ abline(h=0, col="red", lwd=3)
 A better transformation than log is to compute the 
 [variance stabilizing transformation](https://en.wikipedia.org/wiki/Variance-stabilizing_transformation). 
 An implementation of this for count data is the `vst` function in the
-DESeq2 package. This function also incorporates normalization for
+DESeq2 package. This function also incorporates scaling for
 sequencing depth. We can examine how these two diagnostic plots
 change. The `meanSdPlot` has less of a systematic "hump" on the left
 side. Note: we do not seek a transformation which puts *all* the genes
@@ -96,7 +97,7 @@ ave <- .5 * (assay(ntd)[,2] + assay(ntd)[,1])
 plot(ave, sq.diffs)
 ```
 
-Note that, if we just take the logarithm of normalized counts, genes
+Note that, if we just take the logarithm of scaled counts, genes
 with average signal less than 5 (32 on the count scale) contribute
 three times more to the sum than genes with average signal higher
 than 5. The inequality even holds for genes with average signal less
@@ -170,7 +171,7 @@ Note that the four pairs of technical replicates often cluster tightly
 together.
 
 ```{r}
-library(dendextend)
+suppressPackageStartupMessages(library(dendextend))
 library(RColorBrewer)
 palette(brewer.pal(8, "Dark2"))
 o.dend <- order.dendrogram(dend)
@@ -204,3 +205,8 @@ labels:
 labels_colors(dend) <- as.integer(vsd2$cluster[o.dend])
 plot(dend)
 ```
+
+```{r}
+sessionInfo()
+```
+
