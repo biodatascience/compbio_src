@@ -225,7 +225,7 @@ further processing.
 fo <- findOverlaps(query, g)
 head(fo)
 tail(fo)
-table(from(fo))
+table(factor(from(fo), seq_along(query)))
 fo <- as.data.frame(fo)
 ```
 
