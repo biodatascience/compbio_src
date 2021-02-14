@@ -225,7 +225,20 @@ further processing.
 fo <- findOverlaps(query, g)
 head(fo)
 tail(fo)
+# to count the overlaps for each range in query:
 table(factor(from(fo), seq_along(query)))
+```
+
+Equivalently, we can use the `countOverlaps` function for the last
+command above:
+
+```{r}
+countOverlaps(query, g)
+```
+
+We can convert the Hits object to a data.frame:
+
+```{r}
 fo <- as.data.frame(fo)
 ```
 
