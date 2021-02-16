@@ -51,7 +51,8 @@ library(magrittr)
 cts <- read.table("bottomly_count_table.txt", header=TRUE, row.names=1)
 coldata <- read.table("bottomly_phenodata.txt", header=TRUE, row.names=1)
 all(colnames(cts) == rownames(coldata))
-levels(coldata$strain) %<>% (function(x) sub("/",".",x))
+coldata$strain %<>% (function(x) sub("/",".",x))
+coldata$strain %<>% factor
 ```
 
 We use DESeq2 to produce a normalized count matrix, which is the input
@@ -100,4 +101,8 @@ plot(fit$sv[,1:2], col=dds$batch, pch=dds$strain.int, cex=2,
      xlab="SV1", ylab="SV2")
 legend("top", levels(dds$batch), pch=16,
        col=1:3, cex=.8, ncol=3, title="batch")
+```
+
+```{r}
+sessionInfo()
 ```

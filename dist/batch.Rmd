@@ -76,7 +76,8 @@ In order to get the GC content of each gene, we start by downloading
 the information about the genes used by recount2 for quantification,
 which was version 25 of the Gencode genes. We download this file from
 the following
-[link](ftp://ftp.sanger.ac.uk/pub/gencode/Gencode_human/release_25/gencode.v25.annotation.gtf.gz).
+[link](ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_25/gencode.v25.annotation.gtf.gz) 
+(37 Mb).
 
 ```{r message=FALSE}
 library(GenomicFeatures)
@@ -86,7 +87,9 @@ We need to import this gene information from a GTF (gene transfer
 format) file, and turn it into a *TxDb*.
 We then save the database, so we can skip the `makeTxDbFromGFF` step
 in the future.
-Note that a warning message about closing connection is OK.
+Note that a warning message
+about `The "phase" metadata column contains non-NA values`,
+and another one about closing connection are both OK.
 
 ```{r eval=FALSE}
 txdb <- makeTxDbFromGFF("gencode.v25.annotation.gtf.gz")
@@ -232,3 +235,6 @@ cqnplot(fit, n=1, col=center)
 legend("bottom", levels(center), fill=1:nlevels(center))
 ```
 
+```{r}
+sessionInfo()
+```
