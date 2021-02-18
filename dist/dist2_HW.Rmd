@@ -1,5 +1,5 @@
 ---
-title: "Homework 5 - Modeling to correct for batch effects"
+title: "Homework 4 - Modeling to correct for batch effects"
 author: "your name here"
 date: "`r format(Sys.time(), '%m/%d/%Y')`"
 output: html_document
@@ -10,63 +10,91 @@ output: html_document
 In the first question, you will implement something roughly
 approximating the direct modeling approach of CQN, and then in the
 second question you will compare your estimates to those given by
-CQN. We will use the Bottomly mouse RNA-seq experiment data that we showed
+CQN. The purpose of what we are doing is to find systematic trends in
+the counts of sequenced reads on attributes of the features (genes)
+including their basepair composition (GC content) and their length
+(number of basepairs). We have reason to believe that such trends
+may reflect technical variation not representative of the underlying
+proportion of RNA. When such trends differ across samples, these can
+lead to distortions and bias in inference making use of the raw
+counts.
+
+We will use the Bottomly RNA-seq experiment data that we showed
 the `sva.Rmd`, although here we will use a version of the dataset that
 is already prepared as a SummarizedExperiment, and so it already has a
 GRangesList associated with the rows. This will make it easier to get
-the GC content and length of the genes. 
-
-To begin, download the file `bottomly_sumexp.RData` which appears at
-the bottom of the page here:
-
-<http://www-huber.embl.de/DESeq2paper/>
-
-Next we do some cleanup on the `colData`, and we reduce the
-`rowRanges` so that we only have unique exon sequence associated with
-each row of the SummarizedExperiment.
-For convenience, we want to
-use the Bioconductor genome package `BSgenome.Mmusculus.UCSC.mm9`,
-which lines up with the `rowRanges` of our SummarizedExperiment,
-however, we will need to remove some genes which are listed on
-chromosomes that are not present in this genome. We also need to
-change the style of the sequence names from "NCBI" to "UCSC" to use
-the genome above. The code chunk below accomplishes all of these steps
-for you.
+the GC content and length of the genes.
 
 ```{r echo=FALSE}
 knitr::opts_chunk$set(cache=TRUE)
 ```
 
+We download the SummarizedExperiment object `bottomly.rda` from:
+
+<https://github.com/mikelove/bottomly>
+
+You can either go to the repo URL, and click on the *Download* button,
+or use the code chunk below:
+
+```{r}
+url <- "https://github.com/mikelove/bottomly/raw/main/bottomly.rda"
+file <- "bottomly.rda"
+if (!file.exists(file)) download.file(url, file)
+```
+
+We have a data object with `counts` across 37,991 genes and 21
+samples:
+
 ```{r message=FALSE}
 library(SummarizedExperiment)
-load("bottomly_sumexp.RData")
-bottomly <- updateObject(bottomly)
-library(magrittr)
-levels(bottomly$strain) %<>% (function(x) sub("/",".",x))
-bottomly$batch <- factor(bottomly$experiment.number)
+load("bottomly.rda")
+bottomly
+```
+
+Next we reduce the `rowRanges` so that we only have unique exon
+sequence associated with each row of the SummarizedExperiment, as was
+seen in the batch effects lecture note.
+
+```{r}
 rowRanges(bottomly) <- reduce(rowRanges(bottomly))
+```
+
+For convenience, we want to use the Bioconductor genome package
+`BSgenome.Mmusculus.UCSC.mm9`, which lines up with the `rowRanges` of
+our SummarizedExperiment, however, we will need to remove some genes
+which are listed on chromosomes that are not present in this
+genome. We also need to change the style of the sequence names from
+"NCBI" to "UCSC" to use the genome above.
+
+```{r}
+library(GenomeInfoDb)
+bottomly <- keepStandardChromosomes(bottomly, pruning.mode="coarse")
 seqlevelsStyle(rowRanges(bottomly)) <- "UCSC"
-chrs <- paste0("chr", c(1:22,"X","Y","M"))
-keep <- all(seqnames(bottomly) %in% chrs)
-bottomly <- bottomly[keep,]
+seqinfo(rowRanges(bottomly))
 ```
 
 Now you should be ready to extract the GC content and length of the
-genes, as was done in `batch.Rmd`. Remember, you have the reduced
-exon regions associated with each gene stored as `rowRanges` of the
-SummarizedExperiment already.
+genes, as was done in `batch.Rmd`. Remember, you already have the
+*reduced* exon ranges associated with each gene stored as `rowRanges`
+of the SummarizedExperiment. As in the lecture note, the GC content
+and length of the gene are defined here as the ratio of G or C over
+the number of basepairs, and the total number of basepairs, of the
+*reduced* exon ranges. We do not therefore count overlapping exon
+sequence twice.
 
 Once you have the GC content and length of each gene, make a
 `data.frame` with one column for the GC content, and then three columns of
-counts from three samples, one from each batch. You can use
-`which(bottomly$batch == "4")`, for example, to find out which samples
-come from each batch. So the `data.frame` should have four columns in
-the end.
+counts from three samples, picking one sample from each batch. We
+won't use the gene length yet.
+
+You can use `which(bottomly$batch == "b4")`, for example, to find out
+which samples come from each batch. So the `data.frame` should have
+four columns in the end.
 
 Finally, fit three Poisson generalized linear models to the counts,
 using natural spline terms for GC content. You may not have seen the
 use of spline terms in R, but it's really very simple, you just wrap
-a covariate inside of a function like `ns` and then include it in a
+a covariate inside of a function like `ns()` and then include it in a
 formula as you would any other variable. If you haven't seen the use
 of `glm`, this is also very similar to `lm`, but you additionally
 specify a distributional *family*, here the Poisson.
@@ -81,23 +109,18 @@ where the knots are given by:
 
 `ks <- c(.4,seq(from=.45,to=.55,by=.025),.6)`
 
-Finally, plot the log of the fitted values for the three models, over
-the GC content in the data frame. You should end up with three curves
-on the same plot. 
+(This choice of knots comes from previous exploratory data analysis of
+this particular dataset.)
 
-Before making the plot, call:
+Finally, plot the log of the fitted values (see `fitted()`) for the
+three models, over the GC content. You can focus on the plot on the
+range [0.35, 0.65]. You should end up with three curves
+on the same plot. Alternatively, if you've done this before, you could
+use `predict()` to extrapolate the curves on `newdata` (if this
+doesn't make sense then use `fitted()`).
 
-```
-library(rafalib)
-bigpar()
-```
-
-... which will give you a nice color palette for this problem and the
-next one. Color the lines using `col=1`, `col=2`, and `col=3` (green,
-orange, and lavendar).
-
-Which of the three experiments has an upward sloping dependence on GC
-content from the range 0.4 to 0.55?
+Which of the three experiments has an upward sloping dependence of
+counts on gene GC content from the range 0.4 to 0.55?
 
 # Question 2 - Modeling of bias using Conditional Quantile Normalization (CQN)
 
@@ -111,34 +134,31 @@ Fit a `cqn` model to the counts in `assay(bottomly)` (the object
 prepared at the end of the given code 
 chunk above), using the GC content and gene length that you
 calculated in problem 1. Then use `cqnplot` with `n=1` and then `n=2`
-to draw the GC content and gene length dependence plots. 
+to draw the GC content and gene length dependence plots. Ignore the
+warning (if you see this) about `use of 'sig2' is deprecated`.
 
-Before plotting, run the following two lines:
-
-```
-library(rafalib)
-bigpar()
-```
-
-Color the lines in the CQN plots using `col=bottomly$batch`. For the
+Color the lines in the CQN plots using `bottomly$batch`. For the
 GC content plot, use `xlim=c(.35,.65)`, and for the length plot use
-`xlim=c(-2,5)`.
+`xlim=c(-2,55)`.
 
 Which batch deviates from the other two in the dependence on GC
-content? Does this match what you saw in `sva.Rmd` using the SVA
+content? Does this match what we saw in `sva.Rmd` using the SVA
 method to identify technical biases? Is there a single sample from one
 of the other groups that shows up with the outlier group? Is this also
-the same as you saw in `sva.Rmd`?
+the same as we saw in `sva.Rmd`?
 
-# Question 3 - Finding (known) batch using Surrogate Variable Analysis (SVA)
+# Question 3 - Recovering known batch using Surrogate Variable Analysis (SVA)
 
-Here we will run SVA to find hidden batches, but we will use a dataset
+Finally, we will run SVA to find hidden batches, but we will use a dataset
 where we know the batches: the GEUVADIS dataset from `batch.Rmd` and
-previous distance workflows. We begin by loading the `geuvadis.rda`
-object prepared in `distances.Rmd`. We remove the YRI samples, as
-these have an outlier that disrupts the SVA analysis. We then subset
-to 100 samples randomly, and drop any factor levels that are now
-missing samples.
+previous distance lectures. By attempting a method on a dataset where
+the technical batches are known, we can confirm that the method can
+recover meaningful *surrogate variables*.
+
+We begin by loading the `geuvadis.rda` object prepared in
+`distances.Rmd`. We remove the YRI samples, as these have an outlier
+sample that disrupts the SVA analysis. We then subset to 100 samples
+randomly, and drop any factor levels that are now missing samples. 
 
 ```{r}
 library(DESeq2)
@@ -164,4 +184,3 @@ shape. By definition, the surrogate variables will not be associated
 with population, because this was provided in the full model. Did the
 two surrogate variables capture some variation associated with
 sequencing center?
-
