@@ -45,6 +45,8 @@ sensitive to slight variations, and results in distortions of
 measurements which are specific to the particular place and time when
 the samples were processed: the batch.
 
+# GEUVADIS dataset
+
 We start again with the GEUVADIS RNA-seq samples prepared
 in [distances](distances.html). 
 
@@ -122,25 +124,40 @@ plotRanges <- function(e) {
 }
 plotRanges(e)
 plotRanges(reduce(e))
-ebg.red <- reduce(ebg)
 ```
 
+Now we put the reduced exons in correct order
+(in this case they are already in correct order),
+and we store them as `rowRanges` of the dataset.
+
+```{r}
+exons <- reduce(ebg)
+exons <- exons[ rownames(dds) ]
+rowRanges(dds) <- exons
+```
+
+# Calculate GC content and length of reduced exons
+
 Now we extract the exonic sequence for every gene, using
-the `extractTranscriptSeqs` function. We then calculate the GC content
-with `letterFrequency`, and assign this to a `gc` column of
-`ebg.red`. Finally, we find a matching between the rownames of `dds`
-and `ebg.red`, and assign the GC content and length of genes from
-`ebg.red` to `dds`. 
+the `extractTranscriptSeqs` function. 
 
 ```{r message=FALSE}
 library(BSgenome.Hsapiens.UCSC.hg38)
-dna <- extractTranscriptSeqs(Hsapiens, ebg.red)
-all(sum(width(ebg.red)) == width(dna))
-mcols(ebg.red)$gc <- as.numeric(letterFrequency(dna, "GC", as.prob=TRUE))
-m <- match(rownames(dds), names(ebg.red))
-all(m == seq_along(m)) # they happen to be in order
-mcols(dds)$gc <- mcols(ebg.red)$gc[ m ]
-mcols(dds)$len <- sum(width(ebg.red))[ m ]
+dna <- extractTranscriptSeqs(Hsapiens, rowRanges(dds))
+```
+
+We then calculate the GC content (ratio of G or C to total basepairs)
+with `letterFrequency`, and save this as a metadata column `gc`. We
+also save the total number of basepairs to a metadata column `len`.
+
+```{r}
+mcols(dds)$gc <- as.numeric(letterFrequency(dna, "GC", as.prob=TRUE))
+mcols(dds)$len <- sum(width(rowRanges(dds)))
+```
+
+```{r}
+with(mcols(dds), hist(gc))
+with(mcols(dds), hist(log10(len)))
 ```
 
 We know have all the covariates we need for modeling how the counts
@@ -168,12 +185,15 @@ well as any other technical covariates, like GC content).
 plot(log10(mcols(dds)$len), log10(counts(dds)[,1]+1), cex=.1)
 ```
 
-We will know use a Bioconductor package called 
+# Conditional Quantile Normalization
+
+We will now use a Bioconductor package called 
 [cqn](https://www.ncbi.nlm.nih.gov/pmc/articles/pmid/22285995/)
 to model systematic dependence of counts on gene GC content and
 length. We provide the `cqn` function with the counts, the GC content
-and the gene lengths. The plots show estimated spline dependence of
-counts on GC (`n=1`)...
+and the gene lengths. 
+
+You can ignore a warning about `use of 'sig2' is deprecated...`
 
 ```{r message=FALSE}
 library(cqn)
@@ -181,6 +201,11 @@ idx <- dds$population == "TSI"
 dds2 <- dds[,idx]
 cts <- counts(dds2)
 fit <- cqn(cts, mcols(dds2)$gc, mcols(dds2)$len)
+```
+
+The plots show estimated spline dependence of counts on GC (`n=1`)...
+
+```{r}
 cqnplot(fit, n=1)
 ```
 
@@ -206,16 +231,16 @@ is highly batch specific.
 ```{r}
 library(rafalib)
 bigpar()
-center <- dds2$center
-cqnplot(fit, n=1, col=center)
-legend("bottom", levels(center), fill=1:nlevels(center))
+cqnplot(fit, n=1, col=dds2$center)
+legend("bottom", levels(dds2$center), fill=1:nlevels(dds2$center))
 ```
 
 There is less variation of counts on gene length across center:
 
 ```{r}
-cqnplot(fit, n=2, col=center, xlim=c(-2,4.5))
-legend("topleft", levels(center), fill=1:nlevels(center))
+bigpar()
+cqnplot(fit, n=2, col=dds2$center, xlim=c(-2,4.5))
+legend("topleft", levels(dds2$center), fill=1:nlevels(dds2$center))
 ```
 
 
@@ -230,10 +255,60 @@ idx <- dds$population == "TSI" & dds$center %in% c("CGR","UG")
 dds3 <- dds[,idx]
 cts <- counts(dds3)
 fit <- cqn(cts, mcols(dds3)$gc, mcols(dds3)$len)
-center <- droplevels(dds3$center)
-cqnplot(fit, n=1, col=center)
-legend("bottom", levels(center), fill=1:nlevels(center))
+dds3$center <- droplevels(dds3$center)
+bigpar()
+cqnplot(fit, n=1, col=dds3$center)
+legend("bottom", levels(dds3$center), fill=1:nlevels(dds3$center))
 ```
+
+# Downstream use of CQN
+
+Above we show plots of the bias of the counts of sequenced reads over
+aspects of the features (genes) include sequence composition (GC) and
+the number of basepairs in the reduced exon ranges. The cqn output is
+also valuable for plotting corrected data, and for providing offsets
+for use in downstream statistical analysis.
+
+```{r}
+names(fit)
+```
+
+A natural log scale offset is provided in `glm.offset`. This can be
+converted back to count scale (similar to a size factor but across all
+genes x samples):
+
+```{r}
+cqnOffset <- fit$glm.offset
+cqnNormFactors <- exp(cqnOffset)
+```
+
+The cqn output also has count values that are corrected for
+differential bias across samples. We can compare before...
+
+```{r}
+bigpar()
+filter <- as.integer(rowSums(counts(dds3)) > 10 & mcols(dds)$len > 1000)
+head(order(mcols(dds3)$gc * filter,
+           decreasing=TRUE), 10)
+idx <- 32706
+mcols(dds)[idx,]
+boxplot(counts(dds3, normalized=TRUE)[idx,] ~ dds3$center,
+        ylim=c(0,300), col=1:2,
+        xlab="center", ylab="scaled counts")
+```
+
+to after:
+
+```{r}
+bigpar()
+exprs <- fit$y + fit$offset # note: atypical definition of offset...
+boxplot(exprs[idx,] ~ dds3$center, col=1:2,
+        xlab="center", ylab="log2 scale expression")
+```
+
+While not all of the high GC features are exactly corrected, we see
+that for a number of them, the differences have been accounted for by
+modeling on technical covariates.
 
 ```{r}
 sessionInfo()
