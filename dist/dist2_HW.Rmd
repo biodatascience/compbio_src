@@ -1,5 +1,5 @@
 ---
-title: "Homework 4 - Modeling to correct for batch effects"
+title: "Homework 4 - Modeling to correct for technical artifacts"
 author: "your name here"
 date: "`r format(Sys.time(), '%m/%d/%Y')`"
 output: html_document
