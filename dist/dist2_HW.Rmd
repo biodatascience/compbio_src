@@ -139,7 +139,7 @@ warning (if you see this) about `use of 'sig2' is deprecated`.
 
 Color the lines in the CQN plots using `bottomly$batch`. For the
 GC content plot, use `xlim=c(.35,.65)`, and for the length plot use
-`xlim=c(-2,55)`.
+`xlim=c(-2,5)`.
 
 Which batch deviates from the other two in the dependence on GC
 content? Does this match what we saw in `sva.Rmd` using the SVA
