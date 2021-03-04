@@ -25,10 +25,6 @@ is already prepared as a SummarizedExperiment, and so it already has a
 GRangesList associated with the rows. This will make it easier to get
 the GC content and length of the genes.
 
-```{r echo=FALSE}
-knitr::opts_chunk$set(cache=TRUE)
-```
-
 We download the SummarizedExperiment object `bottomly.rda` from:
 
 <https://github.com/mikelove/bottomly>
