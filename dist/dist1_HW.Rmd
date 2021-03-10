@@ -141,9 +141,9 @@ It's a good idea to divide out the geometric mean of any scaling
 factors, so they are centered around 1. Here's an example with dummy
 scaling factors:
 
-```{r}
+```{r eval=FALSE}
 mySF <- abs(rnorm(27, mean=0, sd=10)) # dummy values for scaling factors
-mySF <- colSumSF / exp(mean(log(colSumSF))) # divide out geo mean
+mySF <- mySF / exp(mean(log(mySF))) # divide out geo mean
 sizeFactors(dds) <- mySF # set the 'size factors' to use for scaling
 ntd <- normTransform(dds) # log2 of scaled data, using custom scaling factors
 ```
