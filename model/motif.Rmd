@@ -138,7 +138,7 @@ prod(theta[1,snip == 1]) * prod(theta[2,snip == 2]) *
 
 Once we've stored these condition probabilities in a matrix, `z.mat`,
 we can use these to maximize our expectation of the log
-likelihood with respect to the condition distribution of *Z* given *X* and $theta^t$ 
+likelihood with respect to the condition distribution of *Z* given *X* and $\theta^t$ 
 and then update to $\theta^{t+1}$. We will add the contribution from each
 sequence out of `n`, and from all positions `p`. As `z.mat` will be
 normalized so that each row sums to 1 (it forms a density along the
