@@ -97,7 +97,8 @@ arrows(.5, mean(log(x)), 0, mean(log(x)), col="dodgerblue", lwd=2, length=.1)
 By taking the expectation of the log likelihood with respect to *Z*
 given *X* and $\theta^t$, we obtain better than simply a lower bound:
 we obtain a function which is bounded above by the log likelihood and
-equal to it at $\theta$. One can furthermore show that by optimizing this
+equal to it at $\theta^t$ (the current estimate).
+One can furthermore show that by optimizing this
 *replacement* log likelihood and obtaining $\theta^{t+1}$, we have 
 $\ell(\theta^t) \le \ell(\theta^{t+1})$, that is, monotonic increases
 in the *original* log likelihood at each iteration 
