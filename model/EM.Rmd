@@ -74,7 +74,7 @@ expected values are drawn with arrows. Intuitively, the logarithm
 right tail.
 
 ```{r echo=FALSE}
-knitr::opts_chunk$set(cache=TRUE)
+knitr::opts_chunk$set(cache=FALSE)
 ```
 
 ```{r echo=FALSE, fig.width=6, fig.height=6}
@@ -101,10 +101,10 @@ equal to it at $\theta$. One can furthermore show that by optimizing this
 *replacement* log likelihood and obtaining $\theta^{t+1}$, we have 
 $\ell(\theta^t) \le \ell(\theta^{t+1})$, that is, monotonic increases
 in the *original* log likelihood at each iteration 
-(see [Andrew Ng's course notes](http://cs229.stanford.edu/notes/cs229-notes8.pdf) 
+(see [Andrew Ng's course notes](http://cs229.stanford.edu/notes2020spring/cs229-notes8.pdf) 
 for a proof). A diagram of the process of iteratively maximizing functions
 which lower bound the log likelihood can be found 
-[here](https://images.nature.com/full/nature-assets/nbt/journal/v26/n8/extref/nbt1406-S1.pdf), 
+[here](https://static-content.springer.com/esm/art%3A10.1038%2Fnbt1406/MediaObjects/41587_2008_BFnbt1406_MOESM8_ESM.pdf), 
 which is a supplemantary PDF associated with 
 [this review](https://www.nature.com/nbt/journal/v26/n8/full/nbt1406.html)
 on the EM algorithm by Chuong Do and Serafim Batzoglou.
@@ -316,9 +316,11 @@ human genome, using UCSC known genes:
 ```{r message=FALSE}
 library(BSgenome.Hsapiens.UCSC.hg38)
 library(TxDb.Hsapiens.UCSC.hg38.knownGene)
-g <- genes(TxDb.Hsapiens.UCSC.hg38.knownGene)
-promoters <- flank(g, width=1500, both=TRUE)
-seq <- getSeq(Hsapiens, promoters)
+suppressMessages({
+  g <- genes(TxDb.Hsapiens.UCSC.hg38.knownGene)
+})
+pro <- promoters(g, upstream=1500, downstream=1500)
+seq <- getSeq(Hsapiens, pro)
 ```
 
 ```{r}
