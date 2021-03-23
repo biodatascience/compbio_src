@@ -74,7 +74,7 @@ expected values are drawn with arrows. Intuitively, the logarithm
 right tail.
 
 ```{r echo=FALSE}
-knitr::opts_chunk$set(cache=FALSE)
+knitr::opts_chunk$set(cache=TRUE)
 ```
 
 ```{r echo=FALSE, fig.width=6, fig.height=6}
@@ -140,7 +140,7 @@ probability $\pi_2 = (1 - \pi_1)$.
 Before we start with the EM steps, it's useful to recall that if we observed 
 the data $x_i$ and the latent variable $z_i$ we could work on the log likelihood:
 
-$$ \ell(\theta) = \sum_i \sum_c \log \pi_c f(x_i; \mu_c, \sigma^2_c)^{\mathbb{1}(z_i = c)} $$
+$$ \ell(\theta) = \sum_i \sum_c \mathbb{1}(z_i = c) \log \pi_c f(x_i; \mu_c, \sigma^2_c) $$
 
 However, we don't observe the $z_i$ and so if we attempted maximum 
 likelihood estimation, we would be stuck with a sum over components *c* preventing 
