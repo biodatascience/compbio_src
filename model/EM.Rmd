@@ -162,17 +162,22 @@ $$ = \textrm{E}_{Z|X,\theta^t} \left[ \sum_i \sum_c \mathbb{1}(z_i = c) (\log \p
 $$ \sum_i \sum_c \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = c) \left( \log \pi_c + \log \frac{1}{\sqrt{2 \pi \sigma^2_c}} - \frac{1}{2 \sigma^2_c} (x_i - \mu_c)^2 \right) $$ 
 
 Now differentiate this double sum with respect to one of the
-parameters, say $\mu_1$, and set it equal to zero:
+parameters, say $\mu_1$, and set it equal to zero. Remember we have 
+$z_i = 0$ if observation *i* is from the 1st Normal component.
 
-$$ \sum_i \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 1) (x_i - \mu_1) = 0 $$
+$$ \sum_i \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 0) (x_i - \mu_1) = 0 $$
 
-Define $\textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 1) \equiv w_i$,
+Define $\textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 0) \equiv w_i^1$,
 which we can calculate using our probability model, $x$, and
-$\theta^t$. We end up with:
+$\theta^t$. Again, $w_i^1$ is the conditional probability that 
+observation *i* is from component 1, given the data and the current 
+best estimate of parameters.
 
-$$ \sum_i w_i (x_i - \mu_1) = 0 $$
+We end up with:
 
-$$ \hat{\mu}^{t+1}_1 = \frac{\sum_i w_i x_i}{\sum_i w_i} $$
+$$ \sum_i w_i^1 (x_i - \mu_1) = 0 $$
+
+$$ \hat{\mu}^{t+1}_1 = \frac{\sum_i w_i^1 x_i}{\sum_i w_i^1} $$
 
 We obtain a weighted sum of the observations that belong to this
 component for our estimate of the mean. If we repeat the same for
