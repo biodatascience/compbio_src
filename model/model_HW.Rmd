@@ -16,8 +16,9 @@ A simple example follows (you don't need to run this chunk for your
 HW, you can set `eval=FALSE` if you don't want to install *ggbio*).
 
 ```{r echo=FALSE}
-library(GenomicRanges)
-library(ggbio)
+suppressPackageStartupMessages({
+  library(GenomicRanges)
+  library(ggbio)})
 g <- GRangesList(
   iso3=GRanges("chr1", IRanges(c(1,101,201), width=50)),
   iso2=GRanges("chr1", IRanges(c(1,101), width=50)),
