@@ -1,65 +1,302 @@
 ---
-title: "Homework 6 - EM algorithm for modeling sequence motifs"
+title: "Homework 5 - EM algorithm for isoform expression"
 author: "your name here"
 date: "`r format(Sys.time(), '%m/%d/%Y')`"
 output: html_document
 ---
 
-# Question 1 - Run the EM from class on genomic sequence
+In this homework, you will derive and apply an EM algorithm for estimating
+isoform expression from RNA-seq read counts per exon. Remember from the
+transcription notes that *genes* correspond to regions of the genome, but that
+genes can produce different RNA transcripts, called *isoforms* based on
+different combinations of *exons*, the pieces of DNA that make it into the 
+mature mRNA.
 
-I've prepared a dataset of binding sites for the YY1 transcription
-factor. To do so, I downloaded YY1 ChIP-seq peaks in GM12878 cells
-using AnnotationHub, then took peaks with high signal (> 100), trimmed
-the peaks down to 100 basepairs centered on the summit, to make things
-easier, I've filtered and reverse complemented as necessary so that
-every sequence contains a recognizable YY1 binding site (I used
-`vmatchPattern` to find motif hits), and finally, I've converted the
-DNA sequence to integers, as we saw in class. This last step was done
-with the following chunk of code:
+A simple example follows (you don't need to run this chunk for your
+HW, you can set `eval=FALSE` if you don't want to install *ggbio*).
+
+```{r echo=FALSE}
+library(GenomicRanges)
+library(ggbio)
+g <- GRangesList(
+  iso3=GRanges("chr1", IRanges(c(1,101,201), width=50)),
+  iso2=GRanges("chr1", IRanges(c(1,101), width=50)),
+  iso1=GRanges("chr1", IRanges(c(1,201,301), width=50))
+)
+autoplot(g, aes(fill=grl_name)) +
+  scale_fill_discrete(guide=guide_legend(reverse=TRUE)) +
+  xlim(0,350)
+```
+
+Here we have a gene with 3 isoforms and 4 exons. Imagine now that each of the
+isoforms may be expressed. Assume for this homework that we sequence reads
+uniformly from all positions of each exon of each expressed isoform (e.g. that
+reads only have a start position), and that all exons have the same width.
+Finally, we will assume that we only observe reads from exons and not reads that
+span intron junctions (this is just for conceptual simplification, we could
+easily introduce "pseudo-exons" which count the number of reads that span
+introns, and assign those to isoforms as well). **Note**: actual methods for
+estimating isoform expression have more realistic assumptions that account for
+varying fragment length and non-uniform coverage due to biases introduced during
+steps in the RNA-seq protocol.
+
+It is helpful to construct a matrix that represents the **sampling rate**
+of each exon (these will be columns) in terms of each isoform
+(rows). The matrix will be used to inform how many reads to expect
+from each exon, from each isoform:
+
+```{r}
+A <- matrix(c(
+	1, 0, 1, 1,
+	1, 1, 1, 0,
+	1, 1, 0, 0),
+	byrow=TRUE, nrow=3, ncol=4,
+    dimnames=list(c("iso1","iso2","iso3"),c("e1","e2","e3","e4")))
+A
+```
+
+For now, the elements of A are just `0` and `1`, but we can modify
+these elements to account for, e.g. sequencing depth or exon length if
+we wanted to. 
+
+We will introduce another parameter, $\theta$, which will inform us of
+the relative expression of each isoform (let's not worry in particular
+about the units of $\theta$ in this homework, it is possible to later
+convert the units across all transcripts to something called TPM, but
+we can ignore this for now). Suppose that only isoform 1 is expressed,
+then we would expect to observe reads from each exons according to 
+$A^t \theta$:
+
+```{r}
+theta <- c(1,0,0)
+t(A) %*% theta
+```
+
+That is, we would observe equal number of reads from exon 1, 3, and 4.
+
+Suppose that isoform 2 and 3 are expressed in equal quantities, what
+amount of reads would we expect to observe from each exon?
+
+```{r}
+theta <- c(0,.5,.5)
+t(A) %*% theta
+```
+
+We would expect equal amounts of reads from exons 1 and 2, and half
+that number of reads from exon 3 (because only isoform 2 contributes
+reads to that exon, whereas 1 and 2 are both contributing reads to
+exon 1 and 2). 
+
+**Note**: here I am setting $\theta$ so that it sums to 1, but this is not 
+necessary or required. I just do this to easily observe proportions of total
+gene expression from each isoform.
+
+Now, the crux of the problem, and why this is a good problem for the EM
+algorithm: when we observe reads from exon 1 and 2 in this last example, *we do
+not know the origin of those reads, in particular which isoform those reads came
+from*.
+
+If we observe 100 reads from exon 1, the latent variable for our EM algorithm
+will be the number of those reads that came from isoform 1 and the number that
+came from isoform 2. If we knew that, it would be trivial to estimate the
+expression of isoforms 1, 2, and 3. We could sum the counts of reads for each
+isoform (row) from each exon to get isoform total counts, and then divide that
+by the sum of the rows of A, the sampling rate matrix defined above.
+
+For example, if we were told that we have counts of reads [0,30,20] for the
+isoforms across all exons, we could divide this by the row sums of A to get
+an estimate for $\theta$, where we would then estimate that isoform 2 and 3 
+have equal expression:
+
+```{r}
+cts <- c(iso1=0, iso2=30, iso3=20) 
+cts / rowSums(A)
+```
+
+# Simulation setup
+
+In the following, I will create a simulated A and $\theta$ that we will use in
+the HW. I randomly samples from possible permutations of 0 and 1 to create the
+A matrix. We will end up with 13 exons. Note that the first 5 exons are unique
+to a particular isoform, while the other 8 exons are shared among at least two
+isoforms. We will use the first 5 exons to compare the MLE to a naive method 
+that just uses read counts from the exons which are exclusive to a single 
+isoform.
+
+```{r}
+K <- 5 # isoforms
+perms <- t(gtools::permutations(2,K,repeats.allowed=TRUE))
+A <- perms[,-1] - 1
+A <- A[K:1,]
+A <- A[,order(colSums(A))]
+# randomly pick some combination sequences
+set.seed(1)
+A <- A[,c(1:K, sort(sample((K+1):ncol(A), K+3)))]
+A
+```
+
+Finally, we multiple our sampling rate matrix A by 100 to increase the resulting 
+read counts, and define the isoform expression values in $\theta$.
+
+```{r}
+seq_depth <- 100
+A <- A * seq_depth
+theta <- (K:1)/sum(K:1)
+theta
+```
+
+We define a model for the unobserved counts for each isoform and each exon as:
+
+$$ n_{ij} | \theta, A \sim \textrm{Poisson}(\theta_i a_{ij}) $$
+We observe counts $n_j = \sum_i n_{ij}$, which have distribution:
+
+$$ n_j | \theta, A \sim \textrm{Poisson}\left( \sum_i \theta_i a_{ij} \right) $$
+
+We can write a data generating function with this model:
+
+```{r}
+ makeData <- function(p) {
+  hidden_counts <- matrix(rpois(K*ncol(A), A * theta), nrow=K)
+  nj <- colSums(hidden_counts)
+  nj
+}
+```
+
+And we can create observed data $n_j$ by running the function once. 
+The $n_j$ are equivalent to $X$ in our lecture notes.
+
+```{r}
+set.seed(1)
+nj <- makeData(theta)
+```
+
+# Question 1 - define the log likelihood function
+
+Write a function that calculates the log likelihood of $\theta$ given $n_j$. 
+(Your function can be proportional to the log likelihood, if you want
+to drop constants that don't involve $\theta$.) It should take arguments
+`theta` and `nj`.
+
+Then use your `loglik` function to calculate the log likelihood for the true
+value of $\theta$ used in simulation, for $\hat{\theta}$ where the true values
+of $\theta$ are in reverse order, and for $\hat{\theta} = [.2,.2,.2,.2,.2]$.
+
+Which has the highest log likelihood?
+
+# Question 2 - numerical optimization and NNLS
+
+Estimate the MLE for $\theta$ using numerical optimization in R. For those not 
+familiar with `optim`, the following function call will estimate what values of
+`theta` optimize the log likelihood, within parameter bounds of [0.01, 2]. 
+The parameter values that optimize the objective are in `res$par`.
+
+(You should change `eval=FALSE` to `TRUE`).
 
 ```{r eval=FALSE}
-chars <- as.character(seqs)
-map2ints <- function(x) ifelse(x=="A",1,ifelse(x=="C",2,ifelse(x=="G",3,4)))
-ints <- t(sapply(chars, function(c) map2ints(strsplit(c, "")[[1]])))
+res <- optim(theta_hat, loglik, nj=nj, method="L-BFGS-B",
+             lower=0.01, upper=2, control=list(fnscale=-1))
+res$convergence # 0 means converged
 ```
 
-You can now read in the matrix of binding site sequence. We have 100 bp
-of DNA sequence from 346 locations in the genome.
+Also attempt to estimate $\theta$ using NNLS. Non-negative least squares
+can be used to estimate what value of $\theta$ minimizes the squares in the 
+equation:
 
-```{r}
-x <- as.matrix(read.table("yy1_seqs.csv.gz"))
-dim(x)
-```
+$$ n_j = A^t \theta + \varepsilon, \quad \theta_i \ge 0$$
+For NNLS, use `nnls` from the *nnls* package. The solution is named `x` in the 
+output.
 
-We will use this color scheme:
+Are the estimates from numerical optimization or NNLS close to the true value?
+Which is closer in terms of mean absolute error?
 
-```{r}
-cols <- c("green3","blue","orange","red")
-plot(1:4, pch=c("A","C","G","T"), col=cols, cex=5,
-     xlim=c(0,5), ylim=c(0,5), xaxt="n", yaxt="n", xlab="", ylab="")
-```
+# Question 3 - MLE using exons 1-5
 
-Run the EM that we saw from class on these sequences. You can wrap up
-the necessary code to draw the plot of iterations that we saw in class
-into a function, and then run the function 3 times to see how it
-performs with different random initialization of `theta`. In this
-case, you don't know the true `motif`, so you can't draw it at the
-bottom of the plot. As in class, use `theta.len=20`, which is wider
-than the YY1 motif. Instead of 10 iterations, use 15.
+Estimate the MLE for $\theta$ using the counts for the first 5 exons only 
+(a naive estimator). What is the mean absolute error?
 
-What do you obtain as the YY1 motif? What do you get when you search
-the 2 motif databases we showed in class?
+# Question 4 - MLE using all exons with EM algorithm
 
-# Bonus question - how could you make the M-step ~33% faster?
+We will build up to the EM algorithm for $\theta$. First, we will introduce the
+lemma that, for Poisson variables X and Y with rates $\alpha$ and $\beta$, we
+have that:
 
-# Question 2 - sampling instead of using expectation
+$$ P(X = x | X + Y = n) \sim \textrm{Binom}\left(n, \frac{\alpha}{\alpha + \beta} \right) $$
 
-Instead of maximizing the expectation of the log likelihood with
-respect to the condition distribution of Z given X and theta, what
-happens when we modify this step into a sampling-based step? So after
-calculating the conditional distribution of Z given X and theta, you
-should use the probabilities to *sample* a single position `z` for each
-sequence, and use this to update theta. Can this sampling-based
-optimization procedure also find the motif? Try it 5 times. Is it
-faster than EM?
+Furthermore, this generalizes to sums of an arbitrary number of Poisson RV's, 
+with the binomial probability as the fraction of the rate of one Poisson over 
+the sum of all the rates.
 
+In the E-step, we take the expectation of the log likelihood with respect to the
+conditional distribution of latent variables given the data and the current
+estimate $\theta^t$.
+
+Start with $\theta^0 = [.2,.2,.2,.2,.2]$.
+
+Consider $n_6$, the count of reads for exons 6 from all isoforms. 
+What is the expected value for $n_{1,6}$ and $n_{2,6}$ condition on 
+$n_6$ (their sum), $\theta^0$ and A? (Hint: use the lemma)
+
+...
+
+Now extend this logic to all exons. What is the expected value for the 
+counts for all exons and all isoforms ($n_{ij}$), given $n_j$ 
+(the observed sums across isoforms), $\theta^0$ and A?
+
+...
+
+
+Using the expected value of counts for all exons and all isoforms from above,
+now estimate the counts for each isoform (summing across exons).
+
+...
+
+Using these estimated isoform counts, estimate $\theta^1$, our next estimate in
+the EM. This is the value for $\theta$ that maximizes the expectation of the log
+likelihood with respect to the conditional distribution of latent variables
+given the data and the current estimate $\theta^0$.
+
+...
+
+Finally, wrap up these steps into a function. Your function should run the steps
+above, taking as input $\theta^0$ and $n_j$ and running 100 steps of EM.
+(So, in short, compute the expected hidden counts for all exons and all 
+isoforms, then the expected counts for the isoforms, then maximize the 
+expected log likelihood for $\theta$.)
+
+Additionally, use a `break` command to stop the iterations if none of the
+$\theta_i$ are changing by more than $10^{-4}$. (While we typically use the
+objective to define convergence, here just use changes in the parameter
+estimate.)
+
+...
+
+Compare the EM-based MLE to the MLE from numeric optimization, these values 
+should be roughly similar (e.g. within ~0.001).
+
+...
+
+(You should fill in `...` above with your code.)
+
+# Bonus Question
+
+Compute the bias and efficiency of the four estimators using simulation.
+Focus on the relative efficiency of each estimator to the MLE by numeric
+optimization.
+
+* MLE by numeric optimization
+* MLE by EM
+* NNLS
+* MLE using only first 5 exons
+
+That is, make new datasets 2,000 times, and estimate the bias and variance 
+of the estimators. Focus just on $\theta_1 = 1/3$. Make a boxplot of the 
+estimates for the four estimators. Comment on the bias and relative efficiency.
+
+...
+
+Finally, compare the run time of the first three methods (numeric optimization,
+EM algorith, NNLS) using `microbenchmark`.
+
+Remember, to re-set $\theta^0$ to the flat values used previously.
+
+Which is fastest?
