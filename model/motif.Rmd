@@ -152,20 +152,12 @@ not evaluated, as we haven't yet computed `z.mat`.
 1/n * z.mat[i,p] * (x[i,p + 0:(theta.len-1)] == j)
 ```
 
-Now we put these two pieces together, within a loop. We also add some
-code which will plot the guesses at each iteration:
+Now we will put these two pieces together, within a loop. We will also add some
+code which will plot the guesses at each iteration.
 
-```{r message=FALSE, fig.width=6, fig.height=6}
-# first, some plotting code
-library(rafalib)
-niter <- 10
-nullplot(0, theta.len, -1, niter,
-         xlab="position in motif", ylab="iterations")
-cols <- c("green3","blue","orange","red")
-# draw the true motif at y = -1
-points(seq_len(motif.len) + (theta.len-motif.len)/2, rep(-1,motif.len), 
-       col=cols[motif], pch=15, cex=2)
-# the following is used for plotting our current estimate of theta
+First define a function to draw the estimates at each iteration, *t*:
+
+```{r}
 drawTheta <- function(theta, t) {
   theta.max <- apply(theta, 2, which.max)
   theta.max.p <- apply(theta, 2, max)
@@ -174,11 +166,28 @@ drawTheta <- function(theta, t) {
   })
   points(seq_len(theta.len), rep(t,theta.len), col=cols.alpha, pch=15, cex=2)
 }
+```
+
+The following code chunk is too long for an Rmarkdown, but I put it here as
+one long chunk so that you can step through the code at each iteration
+and examine the values of Z and theta, as the EM is progressing. It has to
+be one long chunk to draw the iterations on the same plot.
+
+```{r message=FALSE, fig.width=6, fig.height=6}
+library(rafalib)
+niter <- 10
+nullplot(0, theta.len, -1, niter,
+         xlab="position in motif", ylab="iterations")
+cols <- c("green3","blue","orange","red")
+# draw the true motif at the bottom
+points(seq_len(motif.len) + (theta.len-motif.len)/2, 
+       rep(-1,motif.len), col=cols[motif], pch=15, cex=2)
 # draw theta^0
 drawTheta(theta, 0)
-# the EM algorithm:
+
+### the EM algorithm ###
 for (t in seq(1,niter)) {
-  # initialize condition distribution of Z
+  # initialize conditional distribution of Z
   z.mat <- matrix(0,nrow=n,ncol=l-theta.len+1)
   for (i in seq_len(n)) {
     for (p in seq_len(l-theta.len+1)) {
@@ -191,21 +200,20 @@ for (t in seq(1,niter)) {
   }
   # normalize z.mat to make it a density along positions
   z.mat <- z.mat / rowSums(z.mat)
-  # now re-estimate theta using expectation of log likelihood
-  # wrt conditional distribution of Z given X and current theta
+  
+  # re-estimate theta by maximizing over E_{Z|X,theta^t} (log lik)
   theta <- matrix(0,nrow=4,ncol=theta.len)
   for (j in 1:4) {
     for (i in seq_len(n)) {
       for (p in seq_len(l-theta.len+1)) {
         # for nucleotide j, add the contribution of sequence i,
         # averaging over all positions p, weighted by Z.
-        # the maximum likelihood is just the frequency of when the sequence = j here
+        # MLE is just the frequency of when the sequence = j here
         theta[j,] <- theta[j,] + 1/n * z.mat[i,p] * (x[i,p + 0:(theta.len-1)] == j)
       }
     }
   }
-  # finally draw our theta for iteration 't'
-  drawTheta(theta, t)
+  drawTheta(theta, t) # theta for iteration 't'
 }
 ```
 
