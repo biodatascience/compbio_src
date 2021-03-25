@@ -141,7 +141,7 @@ probability $\pi_2 = (1 - \pi_1)$.
 Before we start with the EM steps, it's useful to recall that if we observed 
 the data $x_i$ and the latent variable $z_i$ we could work on the log likelihood:
 
-$$ \ell^*(\theta) = \sum_i \sum_c \mathbb{1}(z_i = c) \log \pi_c f(x_i; \mu_c, \sigma^2_c) \quad \textrm{* : if we observed} \, z_i $$
+$$ \ell^*(\theta) = \sum_i \sum_c \mathbb{1}(z_i = c) \log \left( \pi_c f(x_i; \mu_c, \sigma^2_c) \right) \quad \textrm{* : if we observed} \, z_i $$
 
 However, we don't observe the $z_i$ and so if we attempted maximum 
 likelihood estimation, we would be stuck with a sum over components *c* preventing 
@@ -156,7 +156,7 @@ likelihood with respect to the conditional distribution of *Z* given
 
 $$ \textrm{E}_{Z|X,\theta^t} \left[ \ell(\theta) \right] $$
 
-$$ = \textrm{E}_{Z|X,\theta^t} \left[ \log \prod_i \prod_c \pi_c f(x_i; \mu_c, \sigma^2_c)^{\mathbb{1}(z_i = c)} \right] $$
+$$ = \textrm{E}_{Z|X,\theta^t} \left[ \log \prod_i \prod_c \left( \pi_c f(x_i; \mu_c, \sigma^2_c) \right)^{\mathbb{1}(z_i = c)} \right] $$
 
 $$ = \textrm{E}_{Z|X,\theta^t} \left[ \sum_i \sum_c \mathbb{1}(z_i = c) (\log \pi_c + \log f(x_i; \mu_c, \sigma^2_c)) \right] $$
 
