@@ -174,16 +174,18 @@ and examine the values of Z and theta, as the EM is progressing. It has to
 be one long chunk to draw the iterations on the same plot.
 
 ```{r message=FALSE, fig.width=6, fig.height=6}
+theta <- matrix(runif(theta.len*4),ncol=theta.len)
+theta <- sweep(theta, 2, colSums(theta), "/")
+
 library(rafalib)
 niter <- 10
 nullplot(0, theta.len, -1, niter,
          xlab="position in motif", ylab="iterations")
 cols <- c("green3","blue","orange","red")
 # draw the true motif at the bottom
-points(seq_len(motif.len) + (theta.len-motif.len)/2, 
-       rep(-1,motif.len), col=cols[motif], pch=15, cex=2)
-# draw theta^0
-drawTheta(theta, 0)
+#points(seq_len(motif.len) + (theta.len-motif.len)/2, 
+#       rep(-1,motif.len), col=cols[motif], pch=15, cex=2)
+#drawTheta(theta, 0) # draw theta^0
 
 ### the EM algorithm ###
 for (t in seq(1,niter)) {
@@ -201,6 +203,11 @@ for (t in seq(1,niter)) {
   # normalize z.mat to make it a density along positions
   z.mat <- z.mat / rowSums(z.mat)
   
+  Sys.sleep(0.1)
+  # image(z.mat)
+  plot(z, apply(z.mat, 1, which.max), ylab="max density in z.mat")
+  abline(0,1)
+  
   # re-estimate theta by maximizing over E_{Z|X,theta^t} (log lik)
   theta <- matrix(0,nrow=4,ncol=theta.len)
   for (j in 1:4) {
@@ -213,7 +220,9 @@ for (t in seq(1,niter)) {
       }
     }
   }
-  drawTheta(theta, t) # theta for iteration 't'
+  
+  #drawTheta(theta, t) # theta for iteration 't'
+  
 }
 ```
 
