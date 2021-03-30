@@ -65,7 +65,7 @@ library(curatedBladderData)
 library(affy)
 data(GSE13507_eset)
 e <- GSE13507_eset
-str(experimentData(e))
+experimentData(e)@name
 ```
 We will subset to a set of samples with the same staging. Our goal
 will be to estimate the variance of each gene using a subset of
@@ -119,7 +119,7 @@ Let's recalculate the sample variance of each row, for use later:
 rv <- rowVars(exprs(e))
 ```
 
-We take a random sub-sample of just 10 to compare with the full
+We take a random sub-sample of just 10 arrays to compare with the full
 sample set. Plotting the sample variance of the subset against the
 full sample set shows some correspondence, but many above and below
 the line.
@@ -190,16 +190,20 @@ abline(h=fit$s2.prior, col="dodgerblue", lwd=5)
 
 We can show that we have reduced both the root mean squared error, as
 well as the median absolute error with our new estimators, compared to
-"true": the sample variance using all the samples.
+"true": the sample variance using all the samples. We also compare to 
+just using a common SD estimate for all genes (the location of the 
+prior).
 
 ```{r}
 true <- sqrt(rv)
 samp.sd <- sqrt(rv.sub)
 ebayes.sd <- sqrt(fit$s2.post)
-sqrt(mean((samp.sd - true)^2))
-sqrt(mean((ebayes.sd - true)^2))
-median(abs(samp.sd - true))
-median(abs(ebayes.sd - true))
+sqrt(mean((samp.sd - true)^2)) #   sample SD - RMSE
+sqrt(mean((ebayes.sd - true)^2)) # EBayes SD - RMSE
+sqrt(mean((fit$s2.prior - true)^2)) #  prior - RMSE
+median(abs(samp.sd - true)) #   sample SD - MAD
+median(abs(ebayes.sd - true)) # EBayes SD - MAD
+median(abs(fit$s2.prior - true)) #  prior - MAD
 ```
 
 It helps to zoom into individual genes, to see how we have reduced the
@@ -240,4 +244,8 @@ arrows(true[idx], samp.sd[idx],
        true[idx], ebayes.sd[idx],
        col=rgb(0,0,0,0.3), length=.1)
 abline(0,1)
+```
+
+```{r}
+sessionInfo()
 ```
