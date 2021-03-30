@@ -171,12 +171,16 @@ set.seed(1)
 nj <- makeData(theta)
 ```
 
-# Question 1 - define the log likelihood function
+# Question 1 - define the observed data log likelihood function
 
-Write a function that calculates the log likelihood of $\theta$ given $n_j$. 
-(Your function can be proportional to the log likelihood, if you want
-to drop constants that don't involve $\theta$.) It should take arguments
-`theta` and `nj`.
+Write a function that calculates the observed data log likelihood of
+$\theta$ given $n_j$. (Your function can be proportional to the log
+likelihood, if you want to drop constants that don't involve
+$\theta$.) It should take arguments `theta` and `nj`.
+
+(Note that this will not be the same log likelihood as the one you
+will use later in the E-step, as that log likelihood will involve the
+unobserved counts for each isoform x exon.)
 
 Then use your `loglik` function to calculate the log likelihood for the true
 value of $\theta$ used in simulation, for $\hat{\theta}$ where the true values
@@ -255,6 +259,11 @@ Using these estimated isoform counts, estimate $\theta^1$, our next estimate in
 the EM. This is the value for $\theta$ that maximizes the expectation of the log
 likelihood with respect to the conditional distribution of latent variables
 given the data and the current estimate $\theta^0$.
+
+(If you are interested in the derivation of the M-step, and why
+we can just work with the estimated counts $n_ij$, look to a sketch
+at the end of the HW solution. You can work it out yourself if you 
+like by taking the derivate of the expectation of the log likelihood.)
 
 ...
 
