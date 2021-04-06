@@ -379,3 +379,7 @@ with success probability $A_{i,i}$.
 sum(x.hat == 1)
 1/A.hat[1,2]
 ```
+
+```{r}
+sessionInfo()
+```
