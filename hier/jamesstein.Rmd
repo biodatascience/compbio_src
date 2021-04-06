@@ -51,7 +51,7 @@ plotJS <- function(k, sigma.theta) {
   eb <- (1 - B) * x
   oracle <- (1 - B.oracle) * x
   par(mfrow=c(2,1), mar=c(5,5,3,1))
-  plot(theta, x)
+  plot(theta, x, xlim=c(-2*sigma.theta,2*sigma.theta), ylim=c(-6,6))
   points(theta, eb, col="red")
   abline(0,1)
   legend("topleft","James-Stein estimators",col="red",pch=1)
