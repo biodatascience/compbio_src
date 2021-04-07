@@ -1,0 +1,163 @@
+---
+title: "Homework 6 - Hierarchical models / HMM"
+author: "your name here"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+
+# Question 1 - compare limma's posterior variances to sample variances
+
+We saw in `hierarchical.Rmd` how limma moderates its variance
+estimates for each gene toward a middle value that is chosen by
+looking at the sample variance estimates from all genes. In this
+question we will explore how, on random subsets of the samples of
+various size, the limma moderated variance estimate compares to the
+standard sample variance estimate.
+
+We will make the comparison on the scale of
+**standard deviation**, and we will consider the sample standard
+deviation over the full dataset as the *true* standard deviation of
+the population. 
+
+You should then calculate the root mean squared error (RMSE) of the
+square root of the limma moderated variance on the subset to the
+*true* SD and of the sample standard deviation on the subset to the
+*true* SD.
+
+The following code, from `hierarchical.Rmd` loads the expression data:
+
+```{r message=FALSE}
+library(curatedBladderData)
+library(affy)
+data(GSE13507_eset)
+e <- GSE13507_eset # the microarray dataset
+e <- e[,which(e$summarystage == "superficial")]
+```
+
+Calculating the row means and imposing a minimal expression filter:
+
+```{r}
+library(matrixStats)
+rm <- rowMeans(exprs(e))
+e <- e[rm > 8,]
+# outlier:
+e <- e[,-which(colnames(e)=="GSM340606")]
+```
+
+This is the per-gene sample standard deviation (over 102 samples) that
+we will consider as the *true* standard deviation:
+
+```{r}
+gene_sd <- rowSds(exprs(e))
+hist(gene_sd, breaks=40)
+```
+
+You should use the following vector of sample sizes, *n*, implying
+that for each sample size from 3 to 20, you should do 5 random subsets
+of the data. For each iteration, you should run limma (with design
+`~1`)) and obtain the posterior variance estimate `s2.post`, which you
+will then take the square root of, to obtain the posterior standard
+deviation estimate.
+
+You should also calculate the sample standard deviation for the random
+subsets.
+
+```{r}
+ns <- rep(c(seq(3,20)),each=5)
+table(ns)
+```
+
+You can plot the RMSE (comparing SD estimates) for both methods across
+the iterations however you like, but ideally you would show the
+individual RMSE’s for each iteration (so five points per sample size),
+as well as the average or a smoothed estimate of the RMSE trend for
+each estimator.
+
+How would you describe the differences you see in the method
+performance as *n* goes from 3 to 20?
+
+# Question 2 - Use HMM to segment chromosome into isochores
+
+In this last question, we will segment regions of a human chromosome
+according to average GC content in windows of length
+100kb. *Isochores* are defined as large regions of DNA that have
+similar GC content, although GC content varies much more as we look
+across a chromosome. Basically, we can see wavy patterns of average GC
+content in the 100kb range. The isochores for human chromosomes are
+described in this paper:
+
+<http://genome.cshlp.org/content/16/4/536.full>
+
+In particular see Figure 1:
+
+<http://genome.cshlp.org/content/16/4/536/F1.expansion.html>
+
+We will use a three state HMM to segment human chromosome 3 by its GC
+content.
+
+We start by building ranges of width 100kb that span from 1 to
+198,200,000 on chromosome 3 (you should use
+*BSgenome.Hsapiens.UCSC.hg38* that we used in the `bioc/strings.Rmd`
+lecture note). I demonstrate below how to do this using `tileGenome`
+from the *GenomicRanges* package.
+
+You should end up with 1982 non-overlapping ranges. 
+
+```{r}
+library(GenomicRanges)
+library(BSgenome.Hsapiens.UCSC.hg38)
+head(seqlengths(Hsapiens))
+tiles <- tileGenome(seqlengths(Hsapiens)[3],
+                    tilewidth=100e3,
+                    cut.last.tile.in.chrom=TRUE)
+tiles <- tiles[width(tiles) == 100e3] # remove last tile
+tiles
+```
+
+Get the DNA sequence of these ranges, and calculate the average GC
+content (reminder from that lecture note: `letterFrequency(dna, "CG",
+as.prob=TRUE)`).
+
+For performing the segmentation, it's best to remove a few stray
+ranges that have very low GC content, so use a filter of:
+
+```{r eval=FALSE}
+gc <- gc[gc > .3]
+```
+
+First, plot the GC content of the 1979 remaining ranges. You should
+see a wavy pattern, reflecting the following quote from the paper
+referenced above:
+
+> genomes of warm-blooded vertebrates ... are mosaics of isochores,
+> long (>>300 kb), compositionally fairly homogeneous regions that
+> belong to a small number of families characterized by different
+> average GC levels
+
+Now, construct an HMM to segment the sequence. First initialize the
+parameter values for $\theta = (\pi, A, B)$
+
+For the initial transition matrix A, use a probability of .98 to stay
+in the same state, and a probability of .01 to transition to either of
+the other states. Use initial mu values of [.3, .4, .5] and sigma of
+.05. 
+
+**Note:** we will not use Baum-Welch to update `sigma` in this
+case, as it leads to non-identifiability of solutions. We will only
+update `A`, `pi`, and `mu`.
+
+Update the parameters with **only one iteration of Baum-Welch / EM**.
+
+Now with updated parameters, find the Viterbi path. Plot the Viterbi
+sequence below a plot of the data. How many segments ("runs" of the
+same state) do you obtain? (You can use `rle` to calculate how many
+runs of the same state you obtain.)
+
+Finally, plot the data (the $y_t$), and color the points according to
+the Viterbi path. On top of the colored points draw the fitted mean
+values for the three states (e.g. as in lecture note). Qualitatively
+compare the fitted mean values you find with the modes of the
+histogram from this figure in the paper:
+
+<http://genome.cshlp.org/content/16/4/536/F6.expansion.html>
+
