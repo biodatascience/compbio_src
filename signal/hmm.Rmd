@@ -188,14 +188,15 @@ but running time forward instead of backward. These two sets of
 equations are called the 
 [Forward-Backward algorithm](https://en.wikipedia.org/wiki/Forward%E2%80%93backward_algorithm).
 
-Let's step through how we will calculate each column of
-$\alpha_{i,t}$. We start with the initial probabilities $\pi$, and the
+Let's step through how we will calculate each column of $\alpha_{i,t}$.
+We start with the initial probabilities $\pi$, and the
 observed value $Y_1 = y_1$. Then at time *t=2* and for state *i*, we
-take the sum of probabilities from all possible states at time *t=1*,
-multiply by the probability of transitioning to state *i*, and the
-multiply by the probability of observed $Y_2 = y_2$. Because of the
-Markov property, we can repeat this step until the end of the
-sequence, only looking back one time point at each step. This
+take the sum of the following vector: 
+the pre-computed probabilities from all possible states at time *t=1*,
+multiplied by the probability of transitioning to state *i*, and then
+multiplied by the probability of having observed $Y_2 = y_2$.
+Because of the Markov property, we can repeat this step until the end
+of the sequence, only looking back one time point at each step. This
 property, of only having to look back at the previous stage to know
 how to move forward, is part of
 [dynamic programming](https://en.wikipedia.org/wiki/Dynamic_programming).
