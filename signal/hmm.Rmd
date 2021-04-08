@@ -302,10 +302,15 @@ plot(seq_len(T), x.hat, type="l", xlab="", ylab="",
 Finally, we show the algorithm used for updating our estimates of the
 parameters $\theta = (\pi,A,B)$, which is called the
 [Baum-Welch algorith](https://en.wikipedia.org/wiki/Baum%E2%80%93Welch_algorithm),
-a special case of the [EM algorithm](../model/EM.html). We define a
-variable, $\xi_{i,j,t}$ as the probability of a path being in
+a special case of the [EM algorithm](../model/EM.html). 
+
+We already have all we need to update $\pi$ and the parameters of B,
+but we need to define a new variable to give us the conditional
+probabilities of transitions given our current estimates for the model $\theta$.
+
+We define a variable, $\xi_{i,j,t}$ as the probability of a path being in
 state *i*, and transitioning to state *j* at time *t+1*, given the
-observation sequence and the model $\theta$.
+observation sequence and the estimates for $\theta$.
 
 $$ \xi_{i,j,t} = P(X_t=i,X_{t+1}=j|Y,\theta) $$
 
