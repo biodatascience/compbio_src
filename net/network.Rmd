@@ -127,15 +127,15 @@ enh <- sort(enh)
 
 We also need to define promoter regions for the hg19 genome, and for
 this we can use the UCSC known genes (this was the set of gene
-locations that was used in the article). Promoters are defined as 2 kb
-windows upstream of the transcription start site (TSS).
+locations that was used in the article). Promoters are defined here
+as 2 kb windows upstream of the transcription start site (TSS).
 
 ```{r message=FALSE}
 library(TxDb.Hsapiens.UCSC.hg19.knownGene)
 txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
 g <- genes(txdb)
 g <- keepStandardChromosomes(g, pruning.mode="coarse")
-promoter <- flank(g, width=2000)
+promoter <- promoters(g, upstream=2000, downstream=0)
 ```
 
 # Computing anchor, enhancer, and promoter overlaps
@@ -195,10 +195,10 @@ thinking critically about what is being measured and why. Another
 feature of this paper is
 [Figure 4F](http://www.cell.com/action/showImagesData?pii=S1097-2765%2817%2930603-2)
 which shows examples of 20 randomly chosen communities either
-containing or not containing loops. Just by looking at the example
-data, one can see that the communities tend to be larger when they
-contain a gained loop, and that most communities containing a gained
-loop contain a promoter.
+containing or not containing gained loops. Just by looking at the
+example data, one can see that the communities tend to be larger when
+they contain a gained loop, and that most communities containing a
+gained loop contain a promoter.
 
 With this in mind, the barplot above is interpreted in the paper as follows:
 
@@ -248,6 +248,17 @@ cc <- connectedComp(graph)
 length(cc)
 ```
 
+Visualizing a sub-graph using *Rgraphviz*:
+
+```{r message=FALSE}
+library(Rgraphviz)
+par(mfrow=c(2,2))
+for (i in 1:4) {
+  sg <- subGraph(cc[[i]], graph)
+  plot(sg)
+}
+```
+
 # Computing statistics per community
 
 Finally, we want to compare the communities which contain gained
@@ -275,7 +286,7 @@ boxplot(community.size ~ community.type, log="y", main="loops per community")
 We can also tabulate the number of enhancers and promoters per
 community. Note that here we perform a slightly different analysis
 than in the paper, for simplicity of code. Here we add up the
-number of enhancers and promoters per loop, and then add this tally to
+number of enhancers and promoters per loop, and then add this tally 
 for all the loops in the community. This ends up double counting when
 anchors appear in multiple loops. A better analysis would focus on
 anchors here rather than loops (this was the analysis done in the paper).
@@ -301,4 +312,8 @@ static.E2P <- enh.to.promoter[community.type == "static"]
 gained.E2P <- enh.to.promoter[community.type == "gained"]
 mean(static.E2P, na.rm=TRUE)
 mean(gained.E2P, na.rm=TRUE)
+```
+
+```{r}
+sessionInfo()
 ```
