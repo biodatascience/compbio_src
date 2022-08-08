@@ -5,8 +5,8 @@
 
 # R variables
 
-* numeric, seq, seq_len, seq_along
-* character
+* seq, seq_len, seq_along
+* numeric, logical, character
 * matrix
 * factor, relevel, table
 * data.frame
@@ -15,7 +15,7 @@
 
 # vector operations
 
-* mean, summary, range
+* mean, summary
 * sapply, lapply
 * order
 * match
@@ -24,9 +24,8 @@
 
 * dim, nrow, ncol
 * rownames, colnames
-* rowSums, colSums
+* rowSums, colSums, etc.
 * apply
-* sweep
 * t
 * cor
 * dist
@@ -35,7 +34,6 @@
 
 * $
 * subset
-* with
 
 # conditions
 
@@ -47,8 +45,3 @@
 * sub
 * grep
 * grepl
-
-# convenience
-
-* %>%
-* %<>%
