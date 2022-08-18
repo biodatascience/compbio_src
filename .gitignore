@@ -7,3 +7,4 @@
 */*_files
 *.Rproj
 .Rproj.user
+.DS_Store

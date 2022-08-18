@@ -58,10 +58,10 @@ for each sample. It takes maybe half a minute to do the scaling.
 library(SummarizedExperiment)
 library(here)
 source(here("bioc","my_scale_counts.R"))
-rse <- my_scale_counts(rse_gene)
+se <- my_scale_counts(rse_gene)
 ```
 
-We will learn about this `rse` object later for now we will just
+We will learn about this `se` object later, but for now we will just
 extract the information we need to do some EDA (exploratory data
 analysis). There are smarter ways to work with these objects than
 extracting the matrices, which we will see next week when we explore
@@ -70,16 +70,16 @@ Bioconductor objects.
 We have ~60,000 genes and ~1400 samples.
 
 ```{r}
-cts <- assay(rse)
+cts <- assay(se)
 dim(cts)
 ```
 
-The "condition" for the samples is part of the metadata of the `rse`
+The "condition" for the samples is part of the "metadata" of the `se`
 object. Like I said, we will explore this in a later section, but for
 now we pull out the information we need:
 
 ```{r}
-condition <- rse$smtsd
+condition <- se$smtsd
 head(condition)
 ```
 
@@ -87,17 +87,18 @@ We'll do a little string processing, to chop off the redundant information:
 
 ```{r message=FALSE}
 library(magrittr)
+# substitute "Brain - ..." with "..."
 condition %<>% (function(x) sub("Brain - (.*)", "\\1", x))
 condition %<>% factor
 table(condition)
 ```
 
-There are many rows which have so few measurements, that we can safely
-ignore them for large-scale EDA (e.g. calculating distances between samples).
-These kind of filtering decisions are highly dataset-specific, you
-wouldn't want to use this exact filter for another dataset, but here,
-it makes sense to ask that the row sum be larger than 100, because we
-have ~1400 samples.
+There are many rows which have so few measurements (counts), that we
+can safely ignore them for large-scale EDA (e.g. calculating distances
+between samples). These kind of filtering decisions are highly
+dataset-specific, you wouldn't want to use this exact filter for
+another dataset, but here, it makes sense to ask that the row sum be
+larger than 100, because we have ~1400 samples.
 
 ```{r}
 dim(cts)
@@ -108,16 +109,22 @@ cts <- cts[rs > 100,]
 dim(cts)
 ```
 
-A very simple plot is just to look at two samples gene expression
+A very simple plot is just to look at two samples' gene expression
 values against each other in a scatterplot. Typically, we take the
 logarithm, as gene expression is highly skewed (many genes with low
 expression, a few with very high expression).
 
-```{r fig.width=8, fig.height=5}
-par(mfrow=c(1,2))
-plot(cts[,1:2])
+`plot` can be used to make scatterplots of `x` and `y` or of a matrix
+with two columns, but with 10s of thousands of observations it will be 
+a bit slow. `smoothScatter` does a better job with so many data points.
+
+```{r}
+smoothScatter(cts[,1:2])
+```
+
+```{r}
 logcts <- log10(cts + 1)
-plot(logcts[,1:2])
+smoothScatter(logcts[,1:2])
 ```
 
 Here you can get a sense for the distribution of counts (log-scale).
@@ -145,7 +152,8 @@ We can get a better sense by coloring the groups by condition.
 ```{r}
 library(ggplot2)
 dat <- data.frame(pc$x[,1:2], condition)
-ggplot(dat, aes(PC1, PC2, col=condition)) + geom_point()
+ggplot(dat, aes(PC1, PC2, col=condition)) + 
+  geom_point()
 ```
 
 Let's focus on the samples belonging to four specific regions of the
@@ -153,49 +161,63 @@ brain:
 
 ```{r}
 regions <- c("Cerebellum","Cortex","Hippocampus","Hypothalamus")
-condition.sub.idx <- condition %in% regions
-condition.sub <- droplevels(condition[condition.sub.idx])
-table(condition.sub.idx)
+condition_sub_idx <- condition %in% regions
+condition_sub <- droplevels(condition[condition_sub_idx])
+table(condition_sub_idx)
 ```
 
 We can compute Euclidean distances between the log counts for these
-samples (afterwards we will discuss better ways of calculating
+samples (afterwards we will discuss considerations for calculating
 distances for count data).
 
 ```{r}
-dists <- dist(t(logcts[o,condition.sub.idx]))
+# distance compares rows, 
+# so we need to transpose the matrix
+dists <- dist(t( logcts[o,condition_sub_idx] ))
 ```
 
-We can plot these distances using the *pheatmap* package:
+Now we will put together pieces to visualize the distances as a heatmap.
+First, we convert the distances from a *dist* into a matrix:
+
+```{r}
+class(dists)
+dist_mat <- as.matrix(dists)
+```
+
+We can plot these distances using the *pheatmap* package. The default
+colors are red, pale yellow, and blue. Let's create a new color palette:
+
+```{r}
+library(RColorBrewer)
+colRamp <- colorRampPalette(brewer.pal(9,"Blues")) # returns a function
+plot(1:100, col=colRamp(100), pch=20, main="Blues")
+```
+
+Let's reverse, so that bigger distances will give lighter color, this
+will help to visualize similarity in the heatmap:
+
+```{r}
+cols <- rev(colRamp(100))
+```
+
+We make a data.frame that matches the names of samples to condition:
+
+```{r}
+anno_df <- data.frame(
+  condition=condition_sub,
+  row.names=colnames(distmat)
+)
+```
+
+Putting it all together:
 
 ```{r}
 library(pheatmap)
-library(RColorBrewer)
-cols <- colorRampPalette(rev(brewer.pal(9,"Blues")))(255)
-distmat <- as.matrix(dists)
-df <- data.frame(condition=condition.sub,
-                 row.names=colnames(distmat))
-pheatmap(distmat, color=cols,
+pheatmap(dist_mat, 
+         color=cols,
          clustering_distance_rows=dists,
          clustering_distance_cols=dists,
-         annotation_col=df,
-         show_rownames=FALSE, show_colnames=FALSE)
-```
-
-Likewise we can plot Pearson correlations:
-
-```{r}
-corrs <- cor(logcts[o,condition.sub.idx])
-```
-
-Note that the clustering on the rows and columns here is not from the
-original data, but a clustering of the correlation matrix.
-
-```{r}
-library(pheatmap)
-cols <- colorRampPalette(c("red","white","blue"))(21)
-pheatmap(corrs, breaks=-10:10/10, color=cols,
-         annotation_col=df,
+         annotation_col=anno_df,
          show_rownames=FALSE, show_colnames=FALSE)
 ```
 
