@@ -43,7 +43,7 @@ orgs$type %<>% factor
 Let's make some plots of the number of basepairs in the genomes of
 these organisms, split by the type of organism. There's one plant with
 a really large genome. 
-We use the `stripplot` function, which is in the `lattice` package: 
+We could use the `stripplot` function, which is in the `lattice` package: 
 this draws points for each level of a factor, similar to a boxplot,
 but is preferred when there are not many observations (e.g. < 20).
 
@@ -51,6 +51,13 @@ but is preferred when there are not many observations (e.g. < 20).
 library(lattice)
 with(orgs, stripplot(bp ~ type))
 with(orgs, stripplot(log10(bp) ~ type))
+```
+
+Compare to boxplot. Again, given the small number of samples, `stripplot`
+is preferred.
+
+```{r}
+with(orgs, boxplot(bp ~ type))
 ```
 
 If you haven't seen `with(...)` before, it's a way to temporarily
@@ -74,14 +81,10 @@ the other organisms.
 orgs <- orgs[orgs$name != "Wheat",]
 ```
 
-First, I use the `bigpar` command to make the labels really
-large, which is advisable for making plots for slides or posters.
-Then I plot the number of genes that code for proteins over the total
+I plot the number of genes that code for proteins over the total
 number of basepairs:
 
 ```{r message=FALSE}
-library(rafalib)
-bigpar()
 with(orgs, plot(bp, coding, col=type, pch=20, cex=2))
 legend("topright", levels(orgs$type), col=1:nlevels(orgs$type), pch=20)
 # right click to Esc from identify()
@@ -103,6 +106,14 @@ Which organisms have the largest genome (after wheat)?
 orgs[order(orgs$bp, decreasing=TRUE)[1:5],c("name","bp")]
 ```
 
+Another way to get quick summaries of a dataset is `skim` from the 
+*skimr* package:
+
+```{r}
+library(skimr)
+skim(orgs)
+```
+
 For many operations, it's useful to use the dplyr package to
 manipulate *data.frames* or *tibbles*. 
 
@@ -115,7 +126,10 @@ direction of the pipes, so I find useful here.
 A simple example of the pipe is:
 
 ```{r}
-c(1:9,1000) %>% mean(trim=.1)
+x <- c(1:9,1000)
+x %>% mean(trim=.1)
+# equivalent to
+mean(x, trim=.1)
 ```
 
 Using dplyr, let's show, adding a new column
@@ -130,14 +144,14 @@ orgs$genes
 dplyr is really useful for grouping and summarization tasks. The
 following line groups the organisms by type and summarizes the number
 for each type, the mean ratio of genes which are coding and the
-standard deviation of the ratio.
+standard deviation of the ratio. One `type` has an SD of NA, why?
 
 ```{r}
 orgs %>%
   group_by(type) %>%
   summarize(n=n(),
-            cr.avg=mean(coding/genes),
-            cr.sd=sd(coding/genes))
+            cr_avg=mean(coding/genes),
+            cr_sd=sd(coding/genes))
 ```
 
 Let's save this as a new table, `tab`:
@@ -146,8 +160,8 @@ Let's save this as a new table, `tab`:
 tab <- orgs %>%
   group_by(type) %>%
   summarize(n=n(),
-            cr.avg=mean(coding/genes),
-            cr.sd=sd(coding/genes))
+            cr_avg=mean(coding/genes),
+            cr_sd=sd(coding/genes))
 ```
 
 Two packages with functions for printing tables (as Latex or
@@ -179,7 +193,8 @@ graphical elements, such as lines through sets of points:
 
 ```{r}
 ggplot(orgs, aes(bp, coding, col=type)) +
-  geom_point() + geom_smooth(se=FALSE, method="lm")
+  geom_point() + 
+  geom_smooth(se=FALSE, method="lm", show.legend=FALSE)
 ```
 
 Also for "faceting" plots, breaking into multiple scatter plots by
@@ -187,7 +202,8 @@ breaking along a variable:
 
 ```{r}
 ggplot(orgs, aes(bp, coding)) +
-  geom_point() + facet_wrap(~ type, scales="free")
+  geom_point() + 
+  facet_wrap(~ type)
 ```
 
 Finally, I like to show a useful plot constructed using ggplot2, just

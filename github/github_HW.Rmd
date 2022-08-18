@@ -42,10 +42,11 @@ barplot(feval, names.arg=c("(1,1)","(1,2)","(2,2)"),
 
 # Question 3
 
-There are three coins in a bag, two are fair with $P(\textrm{heads}) =
-0.5$ and one is biased with $P(\textrm{heads}) = 0.75$. Suppose we
-pull a coin out and flip it 4 times, getting heads 3 times. What is
-the posterior probability the coin was the biased one?
+There are three coins in a bag, two are fair with 
+$P(\textrm{heads}) = 0.5$ and one is biased with 
+$P(\textrm{heads}) = 0.75$. Suppose we pull a coin out and flip it 4
+times, getting heads 3 times. What is the posterior probability the
+coin was the biased one?
 
 ```{r}
 coin <- c(1,1,0,1)
