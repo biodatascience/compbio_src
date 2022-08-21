@@ -205,7 +205,7 @@ We make a data.frame that matches the names of samples to condition:
 ```{r}
 anno_df <- data.frame(
   condition=condition_sub,
-  row.names=colnames(distmat)
+  row.names=colnames(dist_mat)
 )
 ```
 
