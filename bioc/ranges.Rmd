@@ -2,16 +2,19 @@
 title: "Genomic ranges: GRanges"
 author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
+editor_options: 
+  markdown: 
+    wrap: 80
 ---
 
-Here we show off the way we specify genomic ranges in Bioconductor,
-using the *GenomicRanges* package and the *GRanges* class.
+Here we show off the way we specify genomic ranges in Bioconductor, using the
+*GenomicRanges* package and the *GRanges* class.
 
-A *GRanges* object specifies both the basepairs involved in the range
-(these are integer ranges), the strand (+ or -), and the
-chromosome. Chromosomes in Bioconductor are called "sequences"
-(because sometimes we may want to specify ranges of non-chromosomes,
-for example viral DNA, un-incorporated contigs, etc.).
+A *GRanges* object specifies both the basepairs involved in the range (these are
+integer ranges), the strand (+ or -), and the chromosome. Chromosomes in
+Bioconductor are called "sequences" (because sometimes we may want to specify
+ranges of non-chromosomes, for example viral DNA, un-incorporated contigs,
+etc.).
 
 # Interval ranges
 
@@ -30,19 +33,18 @@ ir <- IRanges(start=100 + 1:5, end=100 + 10:14)
 ir
 ```
 
-We can make a plot of these ranges. It's a bit different than a
-typical plot, because I want to point out that we have *discrete*
-locations in the genome (so the position isn't defined over 
-$\mathbb{R}$ but over $\mathbb{N}$). So I've shifted the positions of
-the labels by 0.5 (see the `axis` command). Another detail to notice
-is that the ranges are *inclusive*. So the first range, from 101 to
-110 *includes* the 110 basepair. So I've added +1 when I draw the
-arrows to show it includes the last basepair.
+We can make a plot of these ranges. It's a bit different than a typical plot,
+because I want to point out that we have *discrete* locations in the genome (so
+the position isn't defined over $\mathbb{R}$ but over $\mathbb{N}$). So I've
+shifted the positions of the labels by 0.5 (see the `axis` command). Another
+detail to notice is that the ranges are *inclusive*. So the first range, from
+101 to 110 *includes* the 110 basepair. So I've added +1 when I draw the arrows
+to show it includes the last basepair.
 
-(Note that the convention used in Bioconductor to define interval
-ranges is not universal. The BED convention is that the range does
-**not** include the start position of the range. So 101-110 in BED
-format would not include the 101th basepair.)
+(Note that the convention used in Bioconductor to define interval ranges is not
+universal. The BED convention is that the range does **not** include the start
+position of the range. So 101-110 in BED format would not include the 101th
+basepair.)
 
 ```{r message=FALSE}
 library(rafalib)
@@ -55,9 +57,8 @@ arrows(start(ir),seq_along(ir),end(ir)+1,seq_along(ir),
 
 # Genomic ranges
 
-So far we've just shown interval ranges. To specify a genomic range,
-we also will come up with the *strand* of the ranges (+ or -) and the
-chromosome. 
+So far we've just shown interval ranges. To specify a genomic range, we also
+will come up with the *strand* of the ranges (+ or -) and the chromosome.
 
 ```{r}
 st <- rep(c("+","-"),c(3,2))
@@ -69,16 +70,14 @@ gr <- GRanges(seqnames="chr1", ranges=ir, strand=st)
 gr
 ```
 
-Note that *GRanges* objects, when printed, also have a note about the
-genome. Here it says that we have an unspecified genome, and there is
-no information about the `seqlengths`, the lengths of the
-chromosomes. This information (basically in what universe do the
-ranges live) is important to track along with the ranges themselves,
-in case the user asks to, e.g. move all ranges 1 million basepairs to
-the right. This is not necessarily possible if we have a range that
-ends less than 1 million basepairs from the end of a chromosome. So
-the *GRanges* object really needs to also contain details about the
-genome itself.
+Note that *GRanges* objects, when printed, also have a note about the genome.
+Here it says that we have an unspecified genome, and there is no information
+about the `seqlengths`, the lengths of the chromosomes. This information
+(basically in what universe do the ranges live) is important to track along with
+the ranges themselves, in case the user asks to, e.g. move all ranges 1 million
+basepairs to the right. This is not necessarily possible if we have a range that
+ends less than 1 million basepairs from the end of a chromosome. So the
+*GRanges* object really needs to also contain details about the genome itself.
 
 Here we show some basic manipulations of *GRanges*:
 
@@ -89,28 +88,27 @@ resize(gr, width=1) # 1 bp from the start (+) or end (-)
 flank(gr, width=2, both=TRUE) # +/- 2 bp from " or "
 ```
 
-Note that the last two commands, `resize` and `flank`, gave back
-ranges relative to the *start* of the ranges with positive strand, and
-to the *end* of the ranges with negative strand. This is particular
-useful for working with genes, in which we often care about the region
-surrounding the *transcription start site* or TSS of a gene. The TSS
-will be the left-most basepair of a gene on the positive strand, and
-the right-most basepair of a gene on the negative strand.
+Note that the last two commands, `resize` and `flank`, gave back ranges relative
+to the *start* of the ranges with positive strand, and to the *end* of the
+ranges with negative strand. This is particular useful for working with genes,
+in which we often care about the region surrounding the *transcription start
+site* or TSS of a gene. The TSS will be the left-most basepair of a gene on the
+positive strand, and the right-most basepair of a gene on the negative strand.
 
-These functions would usually give us more information, but in this
-case the information was not specified:
+These functions would usually give us more information, but in this case the
+information was not specified:
 
 ```{r}
 seqnames(gr)
 seqinfo(gr)
 ```
 
-Instead of looking at a toy *GRanges*, let's download some actual
-genomic ranges, the set of human genes, as annotated by the 
-[Ensembl project](http://www.ensembl.org/), version 86.
+Instead of looking at a toy *GRanges*, let's download some actual genomic
+ranges, the set of human genes, as annotated by the [Ensembl
+project](http://www.ensembl.org/), version 86.
 
-This data is easily accessible in Bioconductor using the *ensembldb*
-package, and the specific Ensembl database package from Bioconductor.
+This data is easily accessible in Bioconductor using the *ensembldb* package,
+and the specific Ensembl database package from Bioconductor.
 
 This says there are about 60 thousand genes (according to Ensembl).
 
@@ -134,25 +132,23 @@ You can take a look at a single gene:
 g[1]
 ```
 
-To pull out the gene names you use a `$`. This would give us a 60
-thousand length character vector, so we just show the first 5.
+To pull out the gene names you use a `$`. This would give us a 60 thousand
+length character vector, so we just show the first 5.
 
 ```{r}
 g$gene_name[1:5]
 ```
 
-We can look at the distribution of genes by chromosome. The `seqnames`
-returns a *factor-Rle* where *Rle* stands for *run length
-encoding*. This is a way to compress a long vector which may contain
-repeated values in *runs*.
+We can look at the distribution of genes by chromosome. The `seqnames` returns a
+*factor-Rle* where *Rle* stands for *run length encoding*. This is a way to
+compress a long vector which may contain repeated values in *runs*.
 
 ```{r}
 seqnames(g)
 ```
 
-The object `g` has information about genes on the standard
-chromosomes, as well as genes or *haplotypes* of genes on *haplotype
-chromosomes*.
+The object `g` has information about genes on the standard chromosomes, as well
+as genes or *haplotypes* of genes on *haplotype chromosomes*.
 
 ```{r}
 head(seqlevels(g),100)
@@ -164,8 +160,8 @@ Let's subset to just the "standard" chromosomes:
 g <- keepStandardChromosomes(g, pruning.mode="coarse")
 ```
 
-The following functions tell you the names and lengths of chromosomes,
-as well as the name of the genome (repeated for each chromosome).
+The following functions tell you the names and lengths of chromosomes, as well
+as the name of the genome (repeated for each chromosome).
 
 ```{r}
 seqlevels(g)
@@ -179,8 +175,8 @@ We can get the number of genes on each chromosome:
 table(seqnames(g))
 ```
 
-Note that MT (mitochondrial DNA) has many more genes than the other
-chromosomes, per basepair:
+Note that MT (mitochondrial DNA) has many more genes than the other chromosomes,
+per basepair:
 
 ```{r}
 tab <- table(seqnames(g))
@@ -206,20 +202,19 @@ mean((lens/tab)[-which(names(tab) == "MT")])
 
 # Finding overlaps
 
-Finally, I want to introduce some functionality we will use a couple
-times later in the course: finding overlaps of sets of genomic ranges.
-One scenario is that we have two sets and we want to know which ranges
-from the two sets overlap each other. We might make a *query* set and
-ask which genes are overlapping the set in our query.
+Finally, I want to introduce some functionality we will use a couple times later
+in the course: finding overlaps of sets of genomic ranges. One scenario is that
+we have two sets and we want to know which ranges from the two sets overlap each
+other. We might make a *query* set and ask which genes are overlapping the set
+in our query.
 
 ```{r}
 query <- GRanges(1, IRanges((101:110)*1e6 + 1,width=1e6))
 query
 ```
 
-We can get the numeric indices of the overlaps using `findOverlaps`.
-Note that we can turn this resulting object into a data.frame, for
-further processing.
+We can get the numeric indices of the overlaps using `findOverlaps`. Note that
+we can turn this resulting object into a data.frame, for further processing.
 
 ```{r}
 fo <- findOverlaps(query, g)
@@ -229,8 +224,8 @@ tail(fo)
 table(factor(from(fo), seq_along(query)))
 ```
 
-Equivalently, we can use the `countOverlaps` function for the last
-command above:
+Equivalently, we can use the `countOverlaps` function for the last command
+above:
 
 ```{r}
 countOverlaps(query, g)
@@ -242,12 +237,11 @@ We can convert the Hits object to a data.frame:
 fo <- as.data.frame(fo)
 ```
 
-We can also find out which genes overlap which other genes, by just
-providing a single set of ranges to `findOverlaps`. There are *many*
-overlapping genes in the human genome, though you should note that we
-obtain at least two rows in the resulting *Hits* object for every
-overlap, and so we can filter this object down by insisting that one
-index be strictly less than the other.
+We can also find out which genes overlap which other genes, by just providing a
+single set of ranges to `findOverlaps`. There are *many* overlapping genes in
+the human genome, though you should note that we obtain at least two rows in the
+resulting *Hits* object for every overlap, and so we can filter this object down
+by insisting that one index be strictly less than the other.
 
 ```{r}
 fo <- findOverlaps(g)
@@ -258,12 +252,11 @@ head(fo)
 nrow(fo)
 ```
 
-Earlier, when we defined *query*, we didn't consider strand, and so
-the strand of the ranges was defined as `*`. This means that we get
-overlaps of any genes whether + or -. But when we ask whether the
-genes overlap each other, by default `findOverlaps` will not count an
-overlap if the ranges are on different strand. To ask how many genes
-overlap each other ignoring strand, we need to specify
+Earlier, when we defined *query*, we didn't consider strand, and so the strand
+of the ranges was defined as `*`. This means that we get overlaps of any genes
+whether + or -. But when we ask whether the genes overlap each other, by default
+`findOverlaps` will not count an overlap if the ranges are on different strand.
+To ask how many genes overlap each other ignoring strand, we need to specify
 `ignore.strand=TRUE` (which produces more overlaps).
 
 ```{r}
@@ -273,8 +266,8 @@ fo <- fo[fo[,1] < fo[,2],]
 nrow(fo)
 ```
 
-If we just wanted to subset to the genes which overlap a given range,
-we can use `overlapsAny`:
+If we just wanted to subset to the genes which overlap a given range, we can use
+`overlapsAny`:
 
 ```{r}
 g[overlapsAny(g, query[1])]
@@ -284,6 +277,51 @@ This is equivalent to the following:
 
 ```{r}
 g[g %over% query[1]]
+```
+
+# plyranges
+
+As with *SummarizedExperiment*, there is a "tidy" way to work with *GRanges*,
+called *plyranges*. For more examples of this type of analysis, take a look at
+some tutorial content I've been working on here:
+
+<https://nullranges.github.io/tidy-ranges-tutorial>
+
+```{r message=FALSE}
+library(plyranges)
+g %>% 
+  group_by(gene_biotype) %>%
+  summarize(width = mean(width))
+```
+
+Count overlaps of genes in the query ranges:
+
+```{r}
+query %>%
+  mutate(num_genes = count_overlaps(., g))
+```
+
+We can also do the same types of operations as before, with "base *GRanges*":
+
+```{r}
+g %>%
+  slice(1:5) %>%
+  select(symbol) %>%
+  anchor_5p() %>%
+  mutate(width=1) # same as resize(..., width=1)
+```
+
+Plot genes per chromosome:
+
+```{r}
+library(tibble)
+library(ggplot2)
+g %>% 
+  group_by(seqnames) %>%
+  summarize(num_genes = n()) %>%
+  as_tibble() %>%
+  ggplot(aes(seqnames, num_genes)) +
+  geom_col()
 ```
 
 ```{r}

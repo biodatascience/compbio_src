@@ -94,10 +94,10 @@ data loading function.)
 
 ```{r message=FALSE}
 library(SummarizedExperiment)
-colData <- data.frame(sample=factor(1:6),
-                      condition=factor(c("A","A","B","B","C","C")),
-                      treated=factor(rep(0:1,3)))
-colData
+col_data <- data.frame(sample=factor(1:6),
+                       condition=factor(c("A","A","B","B","C","C")),
+                       treated=factor(rep(0:1,3)))
+col_data
 ```
 
 An important aspect of SEs is that the rows can optionally correspond to
@@ -119,7 +119,7 @@ library(EnsDb.Hsapiens.v86)
 txdb <- EnsDb.Hsapiens.v86
 g <- genes(txdb)
 g <- keepStandardChromosomes(g, pruning.mode="coarse")
-rowRanges <- g[1:10]
+row_ranges <- g[1:10]
 ```
 
 We will make up some simulated "expression" measurements, and then store these
@@ -129,8 +129,8 @@ named.
 ```{r}
 exprs <- matrix(rnorm(6 * 10), ncol=6, nrow=10)
 se <- SummarizedExperiment(assay = list("exprs" = exprs),
-                           colData = colData,
-                           rowRanges = rowRanges)
+                           colData = col_data,
+                           rowRanges = row_ranges)
 se
 ```
 
@@ -390,6 +390,32 @@ But we can more easily use dedicated visualization functions:
 ```{r message=FALSE}
 library(scater)
 plotReducedDim(sce, "PCA", color_by="treatment")
+```
+
+# Going further: tidySE
+
+If you are interested in combining the "tidy" *dplyr* style of 
+interacting with datasets with SE there is *tidySummarizedExperiment*,
+a Bioconductor package that integrates this class with these familiar
+verbs. See for example:
+
+<https://stemangiola.github.io/tidySummarizedExperiment/>
+
+```{r eval=FALSE}
+library(tidySummarizedExperiment)
+se <- SummarizedExperiment(assay = list("exprs" = exprs),
+                           colData = col_data)
+# filter to samples in condition A
+se %>% filter(condition == "A")
+# total over all genes, per condition
+se %>%
+  group_by(condition) %>%
+  summarize(total=sum(exprs)) 
+# the features where mean expression > .25
+se %>% 
+  group_by(.feature) %>%
+  mutate(mean_exprs = mean(exprs)) %>%
+  filter(mean_exprs > .25)
 ```
 
 ```{r}
