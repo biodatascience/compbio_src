@@ -2,244 +2,332 @@
 title: "Working with Bioconductor objects"
 author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
+editor_options: 
+  markdown: 
+    wrap: 80
 ---
 
-Why use Bioconductor? From a user perspective, the answer is clear:
-because many statisticians, bioinformaticians, and computer scientists
-have spent time writing methods and algorithms specifically for
-biological (often genomic) data. A reason for this (why many people
-have contributed to this project) is that there is a shared
-infrastructure for common data types. This infrastructure is built up
-of object classes. An example of a class is *GRanges*, which is a way
-to specify a set of ranges in a particular genome, e.g. from basepair
-100 to basepair 200 on chromosome 1 of the human genome (version 38).
+Why use Bioconductor? From a user perspective, the answer is clear: because many
+statisticians, bioinformaticians, and computer scientists have spent time
+writing methods and algorithms specifically for biological (often genomic) data.
+A reason for this (why many people have contributed to this project) is that
+there is a shared infrastructure for common data types. This infrastructure is
+built up of object classes. An example of a class is *GRanges* (stands for
+"genomic ranges"), which is a way to specify a set of ranges in a particular
+genome, e.g. from basepair 101 to basepair 200 on chromosome 1 of the human
+genome (version 38).
 
-What's an object? Well everything in R is an object, but usually when
-we talk about Bioconductor objects, we mean data structures containing
-many attributes, so more complex than a vector or matrix. And the
-objects have specific *methods* that help you either access the
-information in the object, run analyses on the object, plot the
-object, etc.
+What's an object? Well everything in R is an object, but usually when we talk
+about Bioconductor objects, we mean data structures containing many attributes,
+so more complex than a vector or matrix. And the objects have specific *methods*
+that help you either access the information in the object, run analyses on the
+object, plot the object, etc. Bioconductor also allows for *class hierarchy*,
+which means that you can define a class of object that inherits the structure
+and methods of a *superclass* on which it depends. This last point is mostly
+important for people who are developing new software for Bioconductor (maybe
+that's you!)
 
 # Getting started with Bioconductor
 
-Before we get started, you need to know how to install Bioconductor
-packages. The most important details are:
+Before we get started, you need to know how to install Bioconductor packages.
+The most important details are:
 
-* Bioconductor is a package repository, like CRAN
-* All Bioconductor packages **must** be installed following the
-  instructions here: <https://bioconductor.org/install>
-* Bioconductor packages are linked in their versions, both to each
-  other and to the version of R
-* Bioconductor's installation function will look up your version of R
-  and give you the appropriate versions of Bioconductor packages
-* If you want the latest version of Bioconductor, you need to use the
-  latest version of R
+-   Bioconductor is a package repository, like CRAN
+-   All Bioconductor packages **must** be installed following the instructions
+    here: <https://bioconductor.org/install>
+-   Bioconductor packages are linked in their versions, both to each other and
+    to the version of R
+-   Bioconductor's installation function will look up your version of R and give
+    you the appropriate versions of Bioconductor packages
+-   If you want the latest version of Bioconductor, you need to use the latest
+    version of R
 
-How do you know if a package is a Bioconductor package? For one thing,
-you can just google the package name and you'll see either CRAN or
-Bioconductor as a first result (packages must be in one or the other,
-they are not allowed to be on both repositories). But also, you can
-use Bioconductor's installation function to install any packages, even
-ones on CRAN. By the way, you can install multiple packages at once by
-making a string vector: `BiocManager::install(c("foo","bar"))`
+How do you know if a package is a Bioconductor package? For one thing, you can
+just google the package name and you'll see either CRAN or Bioconductor as a
+first result (packages must be in one or the other, they are not allowed to be
+on both repositories). But also, you can use Bioconductor's installation
+function to install any packages, even ones on CRAN. By the way, you can install
+multiple packages at once by making a string vector:
+`BiocManager::install(c("foo","bar"))`
 
-Why all this stress on versioning? This is because the packages in
-Bioconductor are highly *interdependent*, and also some are very dependent on
-R internals. So that the project can guarantee the code will run and
-not give errors on many systems (Linux, Mac and Windows have support
-for the majority of Bioconductor packages), new development is locked
-into cycles, such that a *release* of Bioconductor shouldn't contain
-any two packages which conflict and could potentially cause errors.
-  
+Why all this stress on versioning? This is because the packages in Bioconductor
+are highly *interdependent*, and also some are very dependent on R internals. So
+that the project can guarantee the code will run and not give errors on many
+systems (Linux, Mac and Windows have support for the majority of Bioconductor
+packages), new development is locked into cycles, such that a *release* of
+Bioconductor shouldn't contain any two packages which conflict and could
+potentially cause errors.
+
 Details: of course, Bioconductor is also a
-[project](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4509590), made
-up of people. There is a *core team* which is supported by an NIH
-grant, and developers who contribute to the open source Bioconductor
-packages. There are also yearly 
-[conferences](https://www.bioconductor.org/help/events/)
-(one in US, one in Europe, and one in Asia).
+[project](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4509590), made up of
+people. There is a *core team* which is supported by an NIH grant, and
+developers who contribute to the open source Bioconductor packages. There are
+also yearly [conferences](https://www.bioconductor.org/help/events/) (one in US,
+one in Europe, and one in Asia, etc.).
 
 # Working with Bioconductor objects
 
-```{r echo=FALSE}
-knitr::opts_chunk$set(cache=TRUE)
-```
+We will introduce the core Bioconductor objects this week. In this particular
+document, we will discuss one of the most important classes of object, which is
+the *SummarizedExperiment*, or SE.
 
-We will introduce the core Bioconductor objects this
-week. In this particular document, we will discuss perhaps the most
-important class of object, which is the *ExpressionSet* or
-*SummarizedExperiment* (it's actually two classes, I lied). But they
-are similar so I mention them now together. They have the same
-structure:
+SEs have the structure:
 
-* a matrix of data, rows are genomic features, and columns are samples
-* a table of data about the samples (columns)
-* a table of data about the features (rows)
+-   a matrix of data, rows are genomic features, and columns are samples
+-   a table of data about the samples (columns)
+-   a table of data about the features (rows)
 
-A diagram of this 3-part structure can be found 
+A diagram of this 3-part structure can be found
 [here](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4509590/figure/F2/).
 
-The ExpressionSet was created primarily to store *microarray* data,
-where each column of the matrix stored the values from a particular
-microarray. The SummarizedExperiment is a new class, similar to
-ExpressionSet, which makes more sense for the era of *sequencing*
-data. One particular difference is that the rows of a
-SummarizedExperiment can correspond to particular *GRanges*, e.g. the
-number of RNA-seq reads that can be assigned to a particular gene, and
-the location of the gene in the genome.
+In SE, the 3 parts of the object are called 1) `assay`, 2) `colData` and 3)
+`rowData` or `rowRanges`.
 
-But first let's explore the ExpressionSet, because it came first in
-time, and it's very simple. 
-We will explore [SummarizedExperiment](SE.html) later.
+**Note**: There was a class of object that came before the SE, called the
+*ExpressionSet*, which was used primarily to store *microarray* data. Here we
+will skip over the *ExpressionSet*, and just look at SEs.
 
-The components of an ExpressionSet are the matrix of data, the table
-about the samples (phenotypic data) and the table about the features
-(feature data).
-
-# Build a toy ExpressionSet
-
-Let's build some simulated data to make a little ExpressionSet.
-(Normally, an ExpressionSet would be created for us, either from
-downloading from a public database, or when we loaded in raw
-microarray data.)
+It helps to start by making a small toy SE, to see how the pieces come together.
+(Often you won't make an SE manually, but it will be downloaded from an external
+source, or generated by a function that you call, e.g. `tximeta` or some other
+data loading function.)
 
 ```{r message=FALSE}
-library(Biobase)
+library(SummarizedExperiment)
+colData <- data.frame(sample=factor(1:6),
+                      condition=factor(c("A","A","B","B","C","C")),
+                      treated=factor(rep(0:1,3)))
+colData
+```
+
+An important aspect of SEs is that the rows can optionally correspond to
+particular set of *GRanges*, e.g. a row of an SE could give the number of
+RNA-seq reads that can be assigned to a particular gene, and the row could also
+have metadata in the 3rd slot including, e.g. location of the gene in the
+genome. In this case, we use the `rowRanges` slot to specify the information.
+
+If we don't have ranges, we can just put a table on the "side" of the SE by
+specifying `rowData`.
+
+I will show in the example though how to provide `rowRanges`. Let's use the
+first 10 genes in the Ensembl database for human. The following code loads a
+database, pulls out all the genes (as *GRanges*), removes extra "non-standard"
+chromosomes, and then subsets to the first 10 genes.
+
+```{r message=FALSE}
+library(EnsDb.Hsapiens.v86)
+txdb <- EnsDb.Hsapiens.v86
+g <- genes(txdb)
+g <- keepStandardChromosomes(g, pruning.mode="coarse")
+rowRanges <- g[1:10]
+```
+
+We will make up some simulated "expression" measurements, and then store these
+in the SE. I call `list` so I can name the matrix, otherwise it would not be
+named.
+
+```{r}
 exprs <- matrix(rnorm(6 * 10), ncol=6, nrow=10)
-phenoData <- data.frame(sample=factor(1:6),
-                        condition=factor(c("A","A","B","B","C","C")),
-                        treated=factor(rep(0:1,3)))
-phenoData
-featureData <- data.frame(geneID=1:10, geneSymbol=letters[1:10])
-featureData
+se <- SummarizedExperiment(assay = list("exprs" = exprs),
+                           colData = colData,
+                           rowRanges = rowRanges)
+se
 ```
 
-We put the three tables together with this function:
+We see this object has one named matrix. The object could have multiple matrices
+(as long as these are the same shape). In that case you could access the first
+with `assay` and in general by name, e.g. `assay(se, "exprs")` or equivalently
+`assays(se)[["exprs"]]` .
 
 ```{r}
-eset <- ExpressionSet(exprs,
-                      AnnotatedDataFrame(phenoData),
-                      AnnotatedDataFrame(featureData))
-eset
+assayNames(se)
 ```
 
-Note that, all the data is still there, and can be accessed with
-special functions:
+Finally, if we wanted to add data onto the rows, for example, the score of a
+test on the matrix data, we use the metadata columns function, or `mcols`:
 
 ```{r}
-exprs(eset)
-pData(eset)
-fData(eset)
+mcols(se)$score <- rnorm(10)
+mcols(se)
 ```
 
-We can get a column from the phenotypic data by typing the object
-name, `$` and the column name:
+Adding data to the column metadata is even easier, we can just use `$`:
 
 ```{r}
-eset$condition
+se$librarySize <- runif(6,1e6,2e6)
+colData(se)
 ```
 
-Note what happens when we subset the object with square brackets
-`[ ]`. This subset both the columns, and the *rows* of the phenotypic
-data. This is a common property across all Bioconductor objects: **you
-don't have to worry about keeping track of the tables during subset or
-re-ordering operations, because the objects take care of this for
-you.**
+# Using the ranges of a SE
+
+How does this additional functionality of the `rowRanges` facilitate faster data
+analysis? Suppose we are working with another data set besides `se` and we find
+a region of interest on chromsome 1. If we want to pull out the expression data
+for that region, we just ask for the subset of `se` that overlaps. First we
+build the query region, and then use the *GRanges* function `overlapsAny` within
+single square brackets (like you would subset any matrix-like object:
 
 ```{r}
-idx <- eset$condition %in% c("A","B")
-eset.sub <- eset[,idx]
-exprs(eset.sub)
-pData(eset.sub)
+query <- GRanges("1", IRanges(25000,40000))
+se_sub <- se[overlapsAny(se, query), ]
 ```
 
-# Downloading data from GEO
-
-2 million microarray samples are hosted by the 
-Gene Expression Omnibus, or [GEO](https://www.ncbi.nlm.nih.gov/geo/).
-While RNA-seq has emerged as the generally dominant technology for
-measuring RNA expression, a nice property of microarray was that it
-was very easy to download public data and start working with it. We
-can see that using the *GEOquery* Bioconductor package, which delivers
-pre-prepared and processed ExpressionSets from GEO. I've searched the
-GEO website and found an interesting dataset, 
-[GSE2125](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE2125),
-with the summary: "alveolar macrophages from human subjects".
-
-```{r message=FALSE}
-library(GEOquery)
-file <- list.files(pattern="GSE2125")
-if (length(file) == 0) {
-  geo <- getGEO("GSE2125", destdir=".")
-  e <- geo[[1]]
-} else {
-  e <- getGEO(filename=file)
-}
-```
-
-We can take a look at the phenotypic data. A lot is repetitive. Some
-of the lines are very long as well as being repetitive.
+We could have equivalently used the shorthand code:
 
 ```{r}
-names(pData(e))
-e$molecule_ch1
-e$contact_city
-e$extract_protocol_ch1[1]
+se_sub <- se[se %over% query,]
 ```
 
-The information we care about is often called
-`characteristics_ch1`. Here it's the status of the patient who donated
-macrophages, either asthmatic, non-smoker, or smoker.
+We get just three ranges, and three rows of the SE:
 
 ```{r}
-e$condition <- sub("status: ","",e$characteristics_ch1)
-table(e$condition)
+rowRanges(se_sub)
+assay(se_sub)
 ```
 
-We can take a peek at the expression values themselves. If the numbers
-are on the scale 3-14, then the data has already been log transformed.
+Another useful property is that we know metadata about the chromosomes, and the
+version of the genome. (If you were not yet aware, the basepair position of a
+given feature, say gene *XYZ*, will change between versions of the genome, as
+sequences are added or rearranged.)
 
 ```{r}
-exprs(e)[1:5,1:5]
-range(exprs(e))
-boxplot(exprs(e),range=0)
+seqinfo(se)
 ```
 
-We will perform *quantile normalization* to make it easier to compute
-distances across samples. The quantile normalization function we use
-here is one of many options for minimizing systematic differences
-between samples in microarray data.  We will discuss distances and
-normalization techniques in a later section. One obvious consequence
-of quantile normalization is that the boxplots are identical
-afterward. 
+# Downloading SE data
+
+We previously introduced the computational project, called
+[recount2](https://jhubiostatistics.shinyapps.io/recount/), which performs a
+basic summarization of public data sets with gene expression data. We will use
+data from *recount2* again.
+
+This dataset contains RNA-seq samples from human airway epithelial cell
+cultures. The paper is [here](https://www.ncbi.nlm.nih.gov/pubmed/25706956). The
+structure of the experiment was that, cell cultures from 6 asthmatic and 6
+non-asthmatics donors were treated with viral infection or left untreated
+(controls). So we have 2 samples (control or treated) for each of the 12 donors.
 
 ```{r}
-library(preprocessCore)
-exprs(e) <- normalize.quantiles(exprs(e))
-boxplot(exprs(e),range=0)
+url <- "http://duffel.rail.bio/recount/SRP046226/rse_gene.Rdata"
+file <- "asthma.rda"
+if (!file.exists(file)) download.file(url, file)
+load(file)
 ```
 
-Now let's make a *heatmap* of the expression values. We will make a
-heatmap using the genes with the highest variance across all
-samples. First we calculate the row-wise variances:
+We use a custom function to produce a matrix which a count of RNA fragments for
+each gene (rows) and each sample (columns).
 
-```{r message=FALSE}
+(Recount project calls these objects `rse` for *RangedSummarizedExperiment*,
+meaning it has `rowRanges` information.)
+
+```{r}
+library(here)
+source(here("bioc","my_scale_counts.R"))
+rse <- my_scale_counts(rse_gene)
+```
+
+We can take a peek at the column data:
+
+```{r}
+colData(rse)[,1:6]
+```
+
+The information we are interested in is contained in the `characteristics`
+column (which is a character list).
+
+```{r}
+class(rse$characteristics)
+rse$characteristics[1:3]
+rse$characteristics[[1]]
+```
+
+We can pull out the 3 and 4 element using the `sapply` function and the square
+bracket function. I know this syntax looks a little funny, but it's really just
+saying, use the single square bracket, pull out the third element (or fourth
+element).
+
+```{r}
+rse$condition <- sapply(rse$characteristics, `[`, 3)
+rse$treatment <- sapply(rse$characteristics, `[`, 4)
+table(rse$condition, rse$treatment)
+```
+
+Let's see what the `rowRanges` of this experiment look like:
+
+```{r}
+rowRanges(rse)
+seqinfo(rse)
+```
+
+The `rowRanges` here were determined by the quantification method that the
+*recount2* authors used. We don't know what the genome is from the `seqinfo`,
+but we could look this up from the project website.
+
+The following code I use to clean up the condition and treatment variables:
+
+```{r}
+library(magrittr)
+rse$condition %<>% (function(x) {
+  factor(sub("-",".", sub("disease state: (.*)","\\1",x) ))
+  })
+rse$treatment %<>% (function(x) factor(sub("treatment: (.*)","\\1",x)))
+```
+
+Now we have:
+
+```{r}
+table(rse$condition, rse$treatment)
+```
+
+# Visualizing count matrix data in a SE
+
+We will discuss transformations and normalization in a following section, but
+here we will just use a transformation so that we can compute meaningful
+distances on count data. We build a *DESeqDataSet* and then specify the
+experimental design using a `~` and the variables that we expect to produce
+differences in the counts. (These variables are used to assess how much
+technical variability is in the data, but not used in the transformation
+function itself.)
+
+```{r}
+library(DESeq2)
+dds <- DESeqDataSet(rse, ~condition + treatment)
+```
+
+We use this function, which implements a *variance stabilizing transformation*
+(more on this next time):
+
+```{r}
+vsd <- vst(dds, blind=FALSE)
+```
+
+We calculate the variance across all samples (on the transformed data):
+
+```{r}
 library(matrixStats)
-rv <- rowVars(exprs(e))
+rv <- rowVars(assay(vsd))
+o <- order(rv, decreasing=TRUE)[1:100]
 ```
 
-Then we use the *pheatmap* package to make a heatmap which clusters
-the rows and columns by similarity. Note that we can easily provide
-the expression data and the relevant phenotypic table with the
-*accessor* functions.
+Finally, before plotting a heatmap, we extract the covariates that we want to
+annotated the top of the plot.
+
+```{r}
+anno_col <- as.data.frame(colData(vsd)[,c("condition","treatment")])
+anno_col
+```
+
+This code pull out the top of the transformed data by variance, and adds an
+annotation to the top of the plot. By default the rows and columns will be
+clustered by Euclidean distance. See `?pheatmap` for more details on this
+function (it's a very detailed manual page).
 
 ```{r}
 library(pheatmap)
-o <- head(order(rv, decreasing=TRUE),200)
-pheatmap(exprs(e)[o,],
-         annotation_col=pData(e)["condition"],
-         show_rownames=FALSE, show_colnames=FALSE)
+pheatmap(assay(vsd)[o,],
+         annotation_col=anno_col,
+         show_rownames=FALSE, 
+         show_colnames=FALSE)
 ```
 
 ```{r}
