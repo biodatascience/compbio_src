@@ -265,7 +265,7 @@ but we could look this up from the project website.
 
 The following code I use to clean up the condition and treatment variables:
 
-```{r}
+```{r message=FALSE}
 library(magrittr)
 rse$condition %<>% (function(x) {
   factor(sub("-",".", sub("disease state: (.*)","\\1",x) ))
@@ -298,7 +298,7 @@ We use this function, which implements a *variance stabilizing transformation*
 (more on this next time):
 
 ```{r}
-vsd <- vst(dds, blind=FALSE)
+vsd <- vst(dds)
 ```
 
 We calculate the variance across all samples (on the transformed data):
@@ -328,6 +328,68 @@ pheatmap(assay(vsd)[o,],
          annotation_col=anno_col,
          show_rownames=FALSE, 
          show_colnames=FALSE)
+```
+
+We can also easily make a PCA plot with dedicated functions:
+
+```{r}
+plotPCA(vsd, intgroup="treatment")
+```
+
+# SingleCellExperiment
+
+An example of a class that extends the SE is *SingleCellExperiment*. This is a
+special object type for looking at single cell data.
+
+For more details, there is a free online book "Orchestrating Single Cell
+Analysis With Bioconductor" produced by a group within the Bioconductor Project,
+with lots of example analyses:
+[OSCA](http://bioconductor.org/books/3.15/OSCA.basic/).
+
+Here we show a quick example of how this object extends the SE.
+
+```{r message=FALSE}
+library(SingleCellExperiment)
+sce <- as(rse, "SingleCellExperiment")
+sce
+```
+
+There are special functions dedicated to scaling the samples (we will discuss
+this technical aspect soon):
+
+```{r}
+library(scran)
+sce <- computeSumFactors(sce)
+sizeFactors(sce)
+```
+
+Similarly, dedicated functions for transformations:
+
+```{r}
+sce <- logNormCounts(sce)
+assayNames(sce)
+```
+
+And dedicated functions and new slots for reduced dimensions:
+
+```{r}
+set.seed(1)
+sce <- fixedPCA(sce, rank=5, subset.row=NULL)
+reducedDimNames(sce)
+```
+
+We can manually get at the PCs:
+
+```{r}
+pca <- reducedDim(sce, "PCA")
+plot(pca[,1:2])
+```
+
+But we can more easily use dedicated visualization functions:
+
+```{r message=FALSE}
+library(scater)
+plotReducedDim(sce, "PCA", color_by="treatment")
 ```
 
 ```{r}
