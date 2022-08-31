@@ -1,0 +1,77 @@
+---
+title: "Homework 1"
+author: "your name here"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 80
+---
+
+# Question 1 - 8 pts
+
+In week 2 (EDA), remember that we looked at RNA from different sub-regions of
+the brain, from the GTEx Project. This week we learned that, the first time we
+looked at the data, we did it the "wrong" way, in that we broke the SE object
+apart into `condition` (sample labels) and `cts` (a matrix of observations of
+RNA transcripts, of dimension genes x samples).
+
+In this question you should redo that analysis, but this time, don't break apart
+the SE object, but keep all the information in the SE object. That is, instead
+of using `condition` (a stand alone vector) you should work with `se$condition`,
+a column of `colData(se)`. This helps to prevent mistakes where you subset
+either the matrix or the sample labels, but forget to perform the same operation
+on the other, as the SE keeps all the information tied together.
+
+First load the data from the brain RNA lecture note (you may need to change the
+`source()` line, just copy the `my_scale_counts.R` scripts from `bioc` directory
+into your homework repo).
+
+```{r}
+url <- "http://duffel.rail.bio/recount/SRP012682/rse_gene_brain.Rdata"
+file <- "brain.rda"
+if (!file.exists(file)) download.file(url, file)
+load(file)
+suppressPackageStartupMessages(library(SummarizedExperiment))
+library(here)
+source(here("bioc","my_scale_counts.R"))
+se <- my_scale_counts(rse_gene)
+```
+
+Then create the condition variable as a metadata column:
+
+```{r}
+se$condition <- sub("Brain - (.*)", "\\1", se$smtsd)
+table(se$condition)
+```
+
+Subset the SE to these four regions below, then make a PCA plot of log2(counts +
+1) for the four regions. The PCA plot should be colored by region.
+
+```{r}
+regions <- c("Cerebellum","Cortex","Hippocampus","Hypothalamus")
+```
+
+Hint: one simple way to do this is to replace the `assay()` with log counts,
+pass the SE to `DESeqTransform` and then use `DESeq2::plotPCA` to make a plot.
+Or you can do this manually if you like. Note that `plotPCA` automatically
+subsets the data to the top 500 genes by variance, which is a useful trick to
+speed up the PCA calculation.
+
+Are there any samples that may indicate sample swap / mis-labelling?
+
+# Question 2 - 8 pts
+
+Keep working with the SE that is subset to the four regions of the brain in Q1.
+
+Examine the genes that overlap the following genomic range. Which is the highest
+expressed gene in Cerebellum here? Which is the highest expressed gene in
+Cortex? (Work on log counts here.)
+
+```{r}
+query <- GRanges("chr1", IRanges(151e6,154e6))
+```
+
+Make two plots of these two genes: show expression across the four sub-regions
+of the brain. Boxplot is fine for this. Confirm on <https://gtexportal.org> that
+these are top expressed genes in those regions.
