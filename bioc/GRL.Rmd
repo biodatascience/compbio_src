@@ -35,12 +35,8 @@ produced by all of the genes in the human genome.
 
 We start by loading the Ensembl database used previously.
 
-```{r echo=FALSE}
-knitr::opts_chunk$set(cache=TRUE)
-```
-
 ```{r message=FALSE}
-library(EnsDb.Hsapiens.v86)
+suppressPackageStartupMessages(library(EnsDb.Hsapiens.v86))
 edb <- EnsDb.Hsapiens.v86
 ```
 
@@ -63,6 +59,10 @@ columns(edb)
 Let's pull out a table of the gene and transcript IDs. We ask for all
 the genes, and then provide those as `keys` to the `select` function.
 This produces a table linking every transcript to every gene.
+
+However, if we want to index the *GRangesList* it would be better to
+add this information directly to metadata columns of the object. We 
+will do this subsequently.
 
 ```{r}
 txdf <- select(edb,
@@ -117,6 +117,34 @@ ebt[1]
 ebt[[1]]
 ```
 
+We have metadata for each element, but none at the transcript level:
+
+```{r}
+mcols(ebt)
+```
+
+Let's add the gene identifiers:
+
+```{r}
+table(names(ebt) %in% txdf$TXID)
+mcols(ebt)$GENEID <- mapIds(edb, names(ebt), "GENEID", "TXID")
+mcols(ebt)
+```
+
+One way to find out the number of exons per transcript would be 
+to apply `length` to each element:
+
+```{r}
+sapply(ebt[1:5], length)
+```
+
+A faster implementation is `lengths()`:
+
+```{r}
+mcols(ebt)$num_exons <- lengths(ebt)
+mcols(ebt)
+```
+
 # Compare isoforms of a gene
 
 Suppose we want to compare the different isoforms of a specific
@@ -125,10 +153,8 @@ gene, from the table we made earlier:
 
 ```{r}
 gid <- "ENSG00000196839"
-idx <- txdf$GENEID == gid
+idx <- mcols(ebt)$GENEID == gid
 sum(idx) # how many transcripts?
-txs <- txdf$TXID[idx]
-txs
 ```
 
 Now, we want to see all the exons for these transcripts. We'll pull
@@ -136,46 +162,50 @@ these out of larger *GRangesList* using the `[ ]` brackets, as this
 returns a *GRangesList*.
 
 ```{r}
-ebt2 <- ebt[txs]
-ebt2
+ebt_sub <- ebt[ idx ]
+ebt_sub
 ```
 
 We can look at the exons of the first transcript:
 
 ```{r}
-ebt2[[1]]
-l <- length(ebt2[[1]])
-ebt2[[1]][1] # just first exon
-ebt2[[1]][l] # last exon
+ebt_sub[[1]]
+l <- length(ebt_sub[[1]])
+ebt_sub[[1]][1] # just first exon
+ebt_sub[[1]][l] # last exon
 ```
 
 Note that, because this gene is transcribed on the - strand, the first
 exon is to the right of the last exon.
 
 ```{r}
-start(ebt2[[1]][1]) > start(ebt2[[1]][l])
+start(ebt_sub[[1]][1]) > start(ebt_sub[[1]][l])
 ```
 
-# Visualizing genes with Gviz
+# Visualizing gene models with Gviz
 
-The most robust package for visualizing genomic "tracks" in R is
+One Bioconductor package for visualizing genomic "tracks" in R is
 *Gviz*. A track basically refers to a set of features displayed with
 the genome going from left to right. Users typically want to see
 annotations (where the genes and exons are), as well as experiment
 data (RNA sequences, epigenetic information, etc.)
 
+Why would you use this package? If you wanted to make plots of regions
+programmatically, or to add data on top of the plot (see the 
+[Gviz vignette](https://bioconductor.org/packages/release/bioc/vignettes/Gviz/inst/doc/Gviz.html) 
+for examples).
+If however, you just want to explore the gene model interactively,
+I recommend UCSC or Ensembl Genome Browsers, or the stand-alone
+program [IGV](https://software.broadinstitute.org/software/igv/).
+
 It's a little bit of extra work to visualize a *GRangesList*
 (you have to convert the data to a data.frame first) using *Gviz*, but
-the package does have in-depth (albiet dense) documentation, and a
-working vignette.
-
+the package does have in-depth (albiet dense) documentation.
 In my opinion, this could still be easier. There are people
 working on other approaches, such as 
-[epivizr](http://bioconductor.org/packages/epivizr). Outside of R,
-people commonly use the 
-[UCSC Genome Browser](https://genome.ucsc.edu/) (a website), or
-[IGV](http://software.broadinstitute.org/software/igv/) (a standalone
-Java application).
+[epivizr](http://bioconductor.org/packages/epivizr), or 
+[plotgardener](http://bioconductor.org/packages/plotgardener), which
+we will explore in the next section.
 
 The following function I define takes a GRangesList object and turns it
 into a data.frame that can be read by the Gviz package.
@@ -195,17 +225,17 @@ Now we will make a data.frame called `df` with the information about
 the transcripts of our gene, and make a *GeneRegionTrack* out of it.
 
 ```{r}
-df <- granges2df(ebt2)
+df <- granges2df(ebt_sub)
 df$gene <- gid
 grt <- GeneRegionTrack(df)
 ```
 
 We need to set the range of the plot, and for this we can find out the
-range of all the ranges within `ebt2`. I do this by `unlist`-ing the
+range of all the ranges within `ebt_sub`. I do this by `unlist`-ing the
 GRangesList (making a big GRanges object), and then asking the range.
 
 ```{r}
-range(unlist(ebt2))
+range(unlist(ebt_sub))
 ```
 
 Now we put our tracks together, with a genome axis track as well.
@@ -231,7 +261,7 @@ one of the transcripts:
 
 ```{r}
 df$feature <- "A"
-df$feature[6] <- "B"
+df$feature[12] <- "B"
 grt <- GeneRegionTrack(df)
 ```
 
@@ -241,8 +271,126 @@ Now we add a specific color for that exon:
 plotTracks(list(gax,grt), chromosome="20",
            transcriptAnnotation="transcript",
            from=44619522 - 10000, to=44652233 + 10000,
-           A="orange", B="dodgerblue")
+           A="#FFD58A", B="dodgerblue")
+# this hex code is found deep in the manual for Gviz...
 ```
+
+# Visualizing gene models with plotgardener
+
+*plotgardener* has a different approach to visualizing genomic data
+compared to most other tools in R/Bioconductor. From the 
+[package homepage](https://phanstiellab.github.io/plotgardener/):
+
+> plotgardener empowers users to programmatically and flexibly 
+> generate multi-panel figures. plotgardener accomplishes these 
+> goals by utilizing 1) a coordinate-based plotting system, and 
+> 2) edge-to-edge containerized data visualization.
+
+More motivation for the *plotgardener* package from the
+[paper](https://www.biorxiv.org/content/10.1101/2021.09.08.459338v1.full):
+
+> While [previous tools for visualization] have been transformative 
+> for data exploration, they are largely based on single-panel figures
+> and vertical stacking of genomic tracks and are often ill-suited 
+> for the generation of complex multi-panel figures that include both 
+> genomic and non-genomic plot types. Such complex figures are often 
+> critical for evaluating the underlying biology and are almost always 
+> used to present multi-omic data in publications. 
+
+And on containerized plotting:
+
+> Each plot and annotation is drawn within its own defined graphical 
+> region, or viewport, and then placed on a larger plotgardener page. 
+> These viewports give the power to specify the size and placement of 
+> plot containers and clip data to precise genomic and data axis 
+> measurements.
+
+So a key difference is that *plotgardener* allows for absolute
+positioning,  whereas most exploratory visualization packages in R
+like *Gviz* often use relative positioning. For example, if we layer
+multiple tracks in *Gviz*, we don't specify the location or width of
+these tracks, the `plotTracks()` function in *Gviz* mostly makes those
+decisions for you (although some customization is possible). This can
+be convenient when exploring data, but for publication diagrams, it
+is helpful to position the individual pieces based on a coordinate 
+system.
+
+Let's try our transcript plot with *plotgardener*:
+
+```{r}
+suppressPackageStartupMessages(library(plotgardener))
+library("TxDb.Hsapiens.UCSC.hg38.knownGene")
+library("org.Hs.eg.db")
+```
+
+We don't have to use the "knownGene" *TxDb*, we could also specify
+a custom *TxDb* using `assembly()`, but we use this one here for 
+simplicity.
+
+```{r}
+pageCreate(width = 5, height = 3.25)
+suppressMessages(
+  plotTranscripts(
+    chrom = "chr20", 
+    chromstart = 44619522, chromend = 44652233,
+    assembly = "hg38", labels = "transcript",
+    x = 0.5, y = 2.5, width = 4, height = 3,
+    just = c("left", "bottom")
+  )
+)
+suppressMessages(
+  plotGenomeLabel(
+    chrom = "chr20", 
+    chromstart = 44619522, chromend = 44652233,
+    assembly = "hg38",
+    x = 0.5, y = 2.75, length = 4
+  )
+)
+suppressMessages(
+  plotLegend(
+    legend = c("+ strand", "- strand"),
+    fill = c("#669fd9", "#abcc8e"), border = FALSE,
+    x = 0.5, y = 0.1, width = 1, height = 0.5
+    )
+)
+```
+
+We can also programmatically color elements:
+
+```{r}
+gr <- ebt_sub[[1]]
+gr$highlight <- factor(rep(c("A","B"),c(11,1)))
+gr <- keepStandardChromosomes(gr, pruning.mode="coarse")
+seqlevelsStyle(gr) <- "UCSC"
+```
+
+```{r}
+pageCreate(width = 5, height = 2)
+ # colorblind-friendly palette
+cols <- function(n) palette.colors(n+1)[-1]
+suppressMessages(
+  plotRanges(
+    data = gr,
+    chrom = "chr20", 
+    chromstart = 44619522, chromend = 44652233,
+    assembly = "hg38",
+    spaceWidth = 0,
+    fill = colorby("highlight", palette = cols),
+    x = 0.5, y = 0.5, width = 4, height = 0.5
+  )
+)
+suppressMessages(
+  plotGenomeLabel(
+    chrom = "chr20", 
+    chromstart = 44619522, chromend = 44652233,
+    assembly = "hg38",
+    x = 0.5, y = 1.1, length = 4
+  )
+)
+```
+
+Once you've customized your plot, you can turn off the guides by
+setting `showGuides=FALSE` in `pageCreate()`.
 
 ```{r}
 sessionInfo()
