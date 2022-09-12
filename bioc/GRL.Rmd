@@ -2,36 +2,39 @@
 title: "Lists of genomic ranges: GRangesList"
 author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 # Why do we need a list of ranges?
 
 We showed previously how to specify multiple genomic ranges in a
-*GRanges* object. And this made sense for specifying the general
-region in the genome where the genes start and end, for example.
+*GRanges* object. And this made sense for specifying the general region
+in the genome where the genes start and end, for example.
 
-However, genes in many organisms are themselves made up of
-sub-regions: exons. The exons and introns are transcribed into RNA,
-but then the introns are spliced out, resulting in molecules of mRNA
-which only contain the exonic sequence.
+However, genes in many organisms are themselves made up of sub-regions:
+exons. The exons and introns are transcribed into RNA, but then the
+introns are spliced out, resulting in molecules of mRNA which only
+contain the exonic sequence.
 
-In order to specify where the exonic sequence lies in the genome, we
-can use a single *GRanges*. However, if we want to specify multiple
-*genes* or *transcripts*, we need a list of *GRanges*. Bioconductor
-has a specific object for this purpose called the *GRangesList*.
+In order to specify where the exonic sequence lies in the genome, we can
+use a single *GRanges*. However, if we want to specify multiple *genes*
+or *transcripts*, we need a list of *GRanges*. Bioconductor has a
+specific object for this purpose called the *GRangesList*.
 
 What's the distinction between *genes* and *transcripts*? A *gene* is
-generally defined as a region in the genome which is
-transcribed. However, the specific combination of exons is referred to
-as a *transcript*. The different transcripts that a gene produces can
-be referred to as *isoforms* of the gene. To give an example, suppose
-we have a gene with exons E1, E2, E3, E4. And there are two
-transcripts, or isoforms, of this gene: one which includes E3, and one
-which excludes E3. To specify all the isoforms of the gene, we need a
-*GRangesList*, which has two elements: one of length 4 (E1,E2,E3,E4),
-and one of length 3 (E1,E2,E4). We will see concrete examples of this
-below, using the human *transcriptome*: all of the transcripts
-produced by all of the genes in the human genome.
+generally defined as a region in the genome which is transcribed.
+However, the specific combination of exons is referred to as a
+*transcript*. The different transcripts that a gene produces can be
+referred to as *isoforms* of the gene. To give an example, suppose we
+have a gene with exons E1, E2, E3, E4. And there are two transcripts, or
+isoforms, of this gene: one which includes E3, and one which excludes
+E3. To specify all the isoforms of the gene, we need a *GRangesList*,
+which has two elements: one of length 4 (E1,E2,E3,E4), and one of length
+3 (E1,E2,E4). We will see concrete examples of this below, using the
+human *transcriptome*: all of the transcripts produced by all of the
+genes in the human genome.
 
 We start by loading the Ensembl database used previously.
 
@@ -41,8 +44,8 @@ edb <- EnsDb.Hsapiens.v86
 ```
 
 We don't run the following code, chunk but we include it to show you
-could also build an Ensembl database using a Bioconductor package
-called *AnnotationHub*, which we'll see more of soon.
+could also build an Ensembl database using a Bioconductor package called
+*AnnotationHub*, which we'll see more of soon.
 
 ```{r eval=FALSE}
 library(AnnotationHub)
@@ -60,9 +63,9 @@ Let's pull out a table of the gene and transcript IDs. We ask for all
 the genes, and then provide those as `keys` to the `select` function.
 This produces a table linking every transcript to every gene.
 
-However, if we want to index the *GRangesList* it would be better to
-add this information directly to metadata columns of the object. We 
-will do this subsequently.
+However, if we want to index the *GRangesList* it would be better to add
+this information directly to metadata columns of the object. We will do
+this subsequently.
 
 ```{r}
 txdf <- select(edb,
@@ -72,19 +75,19 @@ txdf <- select(edb,
 head(txdf,20)
 ```
 
-If a gene appears once in this table, it means it has only one
-isoform, if it appears twice, it has two isoforms, and so on. We can
-run `table` on the `GENEID` column to calculate how many isoforms each
-gene has. If we run `table` again, we will find out how many 1-isoform
-genes there are, how many 2-isoform genes there are, etc.
+If a gene appears once in this table, it means it has only one isoform,
+if it appears twice, it has two isoforms, and so on. We can run `table`
+on the `GENEID` column to calculate how many isoforms each gene has. If
+we run `table` again, we will find out how many 1-isoform genes there
+are, how many 2-isoform genes there are, etc.
 
 ```{r}
 table(table(txdf$GENEID))
 ```
 
 Let's construct a *GRangesList* of all the exons, grouped by the
-transcript they belong to. It takes maybe half a minute to pull out
-this information from the database object:
+transcript they belong to. It takes maybe half a minute to pull out this
+information from the database object:
 
 ```{r}
 ebt <- exonsBy(edb, by="tx")
@@ -97,9 +100,9 @@ class(ebt)
 length(ebt)
 ```
 
-If we try to print it, it will just show us the first few list
-elements (each a *GRanges*), and then say how many additional elements
-are in the list.
+If we try to print it, it will just show us the first few list elements
+(each a *GRanges*), and then say how many additional elements are in the
+list.
 
 ```{r}
 ebt
@@ -131,8 +134,8 @@ mcols(ebt)$GENEID <- mapIds(edb, names(ebt), "GENEID", "TXID")
 mcols(ebt)
 ```
 
-One way to find out the number of exons per transcript would be 
-to apply `length` to each element:
+One way to find out the number of exons per transcript would be to apply
+`length` to each element:
 
 ```{r}
 sapply(ebt[1:5], length)
@@ -147,9 +150,9 @@ mcols(ebt)
 
 # Compare isoforms of a gene
 
-Suppose we want to compare the different isoforms of a specific
-gene. We can pull out the names of all the transcripts for a given
-gene, from the table we made earlier:
+Suppose we want to compare the different isoforms of a specific gene. We
+can pull out the names of all the transcripts for a given gene, from the
+table we made earlier:
 
 ```{r}
 gid <- "ENSG00000196839"
@@ -185,27 +188,26 @@ start(ebt_sub[[1]][1]) > start(ebt_sub[[1]][l])
 # Visualizing gene models with Gviz
 
 One Bioconductor package for visualizing genomic "tracks" in R is
-*Gviz*. A track basically refers to a set of features displayed with
-the genome going from left to right. Users typically want to see
-annotations (where the genes and exons are), as well as experiment
-data (RNA sequences, epigenetic information, etc.)
+*Gviz*. A track basically refers to a set of features displayed with the
+genome going from left to right. Users typically want to see annotations
+(where the genes and exons are), as well as experiment data (RNA
+sequences, epigenetic information, etc.)
 
 Why would you use this package? If you wanted to make plots of regions
-programmatically, or to add data on top of the plot (see the 
-[Gviz vignette](https://bioconductor.org/packages/release/bioc/vignettes/Gviz/inst/doc/Gviz.html) 
-for examples).
-If however, you just want to explore the gene model interactively,
-I recommend UCSC or Ensembl Genome Browsers, or the stand-alone
-program [IGV](https://software.broadinstitute.org/software/igv/).
+programmatically, or to add data on top of the plot (see the [Gviz
+vignette](https://bioconductor.org/packages/release/bioc/vignettes/Gviz/inst/doc/Gviz.html)
+for examples). If however, you just want to explore the gene model
+interactively, I recommend UCSC or Ensembl Genome Browsers, or the
+stand-alone program
+[IGV](https://software.broadinstitute.org/software/igv/).
 
-It's a little bit of extra work to visualize a *GRangesList*
-(you have to convert the data to a data.frame first) using *Gviz*, but
-the package does have in-depth (albiet dense) documentation.
-In my opinion, this could still be easier. There are people
-working on other approaches, such as 
-[epivizr](http://bioconductor.org/packages/epivizr), or 
-[plotgardener](http://bioconductor.org/packages/plotgardener), which
-we will explore in the next section.
+It's a little bit of extra work to visualize a *GRangesList* (you have
+to convert the data to a data.frame first) using *Gviz*, but the package
+does have in-depth (albiet dense) documentation. In my opinion, this
+could still be easier. There are people working on other approaches,
+such as [epivizr](http://bioconductor.org/packages/epivizr), or
+[plotgardener](http://bioconductor.org/packages/plotgardener), which we
+will explore in the next section.
 
 The following function I define takes a GRangesList object and turns it
 into a data.frame that can be read by the Gviz package.
@@ -221,8 +223,8 @@ granges2df <- function(x) {
 }
 ```
 
-Now we will make a data.frame called `df` with the information about
-the transcripts of our gene, and make a *GeneRegionTrack* out of it.
+Now we will make a data.frame called `df` with the information about the
+transcripts of our gene, and make a *GeneRegionTrack* out of it.
 
 ```{r}
 df <- granges2df(ebt_sub)
@@ -238,14 +240,14 @@ GRangesList (making a big GRanges object), and then asking the range.
 range(unlist(ebt_sub))
 ```
 
-Now we put our tracks together, with a genome axis track as well.
-What can we see here? There transcripts are mostly overlapping. There
-are a cluster of transcripts that are long and basically overlapping
-except for a few exons excluded. Then there are transcripts which only
-contain the beginning exons (the arrows indicate that the beginning of
-the transcript is on the right-hand side), and there is one transcript
-with just the ending exons (left-hand side). This is pretty typical
-for a multiple-isoform gene.
+Now we put our tracks together, with a genome axis track as well. What
+can we see here? There transcripts are mostly overlapping. There are a
+cluster of transcripts that are long and basically overlapping except
+for a few exons excluded. Then there are transcripts which only contain
+the beginning exons (the arrows indicate that the beginning of the
+transcript is on the right-hand side), and there is one transcript with
+just the ending exons (left-hand side). This is pretty typical for a
+multiple-isoform gene.
 
 ```{r}
 gax <- GenomeAxisTrack()
@@ -254,10 +256,10 @@ plotTracks(list(gax,grt), chromosome="20",
            from=44619522 - 10000, to=44652233 + 10000)
 ```
 
-Note that it is also possible to label certain features. We just
-create a new column called `feature`, and then we can put whatever
-grouping or labels we like. Here we are coloring an individual exon of
-one of the transcripts:
+Note that it is also possible to label certain features. We just create
+a new column called `feature`, and then we can put whatever grouping or
+labels we like. Here we are coloring an individual exon of one of the
+transcripts:
 
 ```{r}
 df$feature <- "A"
@@ -278,42 +280,41 @@ plotTracks(list(gax,grt), chromosome="20",
 # Visualizing gene models with plotgardener
 
 *plotgardener* has a different approach to visualizing genomic data
-compared to most other tools in R/Bioconductor. From the 
-[package homepage](https://phanstiellab.github.io/plotgardener/):
+compared to most other tools in R/Bioconductor. From the [package
+homepage](https://phanstiellab.github.io/plotgardener/):
 
-> plotgardener empowers users to programmatically and flexibly 
-> generate multi-panel figures. plotgardener accomplishes these 
-> goals by utilizing 1) a coordinate-based plotting system, and 
-> 2) edge-to-edge containerized data visualization.
+> plotgardener empowers users to programmatically and flexibly generate
+> multi-panel figures. plotgardener accomplishes these goals by
+> utilizing 1) a coordinate-based plotting system, and 2) edge-to-edge
+> containerized data visualization.
 
 More motivation for the *plotgardener* package from the
 [paper](https://www.biorxiv.org/content/10.1101/2021.09.08.459338v1.full):
 
-> While [previous tools for visualization] have been transformative 
-> for data exploration, they are largely based on single-panel figures
-> and vertical stacking of genomic tracks and are often ill-suited 
-> for the generation of complex multi-panel figures that include both 
-> genomic and non-genomic plot types. Such complex figures are often 
-> critical for evaluating the underlying biology and are almost always 
-> used to present multi-omic data in publications. 
+> While [previous tools for visualization] have been transformative for
+> data exploration, they are largely based on single-panel figures and
+> vertical stacking of genomic tracks and are often ill-suited for the
+> generation of complex multi-panel figures that include both genomic
+> and non-genomic plot types. Such complex figures are often critical
+> for evaluating the underlying biology and are almost always used to
+> present multi-omic data in publications.
 
 And on containerized plotting:
 
-> Each plot and annotation is drawn within its own defined graphical 
-> region, or viewport, and then placed on a larger plotgardener page. 
-> These viewports give the power to specify the size and placement of 
-> plot containers and clip data to precise genomic and data axis 
+> Each plot and annotation is drawn within its own defined graphical
+> region, or viewport, and then placed on a larger plotgardener page.
+> These viewports give the power to specify the size and placement of
+> plot containers and clip data to precise genomic and data axis
 > measurements.
 
 So a key difference is that *plotgardener* allows for absolute
-positioning,  whereas most exploratory visualization packages in R
-like *Gviz* often use relative positioning. For example, if we layer
-multiple tracks in *Gviz*, we don't specify the location or width of
-these tracks, the `plotTracks()` function in *Gviz* mostly makes those
-decisions for you (although some customization is possible). This can
-be convenient when exploring data, but for publication diagrams, it
-is helpful to position the individual pieces based on a coordinate 
-system.
+positioning, whereas most exploratory visualization packages in R like
+*Gviz* often use relative positioning. For example, if we layer multiple
+tracks in *Gviz*, we don't specify the location or width of these
+tracks, the `plotTracks()` function in *Gviz* mostly makes those
+decisions for you (although some customization is possible). This can be
+convenient when exploring data, but for publication diagrams, it is
+helpful to position the individual pieces based on a coordinate system.
 
 Let's try our transcript plot with *plotgardener*:
 
@@ -323,8 +324,8 @@ library("TxDb.Hsapiens.UCSC.hg38.knownGene")
 library("org.Hs.eg.db")
 ```
 
-We don't have to use the "knownGene" *TxDb*, we could also specify
-a custom *TxDb* using `assembly()`, but we use this one here for 
+We don't have to use the "knownGene" *TxDb*, we could also specify a
+custom *TxDb* using `assembly()`, but we use this one here for
 simplicity.
 
 ```{r}
@@ -389,8 +390,8 @@ suppressMessages(
 )
 ```
 
-Once you've customized your plot, you can turn off the guides by
-setting `showGuides=FALSE` in `pageCreate()`.
+Once you've customized your plot, you can turn off the guides by setting
+`showGuides=FALSE` in `pageCreate()`.
 
 ```{r}
 sessionInfo()

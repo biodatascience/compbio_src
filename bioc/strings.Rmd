@@ -13,10 +13,6 @@ DNA strings (also RNA strings or amino acid strings). First, I load
 the package, and create a short character string with some letters of
 DNA: 
 
-```{r echo=FALSE}
-knitr::opts_chunk$set(cache=TRUE)
-```
-
 ```{r message=FALSE}
 library(Biostrings)
 dna <- "AAACGCG"
@@ -143,7 +139,7 @@ Instead, we will work with the package described above, which can be
 downloaded with Bioconductor's installation function.
 
 ```{r}
-library(BSgenome.Hsapiens.NCBI.GRCh38)
+suppressPackageStartupMessages(library(BSgenome.Hsapiens.NCBI.GRCh38))
 Hsapiens
 ```
 
@@ -195,12 +191,12 @@ at random.
 ```{r}
 si <- seqinfo(txome)
 idx <- 5000
-txp.name <- seqnames(si)[idx]
-txp.name
-txp.len <- seqlengths(si)[idx]
-txp.len
-txp.seq <- getSeq(txome, GRanges(seqnames(si)[idx], IRanges(1, txp.len)))
-txp.seq
+txp_name <- seqnames(si)[idx]
+txp_name
+txp_len <- seqlengths(si)[idx]
+txp_len
+txp_seq <- getSeq(txome, GRanges(seqnames(si)[idx], IRanges(1, txp_len)))
+txp_seq
 ```
 
 The above method is fairly easy for getting a transcript sequence if
@@ -211,7 +207,7 @@ from the GenomicFeatures package. This function takes two arguments:
 a *BSgenome* object and the *GRangesList* of the exons-by-transcript.
 
 ```{r}
-library(EnsDb.Hsapiens.v86)
+suppressPackageStartupMessages(library(EnsDb.Hsapiens.v86))
 edb <- EnsDb.Hsapiens.v86
 ```
 
@@ -228,12 +224,13 @@ if (file.exists("ebt.rda")) {
 ```
 
 ```{r}
-txp.name2 <- sub("\\..*","",txp.name) # cut version number
-txp <- ebt[txp.name2]
+txp_name_no_version <- sub("\\..*","",txp_name) # cut version number
+txp <- ebt[txp_name_no_version]
 library(GenomicFeatures)
-txp.seq2 <- extractTranscriptSeqs(Hsapiens, txp)
-txp.seq2
-txp.seq == txp.seq2
+# another option here would be ensembldb:::getGenomeTwoBitFile()
+txp_seq_extracted <- extractTranscriptSeqs(Hsapiens, txp)
+txp_seq_extracted
+txp_seq == txp_seq_extracted
 ```
 
 ```{r}
