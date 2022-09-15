@@ -1,0 +1,139 @@
+---
+title: "Homework 2"
+author: "your name here"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+editor_options: 
+  markdown: 
+  wrap: 80
+---
+
+# Question 1 - Gene density in 1 Mb tiles - 8 pts
+
+We want to find out if genes are roughly uniform or follow a pattern
+along the genome. E.g. do they occur in clumps?
+
+Start by loading the Ensembl database package we used in class 
+`EnsDb.Hsapiens.v86`. For simplicity, rename this to `edb`.
+
+```{r message=FALSE}
+library(EnsDb.Hsapiens.v86)
+edb <- EnsDb.Hsapiens.v86
+```
+
+Pull out the genes as a simple *GRanges* object. We will use a special
+command which will restrict our focus to genes with IDs that start
+with `ENSG`:
+
+```{r}
+g <- genes(edb, 
+  filter = AnnotationFilterList(GeneIdFilter("ENSG", "startsWith")))
+```
+
+Subset to the genes on chromosome `"1"` (there should be 5194 of these). 
+Next you will make a `query` GRanges which covers
+chromosome 1 with non-overlapping ranges of width 1 Mb (one million
+letters). This can be done with the following code:
+
+```{r}
+query <- tileGenome(seqlengths(g)[1], 
+                    tilewidth=1e6, 
+                    cut.last.tile.in.chrom=TRUE)
+```
+
+Count the number of genes overlapping each range (you can use either
+`countOverlaps` or `plyranges::count_overlaps`) 
+and then plot the counts (after converting
+to a numeric vector). You can just ignore the fact that the last tile
+is shorter than the rest.
+
+Do you see tile-to-tile correlations in the counts along chromosome 1 
+or do the counts look independent from tile-to-tile, with no
+sequential dependency? 
+
+What is the average number of genes per 1 Mb (you can just include the
+last tile count in the calculation even though it is not 1 Mb)?
+
+Again, compute the average number of genes but exclude the tiles with
+zero genes (some of these are telomeric or centromeric DNA).
+
+# Question 2 - Gene density and GC content - 8 pts
+
+Does gene density as calculated in Question 1 relate to the 
+"GC content", defined as the ratio of C and G
+bases in a region? Remember, GC content = sum(C or G bases) divided
+by the sequence length. GC content of ACGT = 0.5, GC content of ACGC =
+0.75.
+
+Assess the GC content of the tiled chromosome 1
+with `query` as defined above, and assess whether it appears related
+to gene density. How would you describe the relationship?
+
+Use the following BSgenome package:
+
+```{r}
+suppressPackageStartupMessages(library(BSgenome.Hsapiens.NCBI.GRCh38))
+suppressPackageStartupMessages(library(Biostrings))
+```
+
+# Question 3 - Exon and gene GC content by gene type - 8 pts
+
+In this question we will examine the exonic GC content and the 
+gene-level GC content, per gene. The exonic GC content is the GC content
+of any basepair that is in any exon of the gene. The gene GC content
+will be the GC content of the entire sequence including exons and introns.
+
+Start by loading the exons per gene, subsetting to standard chromosomes,
+and then `reduce`-ing the exon-by-gene GRangesList object:
+
+```{r}
+ebg <- exonsBy(edb, by="gene",
+               filter = 
+             AnnotationFilterList(GeneIdFilter("ENSG", "startsWith")))
+ebg <- keepStandardChromosomes(ebg, pruning.mode = "coarse")
+ebg <- reduce(ebg)
+```
+
+What does `reduce` do? It basically "flattens" the ranges so that each
+basepair is only represented in one range. For example compare `foo`
+to `reduce(foo)`: 
+
+```{r}
+foo <- IRanges(start=c(1,5,11),end=c(7,9,13))
+foo
+reduce(foo)
+```
+
+So calling `reduce` on the exons for each gene "flattens" the ranges
+so that any overlapping basepairs are compressed into a single
+continguous range. 
+
+Now repeat the same subset for the genes (as defined above), and make
+sure the two are in the same order.
+
+```{r}
+g <- keepStandardChromosomes(g, pruning.mode = "coarse")
+g <- g[names(ebg)]
+all.equal(names(g), names(ebg))
+```
+
+We can use the functions we learned in class to get the DNA
+sequence of genes and exons:
+
+```{r}
+library(GenomicFeatures)
+gseqs <- getSeq(Hsapiens, g)
+eseqs <- extractTranscriptSeqs(Hsapiens, ebg)
+```
+
+Note that you can get the number of basepairs of the exonic region
+per gene two ways:
+
+```{r}
+all(sum(width(ebg)) == width(eseqs))
+```
+
+Compare the exonic GC content across two types of genes:
+`protein_coding`, and `lincRNA` (see the metadata of `g`). 
+Repeat for the gene GC content.
+It is sufficient to compare visually.
