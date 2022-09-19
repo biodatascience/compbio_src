@@ -63,10 +63,6 @@ donor, and each row corresponds to a distinct location in the
 genome. The rows are actually *peaks* of accessibility that were
 detected in at least some subset of the samples.
 
-```{r echo=FALSE}
-knitr::opts_chunk$set(cache=TRUE)
-```
-
 We have to use this `skip=1` argument below because the first row
 contains only column names, but is missing a column name for the first
 column (the index number of the peak from a larger set of peaks).
