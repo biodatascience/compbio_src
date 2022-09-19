@@ -2,66 +2,68 @@
 title: "Introduction to multiple testing"
 author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 Here I will introduce a popular statistical framework for working with
 the results of many parallel statistical tests, a setting that occurs
 frequently in genomic analyses. I won't go into depth here, but will
-discuss more in lecture. For background you can also read the
-[lecture notes](http://genomicsclass.github.io/book/pages/multiple_testing.html)
+discuss more in lecture. For background you can also read the [lecture
+notes](http://genomicsclass.github.io/book/pages/multiple_testing.html)
 from the HarvardX Biological Data Science series (also the Wikipedia
-article on 
-[multiple comparisons](https://en.wikipedia.org/wiki/Multiple_comparisons_problem) 
+article on [multiple
+comparisons](https://en.wikipedia.org/wiki/Multiple_comparisons_problem)
 is a good introduction).
 
-While up to this point, we have minimized the use of simulation data
-to show concepts in Computational Biology, multiple testing is often
-introduced using simulation data, and there is a practical reason
-why. We can use real biological datasets to generate test
-statistics from the null hypothesis, by taking a large group of
-samples and randomly dividing into two groups with no known biological
-difference. Unless we happen to choose a partition which corresponds
-to biological or technical factors, this is pretty good for observing
-null test statistics. And we can limit this probability by choosing a
-large dataset, or by balancing our random partition with respect to
-technical factors, or by removing technical factors using factor
-analysis methods such as [SVA, RUV, or PEER](../dist/sva.html).
+While up to this point, we have minimized the use of simulation data to
+show concepts in Computational Biology, multiple testing is often
+introduced using simulation data, and there is a practical reason why.
+We can use real biological datasets to generate test statistics from the
+null hypothesis, by taking a large group of samples and randomly
+dividing into two groups with no known biological difference. Unless we
+happen to choose a partition which corresponds to biological or
+technical factors, this is pretty good for observing null test
+statistics. And we can limit this probability by choosing a large
+dataset, or by balancing our random partition with respect to technical
+factors, or by removing technical factors using factor analysis methods
+such as [SVA, RUV, or PEER](../dist/sva.html).
 
 However, it's not easy to generate many test statistics from real data
-which combine known null and alternative hypotheses, because we often
-do not know which hypotheses are truly null, e.g. $\Delta = 0$, and
-which are alternative, $\Delta \ne 0$. So we often resort to
-simulation, or a combination of real null data with simulation used to
-create alternative hypotheses, to demonstrate the concepts of multiple
-test correction. Here we will use the latter, starting with a real
-dataset where we can create a null distribution of test statistics.
+which combine known null and alternative hypotheses, because we often do
+not know which hypotheses are truly null, e.g. $\Delta = 0$, and which
+are alternative, $\Delta \ne 0$. So we often resort to simulation, or a
+combination of real null data with simulation used to create alternative
+hypotheses, to demonstrate the concepts of multiple test correction.
+Here we will use the latter, starting with a real dataset where we can
+create a null distribution of test statistics.
 
 # About the dataset
 
 We start by downloading a large, normalized matrix of values for
-*chromatin accessibilty* across 68 human donors. Chromatin
-accessibility refers to a quantitative measurement of whether the DNA
-at a certain location is packaged tightly or in a more open pattern,
-which indicates the degree to which proteins can access and bind to
-DNA -- in particular regulatory proteins which might affect
-transcription of genes. A diagram of inaccessible and accessible
-chromatin can be found on this 
-[Wikipedia page](https://en.wikipedia.org/wiki/Chromatin_remodeling).
+*chromatin accessibilty* across 68 human donors. Chromatin accessibility
+refers to a quantitative measurement of whether the DNA at a certain
+location is packaged tightly or in a more open pattern, which indicates
+the degree to which proteins can access and bind to DNA -- in particular
+regulatory proteins which might affect transcription of genes. A diagram
+of inaccessible and accessible chromatin can be found on this [Wikipedia
+page](https://en.wikipedia.org/wiki/Chromatin_remodeling).
 
-The dataset is hosted at
-[this website](http://mitra.stanford.edu/kundaje/portal/chromovar3d/dnase.html),
-and we download a text file of normalized data contained in this 
-[subfolder](http://chromovar3d.stanford.edu/QTLs/correctedSignal/), 
-which is about 130 Mb, compressed. The publication associated with
-this dataset is listed at the above link, and the goal was to find
-genetic variants which are associated with differences in chromatin
+The dataset is hosted at [this
+website](http://mitra.stanford.edu/kundaje/portal/chromovar3d/dnase.html),
+and we download a text file of normalized data contained in this
+[subfolder](http://chromovar3d.stanford.edu/QTLs/correctedSignal/),
+which is about 130 Mb, compressed. The publication associated with this
+dataset is listed at the above link, and the goal was to find genetic
+variants which are associated with differences in chromatin
 accessibility. We won't discuss here exactly how the raw data was
-processed to produce the normalized matrix above, but for our
-purposes, all we need to know is that large values correspond to more
-accessible chromatin, each column corresponds to a different human
-donor, and each row corresponds to a distinct location in the
-genome. The rows are actually *peaks* of accessibility that were
-detected in at least some subset of the samples.
+processed to produce the normalized matrix above, but for our purposes,
+all we need to know is that large values correspond to more accessible
+chromatin, each column corresponds to a different human donor, and each
+row corresponds to a distinct location in the genome. The rows are
+actually *peaks* of accessibility that were detected in at least some
+subset of the samples.
 
 We have to use this `skip=1` argument below because the first row
 contains only column names, but is missing a column name for the first
@@ -98,8 +100,8 @@ par(mfrow=c(2,2))
 for (i in 1:4) hist(mat[i,], col="grey")
 ```
 
-Also, it's always a good idea to make a PCA plot of the samples, to
-look for any large-scale structure in the data:
+Also, it's always a good idea to make a PCA plot of the samples, to look
+for any large-scale structure in the data:
 
 ```{r}
 par(mfrow=c(1,1))
@@ -109,9 +111,9 @@ plot(pc$x[,1:2])
 
 If you square the standard deviation values and sum them, you get the
 total variance in the data. Here I show that the top PC is not a large
-percent of the variance in the data, which means that there is not a
-low dimensional structure to the data, which one might see with
-strong batch effects or distinct biological conditions.
+percent of the variance in the data, which means that there is not a low
+dimensional structure to the data, which one might see with strong batch
+effects or distinct biological conditions.
 
 ```{r}
 plot(pc$sdev[1:10]^2 / sum(pc$sdev^2), type="b", ylab="% Var")
@@ -119,11 +121,11 @@ plot(pc$sdev[1:10]^2 / sum(pc$sdev^2), type="b", ylab="% Var")
 
 # Multiple testing
 
-To investigate multiple testing, we first generate a mock comparison:
-I choose two random groups of the data, indicated by a factor
-variable called `fake` and perform row-wise t-tests across all the
-250k peaks in the data. I then look at the distribution of p-values
-across 20 bins defined on [0,1].
+To investigate multiple testing, we first generate a mock comparison: I
+choose two random groups of the data, indicated by a factor variable
+called `fake` and perform row-wise t-tests across all the 250k peaks in
+the data. I then look at the distribution of p-values across 20 bins
+defined on [0,1].
 
 ```{r message=FALSE}
 set.seed(1)
@@ -135,9 +137,9 @@ brks <- 0:nbins/nbins
 hist(ts$p.value, col="grey", breaks=brks)
 ```
 
-Here I make this plot again, and show a line for what we would expect
-on average for each bin for null hypotheses. We can see we are pretty
-close to the expected values for this set of bins.
+Here I make this plot again, and show a line for what we would expect on
+average for each bin for null hypotheses. We can see we are pretty close
+to the expected values for this set of bins.
 
 ```{r}
 p <- ts$p.value
@@ -149,10 +151,10 @@ length(p)/nbins
 ```
 
 Now, because we want to explore how multiple testing frameworks deal
-with combined null and alternative hypotheses, I will "spike in"
-10,000 p-values corresponding to alternative hypotheses. I don't
-generate the data, just p-values which, after log10 transformation,
-are uniformly distributed on [-6,-1].
+with combined null and alternative hypotheses, I will "spike in" 10,000
+p-values corresponding to alternative hypotheses. I don't generate the
+data, just p-values which, after log10 transformation, are uniformly
+distributed on [-6,-1].
 
 ```{r}
 p2 <- p
@@ -166,19 +168,19 @@ Bonferroni method and the Benjamini-Hochberg method, which are both
 implemented in the `p.adjust` function in R. The `p.adjust` function
 provides adjusted p-values, such that thresholding on the adjusted
 p-values delivers a set obeying certain statistics properties. As we
-went over in lecture, the Bonferroni method bounds the family-wise
-error rate (FWER) while the Benjamini-Hochberg method bounds the false
+went over in lecture, the Bonferroni method bounds the family-wise error
+rate (FWER) while the Benjamini-Hochberg method bounds the false
 discovery rate (FDR) in expectation. A reminder: these are critically
 different bounds: FWER is the number of false positives over all null
 hypotheses, while FDR is the number of false positives over the set
-which is called positive. And the Benjamini-Hochberg method provides
-the FDR bound in expectation.
+which is called positive. And the Benjamini-Hochberg method provides the
+FDR bound in expectation.
 
 Below we show the histogram of adjusted p-values, and the minimal
 adjusted p-value. The adjustment is simply the original p-value
-multiplied by the number of tests. So we could provide FWER control
-for this particular simulated data for a few hundred tests, but only
-at a high rate.
+multiplied by the number of tests. So we could provide FWER control for
+this particular simulated data for a few hundred tests, but only at a
+high rate.
 
 ```{r}
 padj.bonf <- p.adjust(p2, method="bonferroni")
@@ -189,10 +191,10 @@ sum(padj.bonf < .5)
 ```
 
 The false discovery rate is a much more practical and desirable bound
-for genomic data analysis, compared to the family-wise error
-rate. Investigators are often interested in the rate of false
-positives among the set of most promising features (genes, or in this
-case, genomic regions) that are identified by a statistical test.
+for genomic data analysis, compared to the family-wise error rate.
+Investigators are often interested in the rate of false positives among
+the set of most promising features (genes, or in this case, genomic
+regions) that are identified by a statistical test.
 
 Here, we pick up on thousands of tests where we can control the FDR at
 5%, for example.
@@ -204,15 +206,15 @@ min(padj.bh)
 sum(padj.bh < .05)
 ```
 
-One way to think about what our adjusted p-values are delivering, is
-to examine a histogram of the original p-values for various bin sizes
-along [0,1]. We see an enrichment of small p-values in the smallest
-bin. If we draw the line of expected counts if all the hypotheses
-were null, we see that the first bin could be expected to contain more
-than half null hypotheses. This corresponds to the largest adjusted
-p-value in this bin, which makes sense: by thresholding on an adjusted
-p-value, we should obtain a set of hypotheses bounded by a given false 
-discovery rate in expectation.
+One way to think about what our adjusted p-values are delivering, is to
+examine a histogram of the original p-values for various bin sizes along
+[0,1]. We see an enrichment of small p-values in the smallest bin. If we
+draw the line of expected counts if all the hypotheses were null, we see
+that the first bin could be expected to contain more than half null
+hypotheses. This corresponds to the largest adjusted p-value in this
+bin, which makes sense: by thresholding on an adjusted p-value, we
+should obtain a set of hypotheses bounded by a given false discovery
+rate in expectation.
 
 ```{r}
 nbins <- 20
@@ -247,15 +249,14 @@ plot(-log10(padj.sort[1:2000]), xlab="i", ylab="p")
 plot(-log10(padj.sort[1:1200]), xlab="i", ylab="p")
 ```
 
-
 The [publication of the BH method](http://www.jstor.org/stable/2346101)
 describes a procedure, whereby one finds the largest *i* such that the
 i-th smallest p-value is less than $\frac{i}{m} q$, where *q* is the
 desired FDR bound. The adjusted p-values are the smallest value of *q*
-for each test, so a *reverse* of the procedure where you start with
-*q*. Geometrically, the BH procedure can be thought of putting the
-tests in order of p-value along the x-axis, with the value of p on
-the y-axis. For the first 2000 tests, this looks like:
+for each test, so a *reverse* of the procedure where you start with *q*.
+Geometrically, the BH procedure can be thought of putting the tests in
+order of p-value along the x-axis, with the value of p on the y-axis.
+For the first 2000 tests, this looks like:
 
 ```{r}
 p.sort <- sort(p2)
@@ -279,18 +280,18 @@ abline(0, q/m, col="red")
 
 # q-values
 
-Finally, we mention that there is a method which improves upon the
-BH method by attempting to estimate the proportion of
-nulls in the set of all hypotheses, called $\pi_0 = \frac{m_0}{m}$. The
-BH method controls the FDR in expectation for any $m_0 \le m$,
-but if we can come up with a good estimate of $\pi_0$ when it is
-less than 1, we can reject more hypotheses and still control the FDR
-in expectation. Without getting into details, the `qvalue` function in
-the qvalue package does this estimation, and provides q-values which
-operate analogously to the adjusted p-values we defined above: using a
-threshold on q-values produces a set with FDR which should be bounded
-by that value in expectation. We can see that for this simulated data,
-the estimate of $\pi_0$ is close to the truth:
+Finally, we mention that there is a method which improves upon the BH
+method by attempting to estimate the proportion of nulls in the set of
+all hypotheses, called $\pi_0 = \frac{m_0}{m}$. The BH method controls
+the FDR in expectation for any $m_0 \le m$, but if we can come up with a
+good estimate of $\pi_0$ when it is less than 1, we can reject more
+hypotheses and still control the FDR in expectation. Without getting
+into details, the `qvalue` function in the qvalue package does this
+estimation, and provides q-values which operate analogously to the
+adjusted p-values we defined above: using a threshold on q-values
+produces a set with FDR which should be bounded by that value in
+expectation. We can see that for this simulated data, the estimate of
+$\pi_0$ is close to the truth:
 
 ```{r}
 library(qvalue)
@@ -300,9 +301,8 @@ res$pi0
 ```
 
 The q-values are multiplicatively scaled relative to the BH adjusted
-p-values, and are strictly smaller, although here only slightly
-so. For smaller $\pi_0$ the gain in sensitivity would be more
-substantial. 
+p-values, and are strictly smaller, although here only slightly so. For
+smaller $\pi_0$ the gain in sensitivity would be more substantial.
 
 ```{r}
 qval.sort <- sort(res$qvalues)
