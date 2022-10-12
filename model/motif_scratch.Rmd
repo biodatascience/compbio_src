@@ -56,5 +56,35 @@ pheatmap::pheatmap(x[motif_idx,], cluster_cols=FALSE, color=palette.colors()[2:5
 ```{r}
 theta0 <- matrix(runif(ml*4),ncol=ml)
 theta0 <- sweep(theta0, 2, colSums(theta0), "/")
-niter <- 10
+theta_bg <- rep(.25, 4)
+theta <- theta0
 ```
+
+```{r}
+lik <- function(theta, x_seq) {
+  prod(sapply(1:4, function(k) prod(theta[k,x_seq == k])))
+}
+lik_bg <- function(theta_bg, x_seq) {
+  prod(theta_bg[x_seq])
+}
+lik(theta, x[1,])
+lik_bg(theta_bg, x[1,])
+```
+```{r}
+eval_lik_bg <- 90/91 * apply(x, 1, lik_bg, theta=theta_bg)
+for (iter in 1:30) {
+  eval_lik_motif <- 1/91 * apply(x, 1, lik, theta=theta)
+  cond_prob <- cbind(eval_lik_motif, eval_lik_bg)
+  cond_prob <- cond_prob / rowSums(cond_prob)
+  unscaled_freq <- t(sapply(1:4, function(k) colSums(cond_prob[,1] * (x == k))))
+  theta <- sweep(unscaled_freq, 2, colSums(unscaled_freq), "/")
+  print(round(theta[,1:4],3))
+}
+```
+
+```{r}
+cond_prob_mat <- matrix(cond_prob[,1], nrow=n, byrow = TRUE)
+top_condz_per_row <- apply(cond_prob_mat, 1, which.max)
+plot(z0, top_condz_per_row)
+```
+
