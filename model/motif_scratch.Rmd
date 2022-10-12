@@ -1,0 +1,60 @@
+---
+title: "Motif finding, more like MEME"
+author: "[Michael Love](http://mikelove.github.io)"
+output: html_document
+---
+
+Create a motif:
+
+```{r}
+n <- 300 # number of DNA sequences
+l <- 100 # number of nucleotides for each sequence
+ml <- 10 # the length of the true motif
+set.seed(5)
+motif <- sample(1:4, ml, TRUE)
+motif
+```
+Embed the motif in some sequences:
+
+```{r}
+x0 <- matrix(sample(1:4, n * l, TRUE),nrow=n)
+z0 <- sample(l - ml + 1, n, TRUE)
+for (i in seq_len(n)) {
+  x0[i, z0[i] + 0:(ml-1)] <- motif
+}
+head(z0)
+x0[1,z0[1] + 0:(ml-1)]
+motif
+# add more noise (20%):
+noise <- .2
+x0 <- matrix(
+  ifelse(sample(0:1, n * l, TRUE, c(1-noise,noise)), sample(1:4, n * l, TRUE), x0),
+  nrow=n)
+x0[1,z0[1] + 0:(ml-1)]
+```
+
+Redefine the data as MEME does (sliding window)
+
+```{r}
+x <- matrix(nrow=n * (l - ml + 1), ncol=ml)
+for (i in seq_len(n)) {
+  for (j in seq_len(l - ml + 1)) {
+    x[(i-1) * (l - ml + 1) + j,] <- x0[i,j + 0:(ml-1)]
+  }
+}
+motif_idx <- z0 + 0:(n-1) * (l - ml + 1) # the motifs
+head(x[motif_idx,])
+z <- numeric(length=nrow(x))
+z[motif_idx] <- 1
+table(z)
+```
+
+```{r}
+pheatmap::pheatmap(x[motif_idx,], cluster_cols=FALSE, color=palette.colors()[2:5])
+```
+
+```{r}
+theta0 <- matrix(runif(ml*4),ncol=ml)
+theta0 <- sweep(theta0, 2, colSums(theta0), "/")
+niter <- 10
+```
