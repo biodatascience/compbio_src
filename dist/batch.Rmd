@@ -50,10 +50,6 @@ the samples were processed: the batch.
 We start again with the GEUVADIS RNA-seq samples prepared
 in [distances](distances.html). 
 
-```{r echo=FALSE}
-knitr::opts_chunk$set(cache=TRUE)
-```
-
 ```{r message=FALSE}
 library(DESeq2)
 load("geuvadis.rda")
