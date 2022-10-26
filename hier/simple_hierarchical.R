@@ -1,85 +1,85 @@
 # simple hierarchical model
 n <- 1000
-mu <- rnorm(n)
-y_sd <- 1
-y <- rnorm(n, mu, y_sd)
-var(y)
+theta <- rnorm(n)
+x_sd <- 1
+x <- rnorm(n, theta, x_sd)
+var(x)
 
 # add two points of complexity: 1) heavy tails 2) est of SD
 set.seed(1)
 n <- 5000
-mu <- rt(n, df=3)
-y_sd <- rgamma(n, 2, 1)
-y <- rnorm(n, mu, y_sd)
+theta <- rt(n, df=3)
+x_sd <- rgamma(n, 2, 1)
+x <- rnorm(n, theta, x_sd)
 df <- 10
-y_sd_est <- y_sd/df * rchisq(n, df=df)
+x_sd_est <- x_sd/df * rchisq(n, df=df)
 
-plot(y_sd, y_sd_est)
+plot(x_sd, x_sd_est)
 
 library(ggplot2)
 suppressPackageStartupMessages(library(dplyr))
 library(tibble)
 
-dat <- tibble(mu, y, y_sd, y_sd_est)
+dat <- tibble(theta, x, x_sd, x_sd_est)
 
-# show how large ests can come from mu or SD
+# show how large ests can come from theta or SD
 dat %>% 
   slice(1:50) %>%
-  arrange(y_sd) %>%
-  mutate(idx = seq_along(y)) %>%
-  ggplot(aes(idx, y)) + 
+  arrange(x_sd) %>%
+  mutate(idx = seq_along(x)) %>%
+  ggplot(aes(idx, x)) + 
   geom_point(shape=4,size=3,stroke=2) + 
-  geom_pointrange(aes(idx, mu, 
-                      ymin=mu-2*y_sd, 
-                      ymax=mu+2*y_sd),
+  geom_pointrange(aes(idx, theta, 
+                      ymin=theta-2*x_sd, 
+                      ymax=theta+2*x_sd),
                   col="blue")
 
-# add ranking by data and true value 'mu'
+# add ranking by data and true value 'theta'
 dat <- dat %>% 
-  arrange(-abs(y)) %>%
-  mutate(rank_y = seq_along(y),
-         rank = rank(-abs(mu)))
+  arrange(-abs(x)) %>%
+  mutate(rank_x = seq_along(x),
+         rank = rank(-abs(theta)))
 
 # top ranked by data
 dat %>%
   slice(1:500) %>%
-  ggplot(aes(rank_y, y)) + 
+  ggplot(aes(rank_x, x)) + 
   geom_point(size=.5) + 
-  geom_point(aes(rank_y, mu, color=log(y_sd)))
+  geom_point(aes(rank_x, theta, color=log(x_sd)))
 
 # add z-score, and show rank by z-score
 dat %>%
-  mutate(z = y/y_sd_est,
+  mutate(z = x/x_sd_est,
          rank_z = rank(-abs(z))) %>%
   arrange(rank_z) %>%
   slice(1:1000) %>%
   ggplot(aes(rank_z, z)) + 
   geom_point(size=.5) + 
-  geom_point(aes(rank_z, mu, color=log(y_sd/y_sd_est))) +
+  geom_point(aes(rank_z, theta, color=log(x_sd/x_sd_est))) +
   coord_cartesian(ylim=c(-15,15))
 
 # fit a hierarchical model: adaptive shrinkage, "ash"
 library(ashr)
 fit <- with(
-  dat, ash(y, y_sd_est, method="shrink"))
+  dat, ash(x, x_sd_est, method="shrink"))
 
 # add the posterior mean to the dataset
 dat <- dat %>%
-  mutate(posterior_mean_mu = fit$result$PosteriorMean,
-         rank_ash = rank(-abs(posterior_mean_mu)))
+  mutate(posterior_mean_theta = fit$result$PosteriorMean,
+         rank_ash = rank(-abs(posterior_mean_theta)))
 
 # rank by ash posterior mean
 dat %>%
   arrange(rank_ash) %>%
   slice(1:500) %>%
-  ggplot(aes(rank_ash, posterior_mean_mu)) + 
+  ggplot(aes(rank_ash, posterior_mean_theta)) + 
   geom_point(size=.5) + 
-  geom_point(aes(rank_ash, mu, col=log(y_sd)))
+  geom_point(aes(rank_ash, theta, col=log(x_sd)))
 
 # make a CAT plot: concordance at the top
 cuts <- seq(from=25,to=1000,by=25)
 cat <- matrix(nrow=length(cuts), ncol=2)
-var <- c("rank_y","rank_ash")
+var <- c("rank_x","rank_ash")
 colnames(cat) <- var
 for (i in seq_along(cuts)) {
   for (j in 1:2) {
@@ -92,7 +92,7 @@ for (i in seq_along(cuts)) {
 }
 
 # CAT plot
-plot(cuts, cat[,"rank_y"], type="o", col=2, ylab="", ylim=c(0,.8))
+plot(cuts, cat[,"rank_x"], type="o", col=2, ylab="", ylim=c(0,.8))
 points(cuts, cat[,"rank_ash"], type="o", col=4)
 legend("bottomright", var, pch=1, lty=1, col=c(2,4), inset = .05)
 
