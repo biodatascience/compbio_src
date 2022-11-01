@@ -15,8 +15,8 @@ plot(theta, x)
 points(theta, tab[1:n,1], col="red")
 
 # data
-mean((theta - x)^2)
+sqrt(mean((theta - x)^2))
 # prior mean
-mean(theta^2)
+sqrt(mean(theta^2))
 # posterior means
-mean((theta - tab[1:n,1])^2)
+sqrt(mean((theta - tab[1:n,1])^2))
