@@ -285,7 +285,7 @@ As with *SummarizedExperiment*, there is a "tidy" way to work with *GRanges*,
 called *plyranges*. For more examples of this type of analysis, take a look at
 some tutorial content I've been working on here:
 
-<https://nullranges.github.io/tidy-ranges-tutorial>
+<https://tidybiology.github.io/tidy-ranges-tutorial>
 
 ```{r message=FALSE}
 library(plyranges)

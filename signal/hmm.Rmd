@@ -25,10 +25,6 @@ segmentation*. If we have time we will also cover this algorithm.)
 
 If we draw all the values, lined up along the genome, it looks like this:
 
-```{r echo=FALSE}
-knitr::opts_chunk$set(cache=TRUE)
-```
-
 ```{r}
 library(DNAcopy)
 data(coriell)
