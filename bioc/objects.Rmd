@@ -33,14 +33,33 @@ Before we get started, you need to know how to install Bioconductor packages.
 The most important details are:
 
 -   Bioconductor is a package repository, like CRAN
--   All Bioconductor packages **must** be installed following the instructions
+-   All Bioconductor packages should be installed following the instructions
     here: <https://bioconductor.org/install>
+    (the only real exception is if you want to obtain 
+	[Linux binaries](https://eddelbuettel.github.io/r2u/),
+    but for working on Windows or Mac, you should stick to the above 
+	instructions)
 -   Bioconductor packages are linked in their versions, both to each other and
     to the version of R
 -   Bioconductor's installation function will look up your version of R and give
     you the appropriate versions of Bioconductor packages
 -   If you want the latest version of Bioconductor, you need to use the latest
     version of R
+
+**Our version of R/Bioconductor**
+
+We will be using this version of R and Bioconductor:
+
+```{r}
+print(paste(
+  "R version:",
+  getRversion()
+))
+print(paste(
+  "Bioc version:",
+  BiocManager::version()
+))
+```
 
 How do you know if a package is a Bioconductor package? For one thing, you can
 just google the package name and you'll see either CRAN or Bioconductor as a
