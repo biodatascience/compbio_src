@@ -9,8 +9,8 @@ editor_options:
 
 Why use Bioconductor? From a user perspective, the answer is clear: because many
 statisticians, bioinformaticians, and computer scientists have spent time
-writing methods and algorithms specifically for biological (often genomic) data.
-A reason for this (why many people have contributed to this project) is that
+writing methods and algorithms specifically for biological/genomic data.
+A reason for this, and why many people have contributed to this project, is that
 there is a shared infrastructure for common data types. This infrastructure is
 built up of object classes. An example of a class is *GRanges* (stands for
 "genomic ranges"), which is a way to specify a set of ranges in a particular
@@ -21,7 +21,7 @@ What's an object? Well everything in R is an object, but usually when we talk
 about Bioconductor objects, we mean data structures containing many attributes,
 so more complex than a vector or matrix. And the objects have specific *methods*
 that help you either access the information in the object, run analyses on the
-object, plot the object, etc. Bioconductor also allows for *class hierarchy*,
+object, plot the object, etc. Bioconductor also allows for *inheritance*,
 which means that you can define a class of object that inherits the structure
 and methods of a *superclass* on which it depends. This last point is mostly
 important for people who are developing new software for Bioconductor (maybe
