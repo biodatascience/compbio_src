@@ -2,9 +2,6 @@
 title: "Genomic ranges: GRanges"
 author: "[Michael Love](http://mikelove.github.io)"
 output: html_document
-editor_options: 
-  markdown: 
-    wrap: 80
 ---
 
 Here we show off the way we specify genomic ranges in Bioconductor, using the
@@ -78,6 +75,14 @@ the ranges themselves, in case the user asks to, e.g. move all ranges 1 million
 basepairs to the right. This is not necessarily possible if we have a range that
 ends less than 1 million basepairs from the end of a chromosome. So the
 *GRanges* object really needs to also contain details about the genome itself.
+
+# BED files and GRanges
+
+```{bash}
+echo 'hi'
+```
+
+# GRanges range manipulation
 
 Here we show some basic manipulations of *GRanges*:
 
