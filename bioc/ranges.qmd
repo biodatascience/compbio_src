@@ -78,8 +78,31 @@ ends less than 1 million basepairs from the end of a chromosome. So the
 
 # BED files and GRanges
 
+```{r message=FALSE}
+chr1query <- plyranges::read_bed("chr1_query.bed")
+txp <- plyranges::read_bed("chr1_100Mb_v86_txps.bed")
+genome(chr1query) <- "hg38"
+genome(txp) <- "hg38"
+chr1query
+txp
+```
+
+```{r}
+txp[ overlapsAny(txp, chr1query) ]
+txp[ overlapsAny(txp, chr1query[2:3]) ]
+txp[ overlapsAny(txp, chr1query, ignore.strand=TRUE) ]
+```
+
 ```{bash}
-echo 'hi'
+bedtools intersect -wa -a chr1_100Mb_v86_txps.bed -b chr1_query.bed | head -3
+```
+
+```{bash}
+bedtools intersect -wa -a chr1_100Mb_v86_txps.bed -b chr1_query.bed | wc -l
+```
+
+```{bash}
+bedtools intersect -s -wa -a chr1_100Mb_v86_txps.bed -b chr1_query.bed | wc -l
 ```
 
 # GRanges range manipulation
@@ -275,13 +298,14 @@ If we just wanted to subset to the genes which overlap a given range, we can use
 `overlapsAny`:
 
 ```{r}
-g[overlapsAny(g, query[1])]
+g[ overlapsAny(g, query[1]) ]
 ```
 
-This is equivalent to the following:
+This is equivalent to the following
+(while the binary operator however doesn't allow for arguments):
 
 ```{r}
-g[g %over% query[1]]
+g[ g %over% query[1] ]
 ```
 
 # plyranges
