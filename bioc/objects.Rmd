@@ -411,31 +411,21 @@ library(scater)
 plotReducedDim(sce, "PCA", color_by="treatment")
 ```
 
-# Going further: tidySE
+# Other specialized objects in Bioconductor
 
-If you are interested in combining the "tidy" *dplyr* style of 
-interacting with datasets with SE there is *tidySummarizedExperiment*,
-a Bioconductor package that integrates this class with these familiar
-verbs. See for example:
+Some other specialized objects that build on the SummarizedExperiment include:
 
-<https://stemangiola.github.io/tidySummarizedExperiment/>
-
-```{r eval=FALSE}
-library(tidySummarizedExperiment)
-se <- SummarizedExperiment(assay = list("exprs" = exprs),
-                           colData = col_data)
-# filter to samples in condition A
-se %>% filter(condition == "A")
-# total over all genes, per condition
-se %>%
-  group_by(condition) %>%
-  summarize(total=sum(exprs)) 
-# the features where mean expression > .25
-se %>% 
-  group_by(.feature) %>%
-  mutate(mean_exprs = mean(exprs)) %>%
-  filter(mean_exprs > .25)
-```
+* [SpatialExperiment](https://www.bioconductor.org/packages/SpatialExperiment)
+  with best practices outlined [here](https://lmweber.org/BestPracticesST/)
+* [QFeatures](https://www.bioconductor.org/packages/QFeatures) for
+  high-throughput mass spectrometry
+* [MultiAssayExperiment](https://www.bioconductor.org/packages/MultiAssayExperiment)
+  for multiple experimental assays performed on an overlapping set of specimens,
+  e.g. RNA-seq, copy number, DNA methylation, etc.
+* [MethylationArray](https://www.bioconductor.org/packages/minfi) for DNA
+  methylation arrays
+* [TreeSummarizedExperiment](https://www.bioconductor.org/packages/TreeSummarizedExperiment)
+  for data with hierarchical or tree-like structure on the rows or columns
 
 ```{r}
 sessionInfo()
