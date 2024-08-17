@@ -1,7 +1,9 @@
 ---
 title: "Genomic ranges: GRanges"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format: 
+  html:
+    embed-resources: true
 ---
 
 In this lecture note, we demonstrate how to specify regions of the
