@@ -1,7 +1,9 @@
 ---
 title: "Distance part 2: hierarchical clustering"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format: 
+  html:
+    embed-resources: true
 ---
 
 Here we will examine distances a little more, including looking into
@@ -16,7 +18,6 @@ knitr::opts_chunk$set(cache=TRUE)
 ```{r message=FALSE}
 library(DESeq2)
 load("geuvadis.rda")
-dds.f <- dds[,!dds$male]
 ```
 
 # Picking a transformation
@@ -31,7 +32,7 @@ standard deviation of the log scaled counts for each gene over the
 mean:
 
 ```{r message=FALSE}
-ntd <- normTransform(dds.f)
+ntd <- normTransform(dds)
 library(vsn)
 meanSdPlot(assay(ntd), ranks=FALSE)
 ```
@@ -68,7 +69,7 @@ of genes which show true biological differences across the samples. We
 only seek to remove *systematic trends* in the variance over the mean.
 
 ```{r}
-vsd <- vst(dds.f)
+vsd <- vst(dds)
 meanSdPlot(assay(vsd), ranks=FALSE)
 ```
 

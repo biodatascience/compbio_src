@@ -1,7 +1,9 @@
 ---
 title: "Computing distances for high-throughput data"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format: 
+  html:
+    embed-resources: true
 ---
 
 Here we will explore a number of issues involved in comparing samples
@@ -34,12 +36,12 @@ We start by downloading the summarized data from
 downloads ~75 Mb). 
 
 ```{r message=FALSE}
+library(here)
 library(SummarizedExperiment)
 url <- "http://duffel.rail.bio/recount/ERP001942/rse_gene.Rdata"
-file <- "geuvadis_recount2.rda"
+file <- here("bioc","geuvadis_recount2.rda")
 if (!file.exists(file)) download.file(url, file)
 load(file)
-library(here)
 source(here("bioc","my_scale_counts.R"))
 rse <- my_scale_counts(rse_gene)
 ```
@@ -188,10 +190,10 @@ log.cts <- log(assay(rse) + 1)
 rv <- rowVars(log.cts)
 o <- order(rv,decreasing=TRUE)
 system.time({
-  pc <- prcomp(t(log.cts[head(o,20000),]))
-}) # takes ~1 min
+  pc <- prcomp(t(log.cts[head(o, 10000),]))
+}) # takes ~10 seconds
 plot(cspm, pc$x[,1])
-outlier <- which(pc$x[,1] > 300)
+outlier <- which(pc$x[,1] > 200)
 points(cspm[outlier], pc$x[outlier,1], col="blue", cex=3)
 ```
 
@@ -211,7 +213,7 @@ remove this technical effect.
 
 ```{r}
 system.time({
-  pc <- prcomp(t(log.cts[head(o,20000),-outlier]))
+  pc <- prcomp(t(log.cts[head(o, 10000),-outlier]))
 }) # takes ~1 min
 plot(cspm[-outlier], pc$x[,1])
 ```
@@ -312,91 +314,38 @@ the next lecture).
 library(DESeq2)
 dds <- DESeqDataSet(rse, ~1)
 ntd <- normTransform(dds)
-plotPCA(ntd, c("center"))
+plotPCA(ntd, c("center"), ntop=2000)
 ```
-
-If we plot by the human population of the RNA-seq sample donors, we
-see this explains PC1, but not PC2, where we see the clear separation.
 
 ```{r}
-plotPCA(ntd, c("population"))
+plotPCA(ntd, c("population"), ntop=2000)
 ```
-
-A reasonable guess is that PC2 represents the differences between the
-sexes of the donors. We don't have this information in the metadata,
-but we can make a rough guess of sex by summing up the counts of
-genes expressed on the Y chromosome. 
-
-**Note**: this is just a rough guess of the sex of the donors, for
-demonstration of exploring this data. You wouldn't use such a method
-for a final analysis. Another important note is that the Y chromosome
-gene expression has nothing to do with the *gender* or
-self-identification of the donors, and that binarizing a variable like
-sex is an oversimplification. When talking about the sex
-chromosomes, or biological sex, it is important to use the correct
-term "sex" and not "gender".
-
-We find out which `rowRanges` of the dataset are on `chrY`,
-and then compute the sum of scaled counts from those genes:
 
 ```{r}
-chrY <- as.logical(seqnames(rowRanges(ntd)) == "chrY")
-dds <- estimateSizeFactors(dds)
-chrYexprs <- colSums(counts(dds, normalized=TRUE)[chrY,])
-hist(chrYexprs, breaks=100, col="grey")
+rv <- rowVars(assay(ntd))
+o <- order(rv, decreasing=TRUE)
+system.time({
+  pc <- prcomp(t(assay(ntd)[head(o, 2000),]))
+}) # takes ~2 seconds
+plot(pc$x[,1:2], col=as.numeric(ntd$population) + 1, pch=20)
 ```
-
-It's a bit more clear on the log scale that there are two clusters: 
 
 ```{r}
-hist(log10(chrYexprs), breaks=100, col="grey")
+save(dds, file=here("bioc","geuvadis.rda"))
 ```
 
-We make an estimate of sex by setting an arbitrary cut-point, and we
-see that this roughly divides the groups of samples we saw as PC2:
-
-```{r}
-ntd$male <- log10(chrYexprs) > 3.5
-plotPCA(ntd, intgroup="male")
-```
-
-We add our estimate of sex to the `colData` of the dataset, and save
-this object, so we can continue working with this data later. The
-saved version should be about 40 Mb.
-
-```{r}
-dds$male <- log10(chrYexprs) > 3.5
-table(dds$male)
-save(dds, file="geuvadis.rda")
-```
-
-Let's subset to just the female samples, and recalculate a PCA. We
-don't see much clustering by the sequencing center overall:
-
-```{r}
-dds.f <- dds[,!dds$male]
-ntd.f <- normTransform(dds.f)
-plotPCA(ntd.f, c("center"))
-```
-
-But we can see clear clustering by the human populations:
-
-```{r}
-plotPCA(ntd.f, c("population"))
-```
-
-Finally, I note that, although we didn't see clustering by sequencing
-center in the top two PCs above, there is still some technical
-variation present in the scaled counts, associated with sequencing
-center. For example, we can run F-tests on each row to find
-association of log scaled counts with center. We then plot the log
-scaled counts for the gene with the smallest p-value (uncorrected).
+Although we didn't see clustering by sequencing center in the top two
+PCs above, there is still some technical variation present in the
+scaled counts, associated with sequencing center. For example, we can
+run F-tests on each row to find association of log scaled counts with
+center. We then plot the log scaled counts for the gene with the
+smallest p-value (uncorrected).
 
 ```{r message=FALSE}
 library(genefilter)
-tests <- rowFtests(assay(ntd.f), ntd.f$center)
-top.gene.log.exprs <- assay(ntd.f)[which.min(tests$p.value),]
-plot(top.gene.log.exprs ~ ntd.f$center)
+tests <- rowFtests(assay(ntd), ntd$center)
+top.gene.log.exprs <- assay(ntd)[which.min(tests$p.value),]
+plot(top.gene.log.exprs ~ ntd$center)
 ```
 
 You can see from a histogram of p-values over all genes, that there is

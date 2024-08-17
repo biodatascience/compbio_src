@@ -1,7 +1,9 @@
 ---
 title: "Batch effects and GC content"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format: 
+  html:
+    embed-resources: true
 ---
 
 Previously, we looked at distances between samples in high-throughput
@@ -24,8 +26,12 @@ as a sample from a different sequencing center.
 Two references which give a general outline of batch effects in
 sequencing data are:
 
-* [Tackling the widespread and critical impact of batch effects in high-throughput data](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3880143/)
-* [Analyzing and minimizing PCR amplification bias in Illumina sequencing libraries](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3188800/)
+* Tackling the widespread and critical impact of batch effects in 
+  high-throughput data 
+  [link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3880143/)
+* Analyzing and minimizing PCR amplification bias in Illumina 
+  sequencing libraries 
+  [link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3188800/)
 
 It is critical, if you are involved in the design of a high-throughput
 experiment, that the biological conditions are not *confounded* with
@@ -138,6 +144,7 @@ Now we extract the exonic sequence for every gene, using
 the `extractTranscriptSeqs` function. 
 
 ```{r message=FALSE}
+# package is ~700 Mb
 library(BSgenome.Hsapiens.UCSC.hg38)
 dna <- extractTranscriptSeqs(Hsapiens, rowRanges(dds))
 ```

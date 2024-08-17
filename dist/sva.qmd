@@ -1,7 +1,9 @@
 ---
 title: "Surrogate variable analysis: hidden batch effects"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format: 
+  html:
+    embed-resources: true
 ---
 
 We showed in the section on [batch effects](batch.html), that we can
@@ -18,13 +20,23 @@ biological conditions.
 
 For the description of the SVA method, see these two papers:
 
-* [Capturing Heterogeneity in Gene Expression Studies by Surrogate Variable Analysis](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1994707/)
-* [svaseq: removing batch effects and other unwanted noise from sequencing data](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4245966/)
+* Capturing Heterogeneity in Gene Expression Studies by Surrogate 
+  Variable Analysis 
+  [link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1994707/)
+* svaseq: removing batch effects and other unwanted noise from 
+  sequencing data 
+  [link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4245966/)
 
-Other methods which can identify hidden batches are described in these papers:
+Other methods which can identify hidden batches are described in these 
+papers:
 
-* [Normalization of RNA-seq data using factor analysis of control genes or samples](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4404308/)
-* [Using probabilistic estimation of expression residuals (PEER) to obtain increased power and interpretability of gene expression analyses](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3398141/)
+* Normalization of RNA-seq data using factor analysis of control genes
+  or samples 
+  [link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4404308/)
+* Using probabilistic estimation of expression residuals (PEER) to 
+  obtain increased power and interpretability of gene expression 
+  analyses 
+  [link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3398141/)
 
 We start by downloading RNA-seq count tables from the original 
 [recount](http://bowtie-bio.sourceforge.net/recount/)
