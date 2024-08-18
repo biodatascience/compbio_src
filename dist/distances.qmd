@@ -214,7 +214,7 @@ remove this technical effect.
 ```{r}
 system.time({
   pc <- prcomp(t(log.cts[head(o, 10000),-outlier]))
-}) # takes ~1 min
+}) # takes ~10 seconds
 plot(cspm[-outlier], pc$x[,1])
 ```
 
@@ -290,7 +290,7 @@ abline(h=0, col="red", lwd=3)
 abline(h=median.lfc, col="blue", lwd=3)
 ```
 
-# What do we see after scaling
+# PCA after scaling
 
 Instead of doing all this computation manually, we can use a
 Bioconductor package *DESeq2* to do it for us. We will explore more
@@ -313,13 +313,24 @@ the next lecture).
 ```{r}
 library(DESeq2)
 dds <- DESeqDataSet(rse, ~1)
+dds <- estimateSizeFactors(dds)
 ntd <- normTransform(dds)
 plotPCA(ntd, c("center"), ntop=2000)
 ```
 
+Not much variance explained in the first two PCs by center, what about
+the human population of the donor:
+
 ```{r}
 plotPCA(ntd, c("population"), ntop=2000)
 ```
+
+So it seems there is a good amount of biological variance due to
+the human population of the donor in the top 2,000 features ranked
+by variance.
+
+We can recompute this manually (the same code is run inside of 
+`plotPCA`):
 
 ```{r}
 rv <- rowVars(assay(ntd))
@@ -329,6 +340,32 @@ system.time({
 }) # takes ~2 seconds
 plot(pc$x[,1:2], col=as.numeric(ntd$population) + 1, pch=20)
 ```
+
+Let's examine the distribution of the PCs:
+
+```{r message=FALSE}
+library(tidyr)
+library(dplyr)
+pc_long <- pc$x[,1:9] |>
+  as.data.frame() |>
+  pivot_longer(cols = everything(), 
+               names_to = "PC", 
+               values_to = "score")
+library(ggplot2)
+ggplot(pc_long, aes(x = score)) +
+  geom_density(alpha = 0.3) +
+  facet_wrap(~ PC)
+```
+
+PC3 seems to be related to expression of genes on sex chromosomes:
+
+```{r}
+chrY <- as.logical(seqnames(rowRanges(dds)) == "chrY")
+chrYexprs <- colSums(counts(dds, normalized=TRUE)[chrY,])
+plot(pc$x[,3], chrYexprs)
+```
+
+We save the dataset for use in later documents.
 
 ```{r}
 save(dds, file=here("bioc","geuvadis.rda"))
