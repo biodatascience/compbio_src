@@ -1,7 +1,9 @@
 ---
 title: "Exploring RNA measurements from brain"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format:
+  html:
+    embed-resources: true
 ---
 
 Here we will show some very simple explorations of high-dimensional
@@ -11,7 +13,8 @@ study ID `SRP012682` and it happens to be the
 [GTEx](https://gtexportal.org).
 
 You can look up the study on the SRA (Sequence Read Archive) or the
-ENA (European Nucleotide Archive) and find a [description](http://www.ebi.ac.uk/ena/data/view/PRJNA75899):
+ENA (European Nucleotide Archive) and find a 
+[description](http://www.ebi.ac.uk/ena/data/view/PRJNA75899):
 
 > The aim of the Genotype-Tissue Expression (GTEx) Project is to
 > increase our understanding of how changes in our genes affect human
@@ -44,8 +47,9 @@ We can then download the summarized experiment data (note, it is 200
 Mb so it may take a minute):
 
 ```{r}
+library(here)
 url <- "http://duffel.rail.bio/recount/SRP012682/rse_gene_brain.Rdata"
-file <- "brain.rda"
+file <- here("eda","brain.rda")
 if (!file.exists(file)) download.file(url, file)
 load(file)
 ```
