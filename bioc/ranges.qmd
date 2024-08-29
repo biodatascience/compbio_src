@@ -32,9 +32,9 @@ name is *GenomicRanges*, we don't specify that the molecule is
 necessarily DNA, as it could also in theory be RNA or protein sequence
 within which we are referring to ranges.
 
-# Interval ranges
+# Integer ranges
 
-Let's start with a set of interval ranges, an *IRanges* object.
+Let's start with a set of integer ranges, an *IRanges* object.
 
 ```{r message=FALSE}
 library(GenomicRanges)
@@ -60,7 +60,7 @@ arrows to show it includes the last basepair.
 
 Note that the convention used in Bioconductor to define interval
 ranges is not universal. The BED convention is that the range does
-**not** include the start position of the range. So the interval range
+**not** include the start position of the range. So the integer range
 written `101 110` in BED format would not include the 101th basepair.
 These details matter when we want to refer to specific sequences in
 the genome, e.g. the transcription start site, or TSS, of a gene.
@@ -77,7 +77,7 @@ arrows(start(ir),seq_along(ir),end(ir)+1,seq_along(ir),
 
 # Genomic ranges
 
-So far we've just shown interval ranges. To specify a genomic range,
+So far we've just shown integer ranges. To specify a genomic range,
 we also will come up with the *strand* of the ranges (+ or -) and the
 chromosome.
 
