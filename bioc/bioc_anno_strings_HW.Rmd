@@ -86,3 +86,150 @@ Compare the exonic GC content across two types of genes:
 Repeat for the gene GC content.
 It is sufficient to compare visually.
 
+# Bonus Question 1 - gene response to virus
+
+Load the *Homo sapiens* `OrgDb` we saw in class with the code below.
+
+Our goal in this question is to look up the genes with
+the GO term "response to virus", which is `GO:0009615`, and see how
+these genes behaved in the experiment with asthmatic and non-asthmatic
+donors treated with rhinovirus.
+
+The first step is to build a character vector of the IDs of genes
+that are associated with this GO term: `GO:0009615`. The dataset
+we want to look at uses Ensembl ID's on the rows, so you should look
+up the Ensembl IDs in the OrgDb. Note that there will be duplicate
+entries when you look up these IDs so you should use the `unique`
+function to de-duplicate. You should have 121 `ENSG` identifiers after
+de-duplicating.
+
+```{r message=FALSE}
+library(AnnotationHub)
+ah <- AnnotationHub()
+orgdb <- query(ah, c("Homo sapiens","OrgDb"))[[1]]
+```
+
+```{r}
+tab <- select(orgdb, "GO:0009615", columns="ENSEMBL", keytype="GO")
+sum(duplicated(tab$ENSEMBL))
+ids <- unique(tab$ENSEMBL)
+```
+
+The next step is to see how the genes associated with "response to
+virus" behaved in this experiment where the donors were infected with
+rhinovirus. Use the code below to load the asthma RNA-seq dataset. 
+
+For students using Windows: copy the URL below into a web browser and
+then save the file locally into your R working directory with the name
+`asthma.rda`. This will avoid a "magic number" error message.
+
+After you have loaded and prepared `rse`, find the genes that match
+the Ensembl IDs for response to virus. Because the rownames have an extra
+version number tacked on to the Ensembl ID, I have provided some code
+for creating a new metadata column that just has the Ensembl ID before the
+version number.
+
+Note that not all the Ensembl IDs associated with the GO term will
+have a match in the Ensembl IDs associated with `rse`. You can drop
+the IDs that don't have a match.
+
+Finally, construct a matrix of log2(counts + 1) for these "response to
+virus" genes. Subtract the row mean of this matrix to make the genes
+comparable. Take the column means of this matrix and make a boxplot of
+the column means over `rse$treatment`. How do you interpret this plot?
+
+(We will show a better performing transformation than log2(counts + 1)
+next week.) 
+
+```{r message=FALSE}
+url <- "http://duffel.rail.bio/recount/SRP046226/rse_gene.Rdata"
+file <- "asthma.rda"
+if (!file.exists(file)) download.file(url, file)
+load(file)
+library(here)
+library(SummarizedExperiment)
+library(magrittr)
+source(here("bioc","my_scale_counts.R"))
+rse <- my_scale_counts(rse_gene)
+rse$condition <- sapply(rse$characteristics, `[`, 3)
+rse$treatment <- sapply(rse$characteristics, `[`, 4)
+rse$condition %<>% (function(x) {
+  factor(sub("-",".", sub("disease state: (.*)","\\1",x) ))
+  })
+rse$treatment %<>% (function(x) factor(sub("treatment: (.*)","\\1",x)))
+rse$condition %<>% relevel("non.asthmatic")
+rse$treatment %<>% relevel("Vehicle")
+```
+
+# Bonus Question 2 - string kernel
+
+This week has an extra credit question you can complete if you
+like. There are specific proteins that bind to DNA called
+*transcription factors*. These can either bind to a region upstream of
+the start of a gene, called a *promoter* or to more distal regions
+called *enhancers*. Transcription factors, or TFs, have specific
+sequences that they "prefer" to bind to, which is sometimes called
+their binding affinity. This refers to a lower energy state of the
+protein-DNA complex compared to if the TF were to bind to other DNA
+sequences. The specific sequence is often called a *motif*.
+
+Here we will download experimental data indicating the regions where a
+protein called cJun was bound to DNA in a human cell line called
+K562. cJun is part of a larger protein complex called AP-1, which is a
+transcription factor. The consensus motif for AP-1 is often reported as
+`TGAGTCA`.
+
+The following code downloads the "peaks" for cJun in K562 (the data
+are labeled as the transcription factor binding sites of TFBS). We
+then take the top 200 peaks by q-value, and focus on 100 bp around the
+basepair with most evidence of binding (the "peak" of the
+"peak"... the terminology is obviously not great). We do this by
+narrowing the start position to 50 bp less than the peak bp and then
+resizing to 100 bp. 
+
+Collect the DNA sequence of the peaks and some control regions (you
+can use 1000 bp to the right as control regions). Use the Homo sapiens
+UCSC hg19 genome package on Bioconductor.
+
+We will explore the data using a *string kernel*. A string kernel is a
+method for calculating a dot product or similarity between two data
+points. For DNA strings, it counts up the number of shared sub-strings
+between two sequences. It is therefore linear in the length of the
+sequences, but allows for distance calculations in a very high
+dimensional space. Note that the sub-strings do not have to appear in
+the same order in the two sequences being compared.
+
+Then explore the data using kernel PCA or kernel SVM with a string
+kernel, using the R package *kernlab*. You can obtain the string
+kernel with the function `stringdot` and I recommend to try different
+length of string (I found interesting results with length of 6). Note
+that to provide DNA strings to the *kernlab* package you will need to
+run `as.character` on the DNAStringSet from Bioconductor, and
+additionally `as.list` (the functions in *kernlab* seem to expect
+lists of characters for computing the string kernel).
+
+Additionally, use `vmatchPattern` to determine how much more often the
+AP-1 motif is found in the experimentally detected binding sites of
+cJun compared to control regions. You should count both a match of the
+motif given above, as well as its reverse complement.
+
+```{r}
+library(AnnotationHub)
+ah <- AnnotationHub()
+peaks0 <- query(ah, c("Cjun", "Tfbs","K562","StdPk"))[[1]]
+ntop <- 200
+peaks <- peaks0[ head(order(peaks0$qValue),ntop) ]
+peaks <- narrow(peaks, peaks$peak - 50)
+peaks <- resize(peaks, 100)
+```
+
+```{r}
+library(Biostrings)
+library(BSgenome.Hsapiens.UCSC.hg19)
+jun <- getSeq(Hsapiens, peaks)
+control <- getSeq(Hsapiens, shift(peaks, 1000))
+```
+
+```{r}
+sessionInfo()
+```
