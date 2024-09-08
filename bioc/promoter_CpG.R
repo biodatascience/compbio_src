@@ -2,19 +2,29 @@ library(BSgenome.Hsapiens.UCSC.hg38)
 library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 suppressMessages({
   g <- genes(TxDb.Hsapiens.UCSC.hg38.knownGene)
-  g <- keepStandardChromosomes(g, pruning.mode="coarse")
 })
+g <- keepStandardChromosomes(g, pruning.mode="coarse")
+library(org.Hs.eg.db)
+library(plyranges)
+# here we use RefSeq to align with the housekeeping IDs later
+g <- g |>
+  mutate(refseq = mapIds(org.Hs.eg.db, gene_id, "REFSEQ", "ENTREZID"))
+
+# NM for mRNA, NR for ncRNA
+table(substr(g$refseq,1,2))
+
+# subset to mRNA
+g <- g |>
+  plyranges::filter(grepl("NM",refseq))
+
 pro <- promoters(g, upstream=1500, downstream=1500)
 seq <- getSeq(Hsapiens, pro)
 gc <- as.vector( letterFrequency(seq, letters="GC") / 3000 )
 cpg <- as.vector( vcountPDict(PDict("CG"), seq) / 3000 )
 
-library(plyranges)
 g <- g |>
   mutate(norm_cpg = cpg / (gc/2)^2)
 
-library(org.Hs.eg.db)
-g$refseq <- mapIds(org.Hs.eg.db, g$gene_id, "REFSEQ", "ENTREZID")
 load("~/Downloads/Housekeeping_GenesHuman.RData")
 head(Housekeeping_Genes)
 g <- g |>
