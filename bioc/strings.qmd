@@ -1,10 +1,9 @@
 ---
 title: "Working with DNA sequences using Biostrings"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
-editor_options: 
-  markdown: 
-    wrap: 72
+format: 
+  html:
+    embed-resources: true
 ---
 
 In this last section, we combine what we learned about
@@ -12,8 +11,9 @@ In this last section, we combine what we learned about
 sequences of DNA from a genome.
 
 First we introduce the Bioconductor package that we use to manipulate
-DNA strings (also RNA strings or amino acid strings). First, I load the
-package, and create a short character string with some letters of DNA:
+DNA strings (also RNA strings or amino acid strings). First, I load
+the package, and create a short character string with some letters of
+DNA:
 
 ```{r message=FALSE}
 library(Biostrings)
@@ -22,23 +22,23 @@ class(dna)
 ```
 
 A simple character string in R doesn't help us much for working with
-DNA. We can `subset` out parts of it using base R, but there's a not of
-functionality missing. Note what we can do once we turn it into a
+DNA. We can `subset` out parts of it using base R, but there's a not
+of functionality missing. Note what we can do once we turn it into a
 *DNAString* object. The reverse complement of a string is the letters
-you would see on the antisense strand of DNA, going from right to left.
-This is a useful function; for example, if we have a gene that is
-transcribed on the - strand, the RNA that is produced will be the
-reverse complement of the DNA on the + strand (this is the DNA that you
-see in the *reference genome*, which we will load later).
+you would see on the antisense strand of DNA, going from right to
+left. This is a useful function; for example, if we have a gene that
+is transcribed on the - strand, the RNA that is produced will be the
+reverse complement of the DNA on the + strand (this is the DNA that
+you see in the *reference genome*, which we will load later).
 
 ```{r}
 dna <- DNAString("AAACGCG")
 reverseComplement(dna)
 ```
 
-A *DNAStringSet* is a vector of DNAStrings. If we want to know how many
-strings, we use `length`, whereas if we want to know how many letters
-per DNAString, we use `width`:
+A *DNAStringSet* is a vector of DNAStrings. If we want to know how
+many strings, we use `length`, whereas if we want to know how many
+letters per DNAString, we use `width`:
 
 ```{r}
 dna <- DNAStringSet(c("AAAAA","CGCG","TCG"))
@@ -59,8 +59,8 @@ letterFrequency(dna, "CG", as.prob=TRUE)
 We can also look for matches of a query in a set of strings, using the
 function `vmatchPattern`. The `elementNROWS` function lets us know how
 many matches were found per string in `dna`. And then we can see where
-the matches begin and end by looking into individual elements. Note that
-the matches are described as `IRanges`.
+the matches begin and end by looking into individual elements. Note
+that the matches are described as `IRanges`.
 
 ```{r}
 dna <- DNAStringSet(c("AACTCTC","CTCTAAA","AAAGAG"))
@@ -82,14 +82,14 @@ elementNROWS(matches)
 matches[[4]]
 ```
 
-These functions from Biostrings are fast when run in vectorized fashion
-(providing a vector of strings to match). Note that if you had millions
-of strings to match against a reference (e.g. short read RNA-seq), there
-are dedicated command line tools to perform such mapping/alignment (and
-which may take into account introns when aligning RNA reads to the
-genome). We will discuss these tools in a later lecture. There are also
-Bioconductor packages which can perform alignment, including *Rsubread*
-and *gmapR*.
+These functions from Biostrings are fast when run in vectorized
+fashion (providing a vector of strings to match). Note that if you had
+millions of strings to match against a reference (e.g. short read
+RNA-seq), there are dedicated command line tools to perform such
+mapping/alignment (and which may take into account introns when
+aligning RNA reads to the genome). We will discuss these tools in a
+later lecture. There are also Bioconductor packages which can perform
+alignment, including *Rsubread* and *gmapR*.
 
 # Working with genomes
 
@@ -99,10 +99,10 @@ Many genomes exist as packages on Bioconductor, for example:
 -   [BSgenome.Hsapiens.UCSC.hg38](http://bioconductor.org/packages/BSgenome.Hsapiens.UCSC.hg38)
 -   [BSgenome.Hsapiens.NCBI.GRCh38](http://bioconductor.org/packages/BSgenome.Hsapiens.NCBI.GRCh38)
 
-We will work with the UCSC version of the hg38/GRCh38 genome, the second
-package above. This package is \~670 Mb, so you may want to keep track
-of where it is kept on your computer. You can look up the library path
-using `.libPaths()`, and you can remove packages with
+We will work with the UCSC version of the hg38/GRCh38 genome, the
+second package above. This package is \~670 Mb, so you may want to
+keep track of where it is kept on your computer. You can look up the
+library path using `.libPaths()`, and you can remove packages with
 `remove.packages()`.
 
 But first, I want to show you also how to work with genomes that don't
@@ -124,19 +124,19 @@ transcribed into RNA (so the exon sequence of transcripts).
 display(ah)
 ```
 
-We can also query the AnnotationHub using the `query` function. Suppose
-we wanted the GRCh38 human genome (though we have it above in a
-package). We look for the files labeled `dna.primary_assembly`:
+We can also query the AnnotationHub using the `query` function.
+Suppose we wanted the GRCh38 human genome (though we have it above in
+a package). We look for the files labeled `dna.primary_assembly`:
 
 ```{r}
 res <- query(ah, c("ensembl","GRCh38","dna.primary_assembly"))
 head(res$sourceurl)
 ```
 
-We could then download one of these files using double square brackets,
-to pick which of the genomes in `res`. We won't do that. Instead, we
-will work with the package described above, which can be downloaded with
-Bioconductor's installation function.
+We could then download one of these files using double square
+brackets, to pick which of the genomes in `res`. We won't do that.
+Instead, we will work with the package described above, which can be
+downloaded with Bioconductor's installation function.
 
 ```{r}
 suppressPackageStartupMessages(library(BSgenome.Hsapiens.NCBI.GRCh38))
@@ -158,8 +158,8 @@ dna
 
 # Working with a transcriptome
 
-We can download the cDNA ("complementary DNA"), which is the sequence of
-the exons for each transcript. Note that, if the gene is on the -
+We can download the cDNA ("complementary DNA"), which is the sequence
+of the exons for each transcript. Note that, if the gene is on the -
 strand, then the cDNA will be the reverse complement of the reference
 genome, the `Hsapiens` object above.
 
@@ -167,15 +167,16 @@ genome, the `Hsapiens` object above.
 txome <- query(ah, c("ensembl","GRCh38","cdna.all","release-86"))[[1]]
 ```
 
-The `seqnames` in this case are not the chromosomes, they are the names
-of the transcripts, and there are 178,000 of them. Note that the
+The `seqnames` in this case are not the chromosomes, they are the
+names of the transcripts, and there are 178,000 of them. Note that the
 transcript names have a `.` and an extra number on the end. This is a
-version number (if you noticed, we saw these version numbers previously
-on the `rowRanges` of the human airway epithelial data in the
-[SummarizedExperiment](SE.html) lecture note).
+version number (if you noticed, we saw these version numbers
+previously on the `rowRanges` of the human airway epithelial data in
+the [SummarizedExperiment](SE.html) lecture note).
 
-We will have to chop this extra number off later in order to match with
-a set of transcript identifiers that do not have the version number.
+We will have to chop this extra number off later in order to match
+with a set of transcript identifiers that do not have the version
+number.
 
 ```{r}
 seqinfo(txome)
@@ -183,9 +184,9 @@ txs <- seqnames(seqinfo(txome))
 head(txs)
 ```
 
-In order to extract a transcript's sequence, we use the transcript name
-and we need to know the length of the transcript. We pick a transcript
-at random.
+In order to extract a transcript's sequence, we use the transcript
+name and we need to know the length of the transcript. We pick a
+transcript at random.
 
 ```{r}
 si <- seqinfo(txome)
@@ -198,12 +199,12 @@ txp_seq <- getSeq(txome, GRanges(seqnames(si)[idx], IRanges(1, txp_len)))
 txp_seq
 ```
 
-The above method is fairly easy for getting a transcript sequence if we
-know the cDNA file exists for the same genome and gene version. Another
-way, if we only have a *GRangesList* for the transcripts (not genes) is
-to use the `extractTranscriptSeqs` function from the GenomicFeatures
-package. This function takes two arguments: a *BSgenome* object and the
-*GRangesList* of the exons-by-transcript.
+The above method is fairly easy for getting a transcript sequence if
+we know the cDNA file exists for the same genome and gene version.
+Another way, if we only have a *GRangesList* for the transcripts (not
+genes) is to use the `extractTranscriptSeqs` function from the
+GenomicFeatures package. This function takes two arguments: a
+*BSgenome* object and the *GRangesList* of the exons-by-transcript.
 
 ```{r}
 suppressPackageStartupMessages(library(EnsDb.Hsapiens.v86))
@@ -214,11 +215,14 @@ The following line of code can take some time, so I save the file for
 future use.
 
 ```{r}
-if (file.exists("ebt.rda")) {
-  load("ebt.rda")
+library(here)
+file_path <- here("bioc","ebt_cbt.rda")
+if (file.exists(file_path)) {
+  load(file_path)
 } else {
   ebt <- exonsBy(edb, by="tx") # exons-by-transcript
-  save(ebt, file="ebt.rda")
+  cbt <- cdsBy(edb, by="tx") # coding-seq-by-transcript
+  save(ebt, cbt, file=file_path)
 }
 ```
 
@@ -231,6 +235,18 @@ txp_seq_extracted <- extractTranscriptSeqs(Hsapiens, txp)
 txp_seq_extracted
 txp_seq == txp_seq_extracted
 ```
+
+Note that we can evaluate the peptide sequence using the `translate` 
+function, however we have to be sure to start with the 
+*coding sequence* and not include the UTRs (untranslated regions).
+
+```{r}
+coding_loc <- cbt[txp_name_no_version]
+coding_seq_extracted <- extractTranscriptSeqs(Hsapiens, coding_loc)
+Biostrings::translate(coding_seq_extracted)
+```
+
+How could you evalute the consequence of a SNP in a coding sequence?
 
 ```{r}
 sessionInfo()
