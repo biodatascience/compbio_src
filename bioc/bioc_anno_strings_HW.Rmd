@@ -7,7 +7,7 @@ output: html_document
 
 # Question 1 - Gene density and GC content - 8 pts
 
-Does gene density as calculated in Question 1 relate to the 
+Does gene density as calculated in HW 1 Question 2 relate to the 
 "GC content", defined as the ratio of C and G
 bases in a region? Remember, GC content = sum(C or G bases) divided
 by the sequence length. GC content of ACGT = 0.5, GC content of ACGC =
