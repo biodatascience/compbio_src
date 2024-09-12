@@ -1,5 +1,5 @@
 ---
-title: "Distance part 2: hierarchical clustering"
+title: "Distance part 2: transformations and clustering"
 author: "[Michael Love](http://mikelove.github.io)"
 format: 
   html:
@@ -7,7 +7,8 @@ format:
 ---
 
 Here we will examine distances a little more, including looking into
-hierarchical cluster, which is a useful technique for unsupervised
+data transformations to stabilize variance, and hierarchical 
+clustering, which is a useful technique for unsupervised
 analysis of high-throughput data. We load the GEUVADIS RNA-seq dataset
 we prepared in [distances](distances.html).
 
