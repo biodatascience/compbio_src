@@ -1,5 +1,5 @@
 ---
-title: "Homework 3 - Distances and scaling"
+title: "Homework 3 - Distances, biases, and scaling"
 author: "your name here"
 date: "`r format(Sys.time(), '%m/%d/%Y')`"
 output: 
