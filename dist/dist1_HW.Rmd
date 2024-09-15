@@ -7,7 +7,50 @@ output:
     fig_height: 7
 ---
 
-# Question 1 - Median ratio vs column sum part I
+# Question 1 - Regression bias: ignoring batch effect
+
+Suppose you want to estimate the effect of treatment on gene
+expression, for $n$ samples. Suppose $x_1$ tells us about the amount
+of some continuous treatment, and suppose it is scaled to have unit
+variance $\text{Var}(x_1) = 1$. You are provided some
+pre-processed/scaled/appropriately transformed gene expression data
+$y$ for some gene $G$. If there were no structural biases (sample
+correlations) you could use the model (now omitting sample index $i$)
+
+$$
+y = b_0 + x_1 b_1 + e,
+$$
+
+where $b_0$ represents baseline expression (untreated samples), $b_1$
+represents the treatment effect associated with $x_1$, and
+$e \sim N(0, \sigma^2)$ represents the noise term.
+
+However, suppose now there *is* a batch effect, where gene expression
+measurements are shifted for technical reasons in a per sample manner
+by an amount $x_2 b_2$ giving:
+
+$$
+y = b_0 + x_1 b_1 + x_2 b_2 + e.
+$$
+
+Suppose a continuous valued $x_2$ indicating degrees of batch
+variation, with $\text{Var}(x_2) = 1$. Suppose that there is
+confounding of the treatment assignment and the batch to some degree,
+e.g. $x_1$ and $x_2$ are correlated with
+$\text{cor}(x_1, x_2) = \rho$.
+
+Suppose you are asked to estimate $b_1$ using linear regression of $y$
+on $x_1$ only (so ignoring $x_2$). You can call this the Misspecified
+Model, or MM. Compute the bias of the linear regression estimator
+$\widehat{b}_1^{MM}$ for $b_1$, that is
+$E\left(\widehat{b}_1^{MM}\right) - b_1$.
+
+**Hint:** You can use the fact that, since $x_1$ and $x_2$ have unit
+variance and have correlation $\rho$, $x_2$ can be written as: $$
+x_2 = \rho x_1 + \sqrt{1 - \rho^2} z
+$$ with $z \perp \!\!\! \perp x_1$ ($z$ independent of $x_1$).
+
+# Question 2 - Median ratio vs column sum part I
 
 We discussed in class one method to estimate a scalar factor to
 account for variable *sequencing depth* (remember, the column sums
@@ -92,7 +135,7 @@ Plot the contribution of the first 5%, 10%, 15%, 20% of genes
 
 Roughly what percent of the total count is from the top 10% of genes? 
 
-# Question 2 - Median ratio vs columns sum part II
+# Question 3 - Median ratio vs columns sum part II
 
 We will examine what happens when the genes with the highest count are
 potentially differentially expressed across condition, as mentioned by
@@ -153,7 +196,7 @@ alternatively using the column sum to compute scaling factors. Comment
 on the qualitative difference, on datasets with large differences
 affecting the most highly expressed genes.
 
-# Question 3 - derive VST for two distributions
+# Question 4 - derive VST for two distributions
 
 An approximate variance stabilizing transformation is one which, after
 applying to the data provides roughly flat variance (across samples)
@@ -202,40 +245,49 @@ mat2 <- matrix(exp(rnorm(10*length(mu2), mu2)), ncol=10)
 meanSdPlot(mat2, ranks=FALSE)
 ```
 
-# Bonus Question - clustering genes changing over time
+# Bonus Question - empirical bias estimates on gene expression
 
-Examine the parathyroid dataset, focusing on the control samples. Even
-when a sample is sitting in a petri dish, the expression is still
-changing. Here, primary cultures were kept for up to 48 hours. First,
-we take the 24 and 48 hour timepoints for the control samples. We
-collapse technical replicates (these refer to extra sequencing runs,
-and the counts are added together using the function below).
+I've prepared a dataset with \~50 samples that are pre-treatment with
+nivolumab and \~50 samples that are post-treatment. Ignore for this
+problem that the samples may be paired, and just treat the two groups
+as independent.
+
+I have prepared scaled and transformed data for this question over 40
+genes.
+
+Suppose first you are only given the `condition` variable, and perform
+linear regression-based testing to obtain an effect estimate and
+p-value for each gene testing the null hypothesis of no change in
+expression across treatment groups.
+
+Next use the 1st batch factor `W_1` as a covariate in the model along
+with `condition`, to control for batch.
+
+Which is more common: genes becoming significant (smaller $p$) after
+controlling for batch with `W1` or less significant?
+
+Estimate the bias for each gene in the mis-specified model. Does this
+make sense given the correlation of the batch variable and the
+condition?
+
+Hint: you can use `limma::lmFit` for linear model computation. This
+line of code gives standard t-statistics from `lmFit`:
+
+`fit$coefficients / fit$stdev.unscaled / fit$sigma`
+
+Hint #2: When $x_1$ and $x_2$ do not have unit variance, the result we
+used before changes to:
+
+$$
+x_2 = \rho \frac{\sigma_{x_2}}{\sigma_{x_1}} x_1 + \sqrt{1 - \rho^2} z
+$$
 
 ```{r}
-dds <- DESeqDataSet(se, design=~patient + time)
-dds <- dds[,dds$treatment == "Control"]
-dds <- collapseReplicates(dds, dds$experiment)
-keep <- rowSums(counts(dds) >= 10) >= 4
-dds <- dds[keep,]
+load("preNivolumabOnNivolumab.rda")
+se <- preNivolumabOnNivolumab
+head(assay(se)[,1:5]) # scaled and transformed expression
+colData(se)
+table(se$condition)
+se$condition <- factor(se$condition, c("Pre","On"))
+head(se$W_1) # 1st batch factor
 ```
-
-The following code chunk runs the VST and then uses the *limma*
-package to remove the patient differences (they are removed with a
-simple mean shift). We then focus on the top 200 genes by variance.
-
-```{r}
-vsd <- vst(dds)
-assay(vsd) <- limma::removeBatchEffect(assay(vsd), vsd$patient)
-rv <- rowVars(assay(vsd))
-vsd <- vsd[head(order(rv, decreasing=TRUE),200),]
-```
-
-After subtracting the mean for these 200 genes, perform hierarchical
-clustering of the *genes* (in class we clustered the samples). Split
-the genes into three groups according to the clustering. Which cluster
-has genes that are most related to the biological process,
-*extracellular matrix organization* (a GO term)? 
-
-Make a plot of the centered, transformed expression values for the
-genes in this cluster. Do the expression values for this cluster go up
-or down over time?
