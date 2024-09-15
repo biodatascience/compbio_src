@@ -224,6 +224,7 @@ $$
 So we seek $f(.)$ such that:
 
 $$ [f'(\mu_i)]^2 = 1/g(\mu_i) $$
+
 By re-arranging terms and integrating with respect to $\mu_i$ we have:
 
 $$ f(\mu) = \int \frac{d\mu}{\sqrt{g(\mu)}} $$ 
@@ -263,12 +264,12 @@ expression across treatment groups.
 Next use the 1st batch factor `W_1` as a covariate in the model along
 with `condition`, to control for batch.
 
-Which is more common: genes becoming significant (smaller $p$) after
-controlling for batch with `W1` or less significant?
+Which is more common: genes becoming more significant (smaller $p$) after
+controlling for batch with `W1`, or genes becoming less significant?
 
-Estimate the bias for each gene in the mis-specified model. Does this
-make sense given the correlation of the batch variable and the
-condition?
+Estimate the bias for each gene in the first model, supposing that the second
+model with $W_1$ is the correct model. Does this make sense given the
+correlation of the batch variable and the condition?
 
 Hint: you can use `limma::lmFit` for linear model computation. This
 line of code gives standard t-statistics from `lmFit`:
