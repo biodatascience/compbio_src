@@ -7,7 +7,7 @@ output:
     fig_height: 7
 ---
 
-# Question 1 - Regression bias: ignoring batch effect
+# Question 1 - Regression bias: ignoring batch effect - 8 pts
 
 Suppose you want to estimate the effect of treatment on gene
 expression, for $n$ samples. Suppose $x_1$ tells us about the amount
@@ -50,7 +50,7 @@ variance and have correlation $\rho$, $x_2$ can be written as: $$
 x_2 = \rho x_1 + \sqrt{1 - \rho^2} z
 $$ with $z \perp \!\!\! \perp x_1$ ($z$ independent of $x_1$).
 
-# Question 2 - Median ratio vs column sum part I
+# Question 2 - Median ratio vs column sum part I - 8 pts
 
 We discussed in class one method to estimate a scalar factor to
 account for variable *sequencing depth* (remember, the column sums
@@ -135,7 +135,7 @@ Plot the contribution of the first 5%, 10%, 15%, 20% of genes
 
 Roughly what percent of the total count is from the top 10% of genes? 
 
-# Question 3 - Median ratio vs columns sum part II
+# Question 3 - Median ratio vs columns sum part II - 8 pts
 
 We will examine what happens when the genes with the highest count are
 potentially differentially expressed across condition, as mentioned by
@@ -196,7 +196,7 @@ alternatively using the column sum to compute scaling factors. Comment
 on the qualitative difference, on datasets with large differences
 affecting the most highly expressed genes.
 
-# Question 4 - derive VST for two distributions
+# Question 4 - derive VST for two distributions - 8 pts
 
 An approximate variance stabilizing transformation is one which, after
 applying to the data provides roughly flat variance (across samples)
