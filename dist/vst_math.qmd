@@ -7,8 +7,6 @@ Using the notation of the
 [VST](https://en.wikipedia.org/wiki/Variance-stabilizing_transformation)
 article on Wikipedia:
 
-# Setup
-
 We observe $X$, and have some idea about the relationship of the
 variance to the mean $$
 \begin{align}
