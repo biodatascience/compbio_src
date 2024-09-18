@@ -1,0 +1,87 @@
+---
+title: "VST math"
+author: "Michael Love"
+---
+
+Using the notation of the
+[VST](https://en.wikipedia.org/wiki/Variance-stabilizing_transformation)
+article on Wikipedia:
+
+# Setup
+
+We observe $X$, and have some idea about the relationship of the
+variance to the mean $$
+\begin{align}
+E(X) &= \mu \\
+\text{Var}(X) &= h(\mu)
+\end{align}
+$$
+
+Suppose for a moment we are looking at data independent of any
+covariate like condition or batch, so it's just simple random variable
+$X$.
+
+We are interested in modeling this data but with a constant variance
+assuption. Maybe we want to do something with a linear part to the
+mean but don't want to incorporate that variance would depend on the
+mean.
+
+So we would like to have
+
+$$
+\text{Var}(X) = C
+$$
+
+Consider a (differentiable) transformation $g$ of $X$, so write
+
+$$
+Y = g(X)
+$$
+
+And maybe we can obtain
+
+$$
+\text{Var}(Y) \approx C
+$$
+
+Note that a first order Taylor expansion of $X$ around $E(X)$ gives:
+
+$$
+Y = g(X) \approx g(E(X)) + g'(E(X))(X - E(X))
+$$
+
+The delta method uses this to derive asymptotic distributions of
+transformed variables:
+
+$$
+\begin{align}
+E(Y) &\approx g(E(X)) \\
+\text{Var}(Y) &\approx \text{Var(X)} g'(E(X))^2
+\end{align}
+$$
+
+Add in what we know about $\text{Var}(X)$ and use $\mu$ notation to
+simplify
+
+$$
+\begin{align}
+\text{Var}(Y) &\approx h(E(X)) g'(E(X))^2 \\
+\text{Var}(Y) &\approx h(\mu) g'(\mu)^2
+\end{align}
+$$
+
+If we want this to be constant we can solve for $g$:
+
+$$
+\frac{dg}{d\mu} = \frac{C}{\sqrt{h(\mu)}}
+$$
+
+Then we define our approximate VST as:
+
+$$
+g(\mu) = \int \frac{C d\mu}{\sqrt{h(\mu)}}
+$$
+
+In other words, integrating the inverse square root of the variance
+mean relationship should provide data that roughly has constant
+variance.
