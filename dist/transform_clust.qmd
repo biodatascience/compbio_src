@@ -7,10 +7,10 @@ format:
 ---
 
 Here we will examine distances a little more, including looking into
-data transformations to stabilize variance, and hierarchical 
-clustering, which is a useful technique for unsupervised
-analysis of high-throughput data. We load the GEUVADIS RNA-seq dataset
-we prepared in [distances](distances.html).
+data transformations to stabilize variance, and hierarchical
+clustering, which is a useful technique for unsupervised analysis of
+high-throughput data. We load the GEUVADIS RNA-seq dataset we prepared
+in [distances](distances.html).
 
 ```{r echo=FALSE}
 knitr::opts_chunk$set(cache=TRUE)
@@ -40,7 +40,7 @@ meanSdPlot(assay(ntd), ranks=FALSE)
 
 This plot makes clear that, even after the log transform, the data
 exhibit systematic:
-[heteroskedasticity](https://en.wikipedia.org/wiki/Heteroscedasticity). 
+[heteroskedasticity](https://en.wikipedia.org/wiki/Heteroscedasticity).
 We should not expect that all points fall on a horizontal line, but
 the red line shows that there is a *systematic trend* of variances on
 the mean. In particular, low counts, which are associated with less
@@ -58,15 +58,16 @@ plot(.5*(x + y), y - x,
 abline(h=0, col="red", lwd=3)
 ```
 
-A better transformation than log is to compute the 
-[variance stabilizing transformation](https://en.wikipedia.org/wiki/Variance-stabilizing_transformation). 
+A better transformation than log is to compute the [variance
+stabilizing
+transformation](https://en.wikipedia.org/wiki/Variance-stabilizing_transformation).
 An implementation of this for count data is the `vst` function in the
-DESeq2 package. This function also incorporates scaling for
-sequencing depth. We can examine how these two diagnostic plots
-change. The `meanSdPlot` has less of a systematic "hump" on the left
-side. Note: we do not seek a transformation which puts *all* the genes
-on a horizontal line -- we expect high standard deviation for a subset
-of genes which show true biological differences across the samples. We
+DESeq2 package. This function also incorporates scaling for sequencing
+depth. We can examine how these two diagnostic plots change. The
+`meanSdPlot` has less of a systematic "hump" on the left side. Note:
+we do not seek a transformation which puts *all* the genes on a
+horizontal line -- we expect high standard deviation for a subset of
+genes which show true biological differences across the samples. We
 only seek to remove *systematic trends* in the variance over the mean.
 
 ```{r}
@@ -99,11 +100,11 @@ ave <- .5 * (assay(ntd)[,2] + assay(ntd)[,1])
 plot(ave, sq.diffs)
 ```
 
-Note that, if we just take the logarithm of scaled counts, genes
-with average signal less than 5 (32 on the count scale) contribute
-three times more to the sum than genes with average signal higher
-than 5. The inequality even holds for genes with average signal less
-than 3 (8 on the count scale).
+Note that, if we just take the logarithm of scaled counts, genes with
+average signal less than 5 (32 on the count scale) contribute three
+times more to the sum than genes with average signal higher than 5.
+The inequality even holds for genes with average signal less than 3 (8
+on the count scale).
 
 ```{r}
 sum(sq.diffs[ave < 5])/sum(sq.diffs[ave > 5])
@@ -129,23 +130,23 @@ The hierarchical clustering function in R is `hclust`, with a number
 of options you can read about in `?hclust`. The default `method` is
 `complete`. From the man page:
 
-> Initially, each object is assigned to its own cluster and then the algorithm
-> proceeds iteratively, at each stage joining the two most similar 
-> clusters, continuing until there is just a single cluster.
+> Initially, each object is assigned to its own cluster and then the
+> algorithm proceeds iteratively, at each stage joining the two most
+> similar clusters, continuing until there is just a single cluster.
 
 ```{r}
 hc <- hclust(dists)
 plot(hc, labels=vsd$sample)
 ```
 
-This plot is pretty busy, and it's hard to see what's going on. 
-One thing I notice immediately, is that there are two of each sample,
+This plot is pretty busy, and it's hard to see what's going on. One
+thing I notice immediately, is that there are two of each sample,
 clustered closely together: these are technical replicates, which
-makes sense that they would be so close in the dendrogram.
-Better to see what's going on is to color the labels. 
+makes sense that they would be so close in the dendrogram. Better to
+see what's going on is to color the labels.
 
 To get a better sense, let's zoom into a single population, and see
-how the samples cluster within this group. 
+how the samples cluster within this group.
 
 ```{r}
 library(magrittr)
@@ -184,8 +185,8 @@ plot(dend)
 
 Note that, when we zoom into a single population, we can start to see
 the clustering of samples according to the sequencing center in which
-the samples were prepared. This indicates technical variation in the 
-measurements. 
+the samples were prepared. This indicates technical variation in the
+measurements.
 
 ```{r}
 plotPCA(vsd2, "center")
@@ -201,7 +202,7 @@ table(vsd2$cluster)
 ```
 
 We can show these clusters on the dendrogram by re-coloring the
-labels: 
+labels:
 
 ```{r}
 labels_colors(dend) <- as.integer(vsd2$cluster[o.dend])
@@ -211,4 +212,3 @@ plot(dend)
 ```{r}
 sessionInfo()
 ```
-
