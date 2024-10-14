@@ -56,7 +56,7 @@ tt_bc <- topTable(efit_bc, coef = 2, number = m, sort.by = "none")
 
 pairs(cbind(beta[2,], tt$logFC, tt_bc$logFC), 
       labels = c("beta","limma orig","limma + ruv"),
-      col = rgb(0,0,0,.5),
+      col = rgb(0,0,0,.5), cex=.5,
       lower.panel = panel.cor) # defined below
 
 table(orig = tt$adj.P.Val < .1, 
