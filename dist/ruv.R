@@ -40,8 +40,8 @@ tt <- topTable(efit, coef = 2, number = m, sort.by = "none")
 plot(beta[2,], tt$t)
 
 # RUV fit using genes with high p-value, more factors than needed
-#rfit <- RUV2(Y, X[,2], ctl=which(tt$P.Value > .5), k=2*k) # from pval
-rfit <- RUV2(Y, X[,2], ctl=which(beta[2,] == 0), k=2*k) # oracle
+rfit <- RUV2(Y, X[,2], ctl=which(tt$P.Value > .5), k=2*k) # from pval
+#rfit <- RUV2(Y, X[,2], ctl=which(beta[2,] == 0), k=2*k) # oracle
 
 image(cor(rfit$W, W), zlim=c(-1,1), axes = FALSE, 
       xlab="estimated W", ylab="true W",
@@ -54,7 +54,7 @@ fit_bc <- lmFit(t(Y), cbind(X, rfit$W[,1:k]))
 efit_bc <- eBayes(fit_bc)
 tt_bc <- topTable(efit_bc, coef = 2, number = m, sort.by = "none")
 
-pairs(cbind(beta[2,], tt$t, tt_bc$t), 
+pairs(cbind(beta[2,], tt$logFC, tt_bc$logFC), 
       labels = c("beta","limma orig","limma + ruv"),
       lower.panel = panel.cor) # defined below
 

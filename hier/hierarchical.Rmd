@@ -8,48 +8,48 @@ This week we will focus on hierarchical models as they are used in
 genomics, and particularly hierarchical models for estimates of
 variance. A good review of this topic is:
 
-[Analyzing ’omics data using hierarchical models](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2904972/) 
-by Hongkai Ji and X Shirley Liu
+[Analyzing ’omics data using hierarchical
+models](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2904972/) by
+Hongkai Ji and X Shirley Liu
 
 Hierarchical models have proven very useful in genomics, when we often
 have precious few biological replicates to assess within-group
 variance. Often experiments themselves, as well as the technical costs
 of sequencing DNA, mean that only 3-5 samples might be generated for
 each biological condition, although there may be many (e.g. dozens) of
-conditions. Ideally, more samples would be generated
-for definitive estimation of differences relative to biological
-variability in each condition. This all depends greatly on what the
-treatments are doing, and the relationship of the replicates to each
-other -- are they mice in a controlled setting with the same genetic
-background, or human donors in a clinic, etc.?
+conditions. Ideally, more samples would be generated for definitive
+estimation of differences relative to biological variability in each
+condition. This all depends greatly on what the treatments are doing,
+and the relationship of the replicates to each other -- are they mice
+in a controlled setting with the same genetic background, or human
+donors in a clinic, etc.?
 
-The point of the hierarchical model is summarized nicely in 
-[Figure 1](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2904972/figure/F1/)
+The point of the hierarchical model is summarized nicely in [Figure
+1](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2904972/figure/F1/)
 from the paper linked above. The key idea is that, we only observe a
 few samples and therefore, we can potentially have very bad estimates
 of the variance for some genes, either because the samples were
 observe happened to be close to each other (under-estimation) or too
 spread apart (over-estimation), and do not represent the biological
-variability we would see if we had generated more
-replicates. Hierarchical models, and an empirical Bayes procedure to
-adjust the smallest and largest estimates of variance towards the
-*middle* of the distribution of sample variances, helps to avoid
-large mistakes in inference when the estimated variances are used to
-generate test statistics. This is sometimes referred to as *moderation*
-of estimates, and the estimates themselves are sometimes referred to
-as *shrinkage estimators*. 
+variability we would see if we had generated more replicates.
+Hierarchical models, and an empirical Bayes procedure to adjust the
+smallest and largest estimates of variance towards the *middle* of the
+distribution of sample variances, helps to avoid large mistakes in
+inference when the estimated variances are used to generate test
+statistics. This is sometimes referred to as *moderation* of
+estimates, and the estimates themselves are sometimes referred to as
+*shrinkage estimators*.
 
-One of the most popular methods which made use of the
-hierarchical model for variance estimation is 
+One of the most popular methods which made use of the hierarchical
+model for variance estimation is
 [limma](http://bioinf.wehi.edu.au/limma/), which was originally
 designed for microarray (continuous valued), but has been extended
-recently to work with sequencing data (counts). 
-Other methods for count data, such as DESeq2 and edgeR, likewise adopt
-a shrinkage based method similar to the one shown here, but for the
-dispersion parameter of a count distribution.
-In this document, I will show the practical effect of running the
-`eBayes` (empirical Bayes) function in limma, and how this modifies
-the variance estimates.
+recently to work with sequencing data (counts). Other methods for
+count data, such as DESeq2 and edgeR, likewise adopt a shrinkage based
+method similar to the one shown here, but for the dispersion parameter
+of a count distribution. In this document, I will show the practical
+effect of running the `eBayes` (empirical Bayes) function in limma,
+and how this modifies the variance estimates.
 
 I start by loading the curatedBladderData package, which has a number
 of *ExpressionSet* objects with gene expression from patients with
@@ -67,6 +67,7 @@ data(GSE13507_eset)
 e <- GSE13507_eset
 experimentData(e)@name
 ```
+
 We will subset to a set of samples with the same staging. Our goal
 will be to estimate the variance of each gene using a subset of
 samples that is typical of a small experiment (n=5 vs 5), and compare
@@ -82,7 +83,7 @@ boxplot(t(exprs(e)[1:10,]), range=0, main="genes")
 
 A plot of the variance over the mean for each gene. For this
 demonstration, we will remove the genes with low mean, where the
-variances approach 0. 
+variances approach 0.
 
 ```{r message=FALSE}
 library(matrixStats)
@@ -100,7 +101,7 @@ hist(sqrt(rv),breaks=50,col="grey")
 ```
 
 Finally, we perform a quick check to see that there are not large
-clusters in the data. 
+clusters in the data.
 
 ```{r}
 hc <- hclust(dist(t(exprs(e)[order(rv,decreasing=TRUE)[1:1000],]))) 
@@ -162,8 +163,8 @@ Another way to visualize the posterior estimates is to plot the
 original estimates on the left side, and the new estimates on the
 right side, with segments connecting them. The blue line indicates the
 middle of the prior distribution. Compare the following plot with the
-second figure in 
-[this paper](http://statweb.stanford.edu/~ckirby/brad/other/Article1977.pdf)
+second figure in [this
+paper](http://statweb.stanford.edu/~ckirby/brad/other/Article1977.pdf)
 by Bradley Efron and Carl Morris on shrinkage estimators.
 
 ```{r message=FALSE, fig.width=5, fig.height=5}
@@ -190,8 +191,8 @@ abline(h=fit$s2.prior, col="dodgerblue", lwd=5)
 
 We can show that we have reduced both the root mean squared error, as
 well as the median absolute error with our new estimators, compared to
-"true": the sample variance using all the samples. We also compare to 
-just using a common SD estimate for all genes (the location of the 
+"true": the sample variance using all the samples. We also compare to
+just using a common SD estimate for all genes (the location of the
 prior).
 
 ```{r}
@@ -207,11 +208,10 @@ median(abs(fit$s2.prior - true)) #  prior - MAD
 ```
 
 It helps to zoom into individual genes, to see how we have reduced the
-large errors comparing our estimate on a small
-sub-sample to the full dataset. Two things to note: 
-(i) when the estimates are low, they tend to be too low, and when the
-estimates are high, they tend to be too high. This phenomenon is
-sometimes referred to as "winner's curse".
+large errors comparing our estimate on a small sub-sample to the full
+dataset. Two things to note: (i) when the estimates are low, they tend
+to be too low, and when the estimates are high, they tend to be too
+high. This phenomenon is sometimes referred to as "winner's curse".
 (ii) most of the posterior variance estimates are close to 0.5, so we
 have reduced the number of genes on the left side, where the variance
 estimate is very low, and underestimated. These genes would lead to
@@ -232,10 +232,9 @@ abline(h=-1:1,v=.5,lty=2,col=rgb(1,0,0,.5))
 One final plot to show the change is to draw arrows when the two
 estimates disagree, over the "true" sample variance from the full
 dataset. Note that, the posterior estimates are not perfect, and in
-some cases we have moved the estimates in the wrong
-direction. However, overall, we have improved more estimates than we
-have made worse.
-
+some cases we have moved the estimates in the wrong direction.
+However, overall, we have improved more estimates than we have made
+worse.
 
 ```{r, fig.width=6, fig.height=6}
 plot(true, samp.sd, type="n", ylab="sample SD --> eBayes SD")
