@@ -3,7 +3,7 @@ library(ruv)
 
 # sample size, number of genes, number of factors
 n <- 20
-m <- 400
+m <- 1000
 k <- 5
 
 W <- matrix(rnorm(n * k), ncol=k)
@@ -56,6 +56,7 @@ tt_bc <- topTable(efit_bc, coef = 2, number = m, sort.by = "none")
 
 pairs(cbind(beta[2,], tt$logFC, tt_bc$logFC), 
       labels = c("beta","limma orig","limma + ruv"),
+      col = rgb(0,0,0,.5),
       lower.panel = panel.cor) # defined below
 
 table(orig = tt$adj.P.Val < .1, 
