@@ -6,7 +6,8 @@ x <- rnorm(n, theta, x_sd)
 dat <- list(n=n, x_sd=x_sd, x=x)
 
 library(rstan)
-fit <- stan(file = "simple.stan", data = dat)
+library(here)
+fit <- stan(file = here("hier","simple.stan"), data = dat)
 stan_plot(fit)
 
 tab <- summary(fit)$summary
@@ -15,8 +16,8 @@ plot(theta, x)
 points(theta, tab[1:n,1], col="red")
 
 # data
-sqrt(mean((theta - x)^2))
+sqrt(mean((x - theta)^2))
 # prior mean
 sqrt(mean(theta^2))
 # posterior means
-sqrt(mean((theta - tab[1:n,1])^2))
+sqrt(mean((tab[1:n,1] - theta)^2))

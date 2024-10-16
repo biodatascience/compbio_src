@@ -23,6 +23,9 @@ library(tibble)
 dat <- tibble(theta, x, x_sd, x_sd_est)
 
 # show how large ests can come from theta or SD
+# black 'x' - the data
+# blue dot - the true value
+# blue line - the SD of the data
 dat %>% 
   slice(1:50) %>%
   arrange(x_sd) %>%
@@ -41,22 +44,13 @@ dat <- dat %>%
          rank = rank(-abs(theta)))
 
 # top ranked by data
+# in blue is the theta
+# -- a mix of high SD ones and true large 'x'
 dat %>%
   slice(1:500) %>%
   ggplot(aes(rank_x, x)) + 
   geom_point(size=.5) + 
   geom_point(aes(rank_x, theta, color=log(x_sd)))
-
-# add z-score, and show rank by z-score
-dat %>%
-  mutate(z = x/x_sd_est,
-         rank_z = rank(-abs(z))) %>%
-  arrange(rank_z) %>%
-  slice(1:1000) %>%
-  ggplot(aes(rank_z, z)) + 
-  geom_point(size=.5) + 
-  geom_point(aes(rank_z, theta, color=log(x_sd/x_sd_est))) +
-  coord_cartesian(ylim=c(-15,15))
 
 # fit a hierarchical model: adaptive shrinkage, "ash"
 library(ashr)
@@ -69,6 +63,7 @@ dat <- dat %>%
          rank_ash = rank(-abs(posterior_mean_theta)))
 
 # rank by ash posterior mean
+# -- less blue points on the left side
 dat %>%
   arrange(rank_ash) %>%
   slice(1:500) %>%
