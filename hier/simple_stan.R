@@ -7,7 +7,8 @@ dat <- list(n=n, x_sd=x_sd, x=x)
 
 library(rstan)
 library(here)
-fit <- stan(file = here("hier","simple.stan"), data = dat)
+fit <- stan(file = here("hier","simple.stan"), 
+            data = dat)
 stan_plot(fit)
 
 tab <- summary(fit)$summary

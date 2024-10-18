@@ -41,6 +41,15 @@ and the EM algorithm, providing a unified statistical context and
 guarantees on convergence. Note that the authors of the 1977 work do
 not use *z*, $\theta$, and *x* notation, as above.
 
+**Why not generic optimization?** We could borrow from the EM the idea of
+specifying a set of latent variables, and just use generic optimization tools to
+optimize both the model parameters as well as the latent variables, without
+distinguishing between them. This approach may find the same solution as
+EM. It's worth seeing the EM, both as it introduces a principled framework for
+optimization of these parameters iteratively, and it may be more efficient than
+a generic optimization method that doesn't distinguish between the two sets of
+parameters (model parameters and latent variable configurations).
+
 # Motivation for EM
 
 We would like to maximize the log likelihood with respect to $\theta$,
@@ -325,6 +334,7 @@ library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 suppressMessages({
   g <- genes(TxDb.Hsapiens.UCSC.hg38.knownGene)
 })
+g <- keepStandardChromosomes(g, pruning.mode="coarse")
 pro <- promoters(g, upstream=1500, downstream=1500)
 seq <- getSeq(Hsapiens, pro)
 ```

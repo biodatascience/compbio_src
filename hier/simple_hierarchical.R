@@ -5,7 +5,9 @@ x_sd <- 1
 x <- rnorm(n, theta, x_sd)
 var(x)
 
-# add two points of complexity: 1) heavy tails 2) est of SD
+# add two points of complexity: 
+# 1) heavy tails 
+# 2) est of SD
 set.seed(1)
 n <- 5000
 theta <- rt(n, df=3)
