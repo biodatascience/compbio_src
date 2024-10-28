@@ -1,0 +1,154 @@
+---
+title: "Homework 4 - Data modeling: EM and HMM"
+author: "your name here"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+
+# Question 1 - EM for cell types (12 pts)
+
+Suppose we measure 10 proteins on the surface of many cells (the data
+$X$). The cells are of a fixed (6) number of underlying cell types
+(the latent variable $Z$). Each cell type has a pattern of surface
+protein abundance (the model parameters $\theta$). We will use a
+simplified model and EM to estimate $\theta$ and a posterior
+distribution for $Z$.
+
+```{r}
+nproteins <- 10
+ncelltypes <- 6
+set.seed(123)
+# this will be the true model ('theta')
+cell_types <- matrix(rnorm(nproteins * ncelltypes), ncol=ncelltypes)
+```
+
+```{r}
+palette("Okabe-Ito")
+# plot of the protein abundance (y axis) for the 10 proteins (x axis)
+matplot(cell_types, type="b", xlab="protein", ylab="abundance",
+        main="protein abundance per cell type")
+abline(h=0, col=rgb(0,0,0,.25))
+```
+
+The protein measurements $X$ for 1,000 cells are not identical to the
+6 cell types, but have some variance/error:
+
+```{r}
+ncells <- 1000
+# true 'z' used for simulation, but consider unobserved
+z <- sample(ncelltypes, ncells, TRUE)
+table(z)
+x <- cell_types[,z] + matrix(rnorm(nproteins * ncells), 
+                             ncol=ncells)
+```
+
+```{r}
+matplot(x[,1:50], type="l", col=z[1:50], lty=1,
+        xlab="protein", ylab="abundance",
+        main="protein abundance per cell")
+legend("topright", legend=1:6, col=1:6, lty=1, inset=.05, lwd=2)
+```
+
+Simplifying assumptions: here we will estimate model parameters
+$\theta = \{\vec{\mu}_1, ..., \vec{\mu}_6,\}$, the mean vectors for
+the 6 cell types, where each is of length 10. You can assume the
+variance of the data $X$ is given: $\sigma^2 = 1$, and does not need
+to be estimated.
+
+Part a: Write out in code the conditional distribution (or posterior)
+of $Z$ given $X$ and $\theta^t$. You can write it out by computing
+this for a randomly initialized $\theta^0$ (e.g. draw its values
+$N(0,1)$), and/or by defining a function that takes $X$ and $\theta^t$
+and returns the conditional distribution.
+
+Part b: Perform EM for $\theta$ by maximizing the expectation of the
+log likelihood with respect to this conditional distribution (or
+posterior) from part a. Again, you can assume that the variance on
+measurements for each protein is equal to 1. For maximization, you
+don't need to analytically derive this, if you just want to refer to
+the derivations seen in EM lecture for the mean of a mixture.
+
+Part c: Examine $\hat{\theta}^{20}$, the estimates after the 20th
+iteration. Does it correspond to the true $\theta$ ? Is each cell type
+represented? Are they one-to-one? Also examine the posterior of $Z$
+given $X$ and $\hat{\theta}^{20}$: was each cell appropriately
+assigned to one of your estimated cell types? Were they one-to-one?
+You should also try a couple of random iterations to see if your
+conclusions generally hold (you don't need to show the repeated random
+initiations in the code however).
+
+# Question 2 - HMM for time series (12 pts)
+
+Suppose we measure gene expression (here assume some normalized,
+variance stabilized measurements) for 20 genes across a time course
+with $T = 12$ time points. We are interested in finding a shift in the
+expression during the time course. We will use an HMM, similar to the
+one seen in class, to model change point(s) in the data, by seeing
+when we observe a transition from one state with one mean value to
+another state with another mean value. The key modification is that,
+instead of observing one process as in the lecture note, here we
+observe 20 of them at once.
+
+Simplifying assumptions: we will assume that the 20 genes have been
+standardized such that they all share the same mean when they are in
+the same state. While the HMM could be made more complex to handle
+differing mean value per gene per state, for this homework assume a
+common mean (and variance) for all the genes, when they are in the
+same state. Another simplifying assumption: instead of modeling the
+variance, we will just assume $\sigma^2 = 1$ as in the first question,
+and we will not include the variance as part of the estimation task.
+
+Note: for this problem, we use some informative initialization, and
+you are not asked to attempt multiple random initializations.
+
+```{r}
+# make some data with multiple genes, some kind of transition
+set.seed(7)
+ngenes <- 20
+T <- 12
+y_matrix <- matrix(rnorm(ngenes * T), ncol=T)
+# the true transition: last four time points shift up by 0.7
+y_matrix[,9:12] <- y_matrix[,9:12] + .7 
+n <- 2 # just two states
+```
+
+```{r}
+# need to reset plot par from before
+par(mfrow = c(1, 1), mar = c(5.1, 4.1, 4.1, 2.1))
+matplot(t(y_matrix[1:9,]), type="b")
+```
+
+```{r}
+# initialize:
+pi <- c(.95, .05) # equal starting probabilities
+A <- matrix(1/T, nrow=n, ncol=n) # the transition matrix
+diag(A) <- 11/T # high density on diagonal usually stay in same state
+rowSums(A)
+mu <- c(-.1, .1)
+sigma <- rep(1, n) # oracle variance
+# save initial parameters
+pi0 <- pi
+A0 <- A
+mu0 <- mu
+```
+
+Part a: Write a function which performs one step of the EM for the
+start probabilities `pi`, the transition matrix `A`, and the means
+`mu`. To do so, you will need to modify the following from the
+lecture: the function `B` to take a column vector, and the computation
+for `alpha`, `beta`, and `xi` to deal with a matrix of observed data
+instead of a single vector of data over time. You will also need to
+change the update rule for `mu` so that it accounts for the sum over
+genes (i.e. normalize the numerator by the number of genes).
+
+Part b: Run the EM for 10 iterations and print the mean values at each
+step. Print the final transition matrix. Do these values for the mean
+and the transition matrix seem plausible as a good fit to the data?
+How do you interpret the final values for $A_{2,1}$ and $A_{1,2}$?
+
+Part c: Run the Viterbi algorithm and plot the matrix `V` over time
+(e.g. you can use `matplot` to show the two states and their values
+over time). Recall that $V_{i,t}$ gives the probability of the most
+probable sequence up to *t* having *i* as its final state. What do you
+observe? Did the HMM correctly identify the shift in the data across
+all the genes?
