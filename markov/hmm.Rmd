@@ -260,6 +260,7 @@ another variable *Ptr* which points us back along that path.
 ```{r}
 V <- matrix(0,nrow=n,ncol=T)
 V[,1] <- pi * B(1:n,y[1])
+V[,1] <- V[,1] / sum(V[,1])
 Ptr <- matrix(0,nrow=n,ncol=T)
 for (t in 2:T) {
   for (i in 1:n) {
