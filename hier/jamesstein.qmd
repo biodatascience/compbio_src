@@ -1,7 +1,9 @@
 ---
 title: "James-Stein estimators"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format:
+  html:
+    embed-resources: true
 ---
 
 In this short document, I want to demonstrate the James-Stein estimator
@@ -13,7 +15,7 @@ model I will show is from the following article:
 by Bradley Efron and Carl Morris
 
 The model is, suppose $k \ge 3$ parameters $\theta_1, ..., \theta_k$.
-For each $\theta_i$, we have a single observation $X_i$ drawn from 
+For each $\theta_i$, we have a single observation $X_i$ drawn from
 the following distribution:
 
 $$ X_i \sim N(\theta_i, 1) $$
@@ -45,7 +47,7 @@ plotJS <- function(k, sigma.theta) {
   theta <- rnorm(k, 0, sigma.theta)
   # oracle estimator: what if we knew sigma_theta^2,
   # which Efron and Morris denote as 'A'
-  B.oracle <- 1/(1 + sigma.theta^2) 
+  B.oracle <- 1/(1 + sigma.theta^2)
   x <- rnorm(k, theta, 1)
   B <- (k - 2)/sum(x^2)
   eb <- (1 - B) * x

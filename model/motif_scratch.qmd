@@ -1,7 +1,9 @@
 ---
 title: "Motif finding, more like MEME"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format:
+  html:
+    embed-resources: true
 ---
 
 Create a motif:
@@ -87,4 +89,3 @@ cond_prob_mat <- matrix(cond_prob[,1], nrow=n, byrow = TRUE)
 top_condz_per_row <- apply(cond_prob_mat, 1, which.max)
 plot(z0, top_condz_per_row)
 ```
-

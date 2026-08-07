@@ -1,7 +1,9 @@
 ---
 title: "Motif finding with EM"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format:
+  html:
+    embed-resources: true
 ---
 
 I want to give a sense of how the EM algorithm can be used in a
@@ -80,7 +82,7 @@ all the k-mers for a value of k that is large, but less than the
 length of the motif we are looking for. If we look across sequences
 which should occasionally contain the motif, we will likely find sets
 of k-mers that occur more than we would expect in "background" DNA
-sequences. 
+sequences.
 
 ```{r}
 x <- matrix(sample(1:4, n * l, TRUE),nrow=n)
@@ -105,7 +107,7 @@ nucleotide (A,C,G,T down the rows) at a given position in the
 motif. Note again that the positions in the motifs we recover are
 arbitrarily shifted: if the true motif starts at position 3 or
 position 7 of $\theta$ will both get us to a local maximum of the log
-likelihood. 
+likelihood.
 
 ```{r}
 set.seed(5)
@@ -136,10 +138,10 @@ prod(theta[1,snip == 1]) * prod(theta[2,snip == 2]) *
   prod(theta[3,snip == 3]) * prod(theta[4,snip == 4])
 ```
 
-Once we've stored these condition probabilities in a matrix, 
+Once we've stored these condition probabilities in a matrix,
 `posterior_z`, we can use these to maximize our expectation of the log
-likelihood with respect to the 
-condition distribution of *Z* given *X* and $\theta^t$ 
+likelihood with respect to the
+condition distribution of *Z* given *X* and $\theta^t$
 and then update to $\theta^{t+1}$. We will add the contribution from each
 sequence out of `n`, and from all positions `p`. As `posterior_z` will be
 normalized so that each row sums to 1 (it forms a density along the
@@ -153,7 +155,7 @@ not evaluated, as we haven't yet computed `posterior_z`.
 1/n * posterior_z[i,p] * (x[i,p + 0:(theta_len-1)] == j)
 ```
 
-Now we will put these two pieces together, within a loop. 
+Now we will put these two pieces together, within a loop.
 We will also add some
 code which will plot the guesses at each iteration.
 
@@ -166,16 +168,16 @@ drawTheta <- function(theta, t) {
   cols_alpha <- sapply(1:theta_len, function(i) {
     adjustcolor(cols[theta_max[i]],(theta_max_p[i] - .25)/.75)
   })
-  points(seq_len(theta_len), rep(t,theta_len), 
+  points(seq_len(theta_len), rep(t,theta_len),
          col=cols_alpha, pch=15, cex=2)
 }
 ```
 
-The following code chunk is too long for an Rmarkdown, 
+The following code chunk is too long for an Rmarkdown,
 but I put it here as
 one long chunk so that you can step through the code at each iteration
-and examine the values of the posteior for Z and theta, 
-as the EM is progressing. It has to be one long chunk to draw the 
+and examine the values of the posteior for Z and theta,
+as the EM is progressing. It has to be one long chunk to draw the
 iterations on the same plot.
 
 ```{r message=FALSE, fig.width=6, fig.height=6}
@@ -189,7 +191,7 @@ nullplot(0, theta_len, -1, niter,
          xlab="position in motif", ylab="iterations")
 cols <- c("green3","blue","orange","red")
 # draw the true motif at the bottom
-points(seq_len(motif_len) + (theta_len-motif_len)/2, 
+points(seq_len(motif_len) + (theta_len-motif_len)/2,
        rep(-1,motif_len), col=cols[motif], pch=15, cex=2)
 drawTheta(theta, 0) # draw theta^0
 
@@ -202,19 +204,19 @@ for (t in seq(1,niter)) {
     for (p in seq_len(l-theta_len+1)) {
       # move a window along row i of x
       snip <- x[i,p + 0:(theta_len-1)]
-      # calculate the conditional distribution (posterior) 
+      # calculate the conditional distribution (posterior)
       # of Z given X and current theta
-      posterior_z[i,p] <- prod(theta[1,snip == 1]) * 
+      posterior_z[i,p] <- prod(theta[1,snip == 1]) *
         prod(theta[2,snip == 2]) *
-        prod(theta[3,snip == 3]) * 
+        prod(theta[3,snip == 3]) *
         prod(theta[4,snip == 4])
     }
   }
   # normalize posterior_z to make it a density along positions
   posterior_z <- posterior_z / rowSums(posterior_z)
-  
+
   # Sys.sleep(0.1) # for live demo
-  
+
   # re-estimate theta by maximizing over E_{Z|X,theta^t} (log lik)
   theta <- matrix(0,nrow=4,ncol=theta_len)
   for (j in 1:4) {
@@ -223,14 +225,14 @@ for (t in seq(1,niter)) {
         # for nucleotide j, add the contribution of sequence i,
         # averaging over all positions p, weighted by Z.
         # MLE is just the frequency of when the sequence = j here
-        theta[j,] <- theta[j,] + 1/n * posterior_z[i,p] * 
+        theta[j,] <- theta[j,] + 1/n * posterior_z[i,p] *
           (x[i,p + 0:(theta_len-1)] == j)
       }
     }
   }
-  
+
   drawTheta(theta, t) # theta for iteration 't'
-  
+
 }
 ```
 
@@ -256,7 +258,7 @@ particular, when the motif started on the far left or far right side,
 the $\theta$ matrix was too wide.
 
 ```{r, fig.width=6, fig.height=6}
-plot(z, apply(posterior_z, 1, which.max), 
+plot(z, apply(posterior_z, 1, which.max),
      ylab="max density in posterior_z")
 abline(0,1)
 ```

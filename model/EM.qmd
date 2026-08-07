@@ -1,14 +1,16 @@
 ---
 title: "Expectation maximization"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format:
+  html:
+    embed-resources: true
 ---
- 
+
 The theme of this week is statistical modeling. Given the
 prerequisites, you have seen statistical models already, as well as
 the method of maximum likelihood estimation (MLE) to obtain a set of
 model parameters which best describe the data. If not, here is a
-[refresher on statistical models](http://genomicsclass.github.io/book/pages/modeling.html). 
+[refresher on statistical models](http://genomicsclass.github.io/book/pages/modeling.html).
 A straightforward approach to obtain the MLE parameters, is to write
 out the joint density function for the observed data, and often we
 then take the logarithm of the likelihood. If this log likelihood
@@ -20,8 +22,8 @@ parameter of a Normal distribution.
 In computational biology, we often would like to specify models and
 find the MLE for the model parameters, but the above approach does not
 work due to the complexity of the problem. We can lump many such
-complex problems together as those sharing a common property: 
-we can formulate these problem as having a 
+complex problems together as those sharing a common property:
+we can formulate these problem as having a
 **latent variable**, a special model parameter,
 such that if we knew its value, it would be much easier to estimate
 the other model parameters. Typically the latent variable is
@@ -31,13 +33,13 @@ be the membership of the observations into multiple groups), *x* is
 either discrete- or continuous-valued, and $\theta$ is typically
 continuous-valued.
 
-*Expectation maximization* (EM) is a class of algorithms 
-that help us tackle such problems. 
+*Expectation maximization* (EM) is a class of algorithms
+that help us tackle such problems.
 The algorithm had been proposed in various domains as early
 as the 1950s, but a paper
 in [1977](https://www.jstor.org/stable/2984875) unified the
-description of the incomplete data problem (equivalent to *latent variable*) 
-and the EM algorithm, providing a unified statistical context and 
+description of the incomplete data problem (equivalent to *latent variable*)
+and the EM algorithm, providing a unified statistical context and
 guarantees on convergence. Note that the authors of the 1977 work do
 not use *z*, $\theta$, and *x* notation, as above.
 
@@ -57,7 +59,7 @@ and we don't observe $z_i$ for each observation of data $x_i$.
 We typically get stuck in that we cannot distribute the log
 to all the terms, which would help simplify the equations.
 This is described in Ramesh Sridharan's excellent
-lecture notes for the mixture of Normals model. 
+lecture notes for the mixture of Normals model.
 We usually have a sum of densities
 that cannot be separated. If *z* were known,
 we could split apart the sums based on which *x* belong to which
@@ -69,7 +71,7 @@ The EM algorithm proceeds by taking the expectation of the log
 likelihood *with respect to the conditional distribution of Z given X and*
 $\theta^t$, our best guess of the parameters $\theta$ at step *t* in
 the algorithm. This quantity will fill in for our actual objective,
-which was the log likelihood marginalized over assignments for *Z*. 
+which was the log likelihood marginalized over assignments for *Z*.
 Because of Jensen's Inequality, we have that the expected value of
 the log of a random variable is less than or equal to the log of the
 expected value. So we work with a quantity that is a lower bound for
@@ -108,29 +110,29 @@ given *X* and $\theta^t$, we obtain better than simply a lower bound:
 we obtain a function which is bounded above by the log likelihood and
 equal to it at $\theta^t$ (the current estimate).
 One can furthermore show that by optimizing this
-*replacement* log likelihood and obtaining $\theta^{t+1}$, we have 
+*replacement* log likelihood and obtaining $\theta^{t+1}$, we have
 $\ell(\theta^t) \le \ell(\theta^{t+1})$, that is, monotonic increases
-in the *original* log likelihood at each iteration 
-(see [Andrew Ng's course notes](http://cs229.stanford.edu/notes2020spring/cs229-notes8.pdf) 
+in the *original* log likelihood at each iteration
+(see [Andrew Ng's course notes](http://cs229.stanford.edu/notes2020spring/cs229-notes8.pdf)
 for a proof). A diagram of the process of iteratively maximizing functions
-which lower bound the log likelihood can be found 
-[here](https://static-content.springer.com/esm/art%3A10.1038%2Fnbt1406/MediaObjects/41587_2008_BFnbt1406_MOESM8_ESM.pdf), 
-which is a supplemantary PDF associated with 
+which lower bound the log likelihood can be found
+[here](https://static-content.springer.com/esm/art%3A10.1038%2Fnbt1406/MediaObjects/41587_2008_BFnbt1406_MOESM8_ESM.pdf),
+which is a supplemantary PDF associated with
 [this review](https://www.nature.com/nbt/journal/v26/n8/full/nbt1406.html)
 on the EM algorithm by Chuong Do and Serafim Batzoglou.
 
 The actual algorithm begins with a
-random initialization of parameters $\theta^0$. We then calculate 
+random initialization of parameters $\theta^0$. We then calculate
 conditional probabilities for *Z* given *X* and $\theta^0$, and use these in
-calculating the expectation of the log likelihood. These "guesses" for 
+calculating the expectation of the log likelihood. These "guesses" for
 *z* help to break apart the log likelihood and facilitate
 maximization. Finally, we obtain a new estimate of $\theta$ and repeat
-until convergence. Note that EM is not guaranteed to find 
+until convergence. Note that EM is not guaranteed to find
 *global maxima*, but will find *local maxima*. It is therefore
 sometimes necessary to try multiple random starts.
 
 Ok, that was a lot of text, but most of all I want to show you how
-it's useful. Let's dive into a real example: 
+it's useful. Let's dive into a real example:
 
 # Mixture of Normals example
 
@@ -139,21 +141,21 @@ being drawn from two Normal components.
 We will index the two components by *c*, and the observations by *i*.
 We consider a latent variable *Z*, which is a binomial random
 variable, such that $z_i$ tells us which component a given $x_i$ comes
-from, where 0 corresponds to the 
+from, where 0 corresponds to the
 first component and 1 corresponds to the second component.
 If $z_i = 0$, this means that observation *i* comes from the 1st Normal component.
 Define $\theta = (\pi_1, \mu_1, \sigma^2_1, \pi_2, \mu_2, \sigma^2_2)$,
 where the $\pi_c$ represent the proportion of observations from
 component *c*. Then the binomial distribution for *Z* has a success
-probability $\pi_2 = (1 - \pi_1)$. 
+probability $\pi_2 = (1 - \pi_1)$.
 
-Before we start with the EM steps, it's useful to recall that if we observed 
+Before we start with the EM steps, it's useful to recall that if we observed
 the data $x_i$ and the latent variable $z_i$ we could work on the log likelihood:
 
 $$ \ell^*(\theta) = \sum_i \sum_c \mathbb{1}(z_i = c) \log \left( \pi_c f(x_i; \mu_c, \sigma^2_c) \right) \quad \textrm{* : if we observed} \, z_i $$
 
-However, we don't observe the $z_i$ and so if we attempted maximum 
-likelihood estimation, we would be stuck with a sum over components *c* preventing 
+However, we don't observe the $z_i$ and so if we attempted maximum
+likelihood estimation, we would be stuck with a sum over components *c* preventing
 us from distributing the log and breaking up terms for differentiation
 with respect to elements of $\theta$:
 
@@ -169,18 +171,18 @@ $$ = \textrm{E}_{Z|X,\theta^t} \left[ \log \prod_i \prod_c \left( \pi_c f(x_i; \
 
 $$ = \textrm{E}_{Z|X,\theta^t} \left[ \sum_i \sum_c \mathbb{1}(z_i = c) (\log \pi_c + \log f(x_i; \mu_c, \sigma^2_c)) \right] $$
 
-$$ \sum_i \sum_c \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = c) \left( \log \pi_c + \log \frac{1}{\sqrt{2 \pi \sigma^2_c}} - \frac{1}{2 \sigma^2_c} (x_i - \mu_c)^2 \right) $$ 
+$$ \sum_i \sum_c \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = c) \left( \log \pi_c + \log \frac{1}{\sqrt{2 \pi \sigma^2_c}} - \frac{1}{2 \sigma^2_c} (x_i - \mu_c)^2 \right) $$
 
 Now differentiate this double sum with respect to one of the
-parameters, say $\mu_1$, and set it equal to zero. Remember we have 
+parameters, say $\mu_1$, and set it equal to zero. Remember we have
 $z_i = 0$ if observation *i* is from the 1st Normal component.
 
 $$ \sum_i \textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 0) (x_i - \mu_1) = 0 $$
 
 Define $\textrm{E}_{Z|X,\theta^t} \mathbb{1}(z_i = 0) \equiv w_i^1$,
 which we can calculate using our probability model, $x$, and
-$\theta^t$. Again, $w_i^1$ is the conditional probability that 
-observation *i* is from component 1, given the data and the current 
+$\theta^t$. Again, $w_i^1$ is the conditional probability that
+observation *i* is from component 1, given the data and the current
 best estimate of parameters.
 
 We end up with:
@@ -191,8 +193,8 @@ $$ \hat{\mu}^{t+1}_1 = \frac{\sum_i w_i^1 x_i}{\sum_i w_i^1} $$
 
 We obtain a weighted sum of the observations that belong to this
 component for our estimate of the mean. If we repeat the same for
-$\sigma^2_1$, we will obtain a similar weighted sum of the squares 
-$(x_i - \mu_1)^2$. 
+$\sigma^2_1$, we will obtain a similar weighted sum of the squares
+$(x_i - \mu_1)^2$.
 
 # Running EM on simulated data
 
@@ -289,7 +291,7 @@ human genome sequence data. We will look at the sequence surrounding
 the transcription start site (TSS) of the genes in the UCSC known gene
 database. These regions are called *promoters*, although the exact
 definition of the size of the promoter may vary for different
-analyses. Here we will use the definition from the following article: 
+analyses. Here we will use the definition from the following article:
 
 [A genome-wide analysis of CpG dinucleotides in the human genome distinguishes two distinct classes of promoters](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1345710).
 
@@ -297,7 +299,7 @@ The authors created windows of size 3 kb surrounding the TSS of genes,
 and then counted the number of CpG's, which are C followed by G. Note
 that the count of CpG does not depend on which strand is used, as the
 sequence is its own reverse complement. The authors normalized the
-count of CpG's by the expected count given the amount of C's and G's. 
+count of CpG's by the expected count given the amount of C's and G's.
 
 From the paper's abstract:
 
@@ -306,7 +308,7 @@ From the paper's abstract:
 > regions with relatively high content of the dinucleotide. CGIs are
 > generally associated with promoters; genes, whose promoters are
 > especially rich in CpG sequences, tend to be expressed in most
-> tissues. 
+> tissues.
 
 Further description in the paper:
 
@@ -350,7 +352,7 @@ cpg <- as.vector( vcountPDict(PDict("CG"), seq) / 3000 )
 norm.cpg <- cpg / (gc/2)^2
 ```
 
-The following histogram recreates 
+The following histogram recreates
 [Fig 2A](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1345710/figure/fig2/)
 from the paper above.
 

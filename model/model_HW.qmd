@@ -2,7 +2,9 @@
 title: "Homework 4 - Data modeling: EM and HMM"
 author: "your name here"
 date: "`r format(Sys.time(), '%m/%d/%Y')`"
-output: html_document
+format:
+  html:
+    embed-resources: true
 ---
 
 # Question 1 - EM for cell types (12 pts)
@@ -38,7 +40,7 @@ ncells <- 1000
 # true 'z' used for simulation, but consider unobserved
 z <- sample(ncelltypes, ncells, TRUE)
 table(z)
-x <- cell_types[,z] + matrix(rnorm(nproteins * ncells), 
+x <- cell_types[,z] + matrix(rnorm(nproteins * ncells),
                              ncol=ncells)
 ```
 
@@ -108,7 +110,7 @@ ngenes <- 20
 T <- 12
 y_matrix <- matrix(rnorm(ngenes * T), ncol=T)
 # the true transition: last four time points shift up by 0.7
-y_matrix[,9:12] <- y_matrix[,9:12] + .7 
+y_matrix[,9:12] <- y_matrix[,9:12] + .7
 n <- 2 # just two states
 ```
 

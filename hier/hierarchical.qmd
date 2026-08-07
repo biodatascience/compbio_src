@@ -1,14 +1,16 @@
 ---
 title: "Hierarchical modeling of variance"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format:
+  html:
+    embed-resources: true
 ---
 
 This week we will focus on hierarchical models as they are used in
 genomics, and particularly hierarchical models for estimates of
 variance. A good review of this topic is:
 
-[Analyzing ’omics data using hierarchical
+[Analyzing 'omics data using hierarchical
 models](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2904972/) by
 Hongkai Ji and X Shirley Liu
 
@@ -104,7 +106,7 @@ Finally, we perform a quick check to see that there are not large
 clusters in the data.
 
 ```{r}
-hc <- hclust(dist(t(exprs(e)[order(rv,decreasing=TRUE)[1:1000],]))) 
+hc <- hclust(dist(t(exprs(e)[order(rv,decreasing=TRUE)[1:1000],])))
 plot(hc)
 ```
 
