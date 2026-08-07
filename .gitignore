@@ -1,4 +1,5 @@
 *.rda
+*.rds
 *.html
 *.gz
 *.txt

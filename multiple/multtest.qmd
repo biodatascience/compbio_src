@@ -62,35 +62,67 @@ is expected.
 
 ```{r message=FALSE}
 library(recount3)
-proj <- available_projects()
-row <- proj[proj$project == "ERP020977",]
-rse <- create_rse(row, type = "gene")
+library(here)
+rse_file <- here("multiple", "rse_ERP020977.rds")
+if (!file.exists(rse_file)) {
+  proj <- available_projects()
+  row <- proj[proj$project == "ERP020977",]
+  rse <- create_rse(row, type = "gene")
+  saveRDS(rse, rse_file)
+} else {
+  rse <- readRDS(rse_file)
+}
 rse
 ```
 
-We parse the condition from the sample attributes and keep only the
-naive (untreated) samples:
+We parse condition and donor from the sample attributes and title, grab
+the fragment count for later use with `voom`, then drop the bulk SRA
+and project metadata columns from `colData`:
+
+```{r message=FALSE}
+library(stringr)
+library(tidyr)
+
+attrs <- colData(rse)$sra.sample_attributes
+colData(rse)$frag_count <- colData(rse)$`recount_qc.bc_frag.count`
+colData(rse)$donor <- str_extract(
+  colData(rse)$sra.sample_title, "HPSI[^ ]+"
+)
+
+# Extract the treatment field; combined IFNg+Salmonella samples only have
+# "interferon gamma" there — their Sample Name sub-attribute is the only
+# indicator, so we detect them in a second pass
+colData(rse)$treatment <- str_extract(attrs, "(?<=treatment;;)[^|]+") |>
+  replace_na("naive")
+colData(rse)$treatment[str_detect(attrs, "salmonella and IFNg")] <- "IFNg_Salmonella"
+
+# Drop the heavy SRA and project metadata now that we have what we need
+cd <- colData(rse)
+colData(rse) <- cd[, !grepl("^sra\\.|^recount_project\\.", colnames(cd))]
+
+table(rse$treatment)
+```
+
+We keep only the naive (untreated) samples, where no biological
+difference between random groups of donors is expected:
 
 ```{r}
-attrs <- colData(rse)$sra.sample_attributes
-treatment <- rep("naive", length(attrs))
-treatment[grepl("salmonella infection", attrs) & grepl("interferon gamma", attrs)] <- "IFNg_Salmonella"
-treatment[grepl("salmonella infection", attrs) & !grepl("interferon gamma", attrs)] <- "Salmonella"
-treatment[!grepl("salmonella infection", attrs) & grepl("interferon gamma", attrs)] <- "IFNg"
-table(treatment)
-rse <- rse[, treatment == "naive"]
+rse <- rse[, rse$treatment == "naive"]
+colData(rse)$donor <- factor(rse$donor)
 dim(rse)
+cat("donors:", nlevels(rse$donor), "\n")
 ```
 
 We normalize the raw coverage counts using `transform_counts`, which
 scales each sample to 40 million mapped reads (analogous to RPM
-normalization). We then filter to genes expressed in the majority of
-samples, and take a log2 transformation.
+normalization). We keep a raw count matrix for use with `limma::voom`,
+then filter to genes expressed in more than 70% of samples.
 
 ```{r}
-mat <- transform_counts(rse)
-expressed <- rowMeans(mat > 5) > 0.5
-mat <- log2(mat[expressed, ] + 1)
+mat_raw <- transform_counts(rse)
+expressed <- rowMeans(mat_raw >= 10) > 0.7
+mat_raw <- mat_raw[expressed, ]
+mat <- log2(mat_raw + 1)
 dim(mat)
 ```
 
@@ -107,14 +139,22 @@ look for any large-scale structure in the data:
 ```{r}
 par(mfrow = c(1, 1))
 pc <- prcomp(t(mat))
-plot(pc$x[, 1:2])
+plot(pc$x[, 1:2], main = "PCA (unlabeled)")
+```
+
+We can see that the first PC captures substantial variation. Coloring
+by donor reveals that this structure is driven by individual-to-individual
+differences — each donor was profiled at a single time point, so there is
+no within-donor replication across conditions in the naive subset.
+
+```{r}
+plot(pc$x[, 1:2], col = as.integer(rse$donor),
+     pch = 20, main = "PCA colored by donor")
 ```
 
 If you square the standard deviation values and sum them, you get the
-total variance in the data. Here I show that the top PC is not a large
-percent of the variance in the data, which means that there is not a
-strong low-dimensional structure, as one might see with distinct
-biological conditions or strong batch effects.
+total variance in the data. The top PC explains a notable fraction of
+variance, consistent with the donor structure we see in the plot.
 
 ```{r}
 plot(pc$sdev[1:10]^2 / sum(pc$sdev^2), type = "b", ylab = "% Var")
@@ -124,19 +164,26 @@ plot(pc$sdev[1:10]^2 / sum(pc$sdev^2), type = "b", ylab = "% Var")
 
 To investigate multiple testing, we first generate a mock comparison: I
 choose two random groups of the data, indicated by a factor variable
-called `fake` and perform row-wise t-tests across all expressed genes.
-I then look at the distribution of p-values across 20 bins defined on
-[0,1].
+called `fake`. Rather than a simple row-wise t-test (which would be
+inflated by the donor structure visible in the PCA), we use
+`limma::voom` to fit a linear model that includes `donor` as a
+covariate. This removes the donor-to-donor variance from the residuals,
+giving a much more uniform null distribution of p-values.
 
 ```{r message=FALSE}
-set.seed(1)
-n <- ncol(mat)
+library(limma)
+set.seed(5)
+n <- ncol(mat_raw)
 fake <- factor(sample(c(rep(1, n %/% 2), rep(2, n - n %/% 2))))
-library(genefilter)
-ts <- rowttests(mat, fake)
+design <- model.matrix(~ rse$donor + fake)
+v <- voom(mat_raw, design)
+fit <- lmFit(v, design)
+fit <- eBayes(fit)
+res <- topTable(fit, coef = "fake2", number = Inf, sort.by = "none")
 nbins <- 20
 brks <- 0:nbins / nbins
-hist(ts$p.value, col = "grey", breaks = brks)
+hist(res$P.Value, col = "grey", breaks = brks,
+     main = "Null p-values (donor-corrected voom)")
 ```
 
 Here I make this plot again, and show a line for what we would expect
@@ -144,7 +191,7 @@ on average for each bin for null hypotheses. We can see we are pretty
 close to the expected values for this set of bins.
 
 ```{r}
-p <- ts$p.value
+p <- res$P.Value
 hist(p, col = "grey", breaks = brks)
 abline(h = length(p) / nbins, col = "dodgerblue", lwd = 3)
 1 / nbins
@@ -160,7 +207,7 @@ distributed on [-6,-1].
 
 ```{r}
 p2 <- p
-p2[1:1000] <- 10^runif(1000, -6, -1)
+p2[1:1000] <- 10^runif(2000, -6, -1)
 ```
 
 # Correction with `p.adjust`
@@ -258,11 +305,12 @@ desired FDR bound. The adjusted p-values are the smallest value of *q*
 for each test, so a *reverse* of the procedure where you start with
 *q*. Geometrically, the BH procedure can be thought of putting the
 tests in order of p-value along the x-axis, with the value of p on the
-y-axis. For the first 500 tests, this looks like:
+y-axis. For the first set of tests, this looks like:
 
 ```{r}
+n_p <- 150
 p.sort <- sort(p2)
-plot(1:500, p.sort[1:500], ylim = c(0, p.sort[500]), type = "l",
+plot(1:n_p, p.sort[1:n_p], ylim = c(0, p.sort[n_p]), type = "l",
      xlab = "i", ylab = "p")
 ```
 
@@ -277,7 +325,7 @@ adjusted p-value if the line had touches the sorted p-values earlier.
 q <- min(padj.bh)
 i <- sum(padj.bh == q)
 m <- length(p2)
-plot(1:500, p.sort[1:500], ylim = c(0, p.sort[500]), type = "l")
+plot(1:n_p, p.sort[1:n_p], ylim = c(0, p.sort[n_p]), type = "l")
 abline(0, q / m, col = "red")
 ```
 
@@ -298,8 +346,8 @@ $\pi_0$ is close to the truth:
 
 ```{r}
 library(qvalue)
-res <- qvalue(p2)
-res$pi0
+qres <- qvalue(p2)
+qres$pi0
 1 - 1000 / length(p) # we spiked in 1k alternatives
 ```
 
@@ -308,7 +356,7 @@ p-values, and are strictly smaller, although here only slightly so. For
 smaller $\pi_0$ the gain in sensitivity would be more substantial.
 
 ```{r}
-qval.sort <- sort(res$qvalues)
+qval.sort <- sort(qres$qvalues)
 plot(padj.sort[1:500], qval.sort[1:500])
 abline(0, 1)
 ```
