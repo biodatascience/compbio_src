@@ -1,17 +1,19 @@
 ---
 title: "Intuition behind local FDR"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format:
+  html:
+    embed-resources: true
 ---
 
 In a previous [section](multtest.html), we looked at *adjusting*
 p-values to define sets with bounds on the family-wise error or false
 discovery rates. Here I want to show the idea behind a related method
 called *local FDR* calculation. A nice description of this framework
-is presented in the paper, 
-[Large-Scale simultaneous hypothesis testing](http://www.tandfonline.com/doi/abs/10.1198/016214504000000089) 
+is presented in the paper,
+[Large-Scale simultaneous hypothesis testing](http://www.tandfonline.com/doi/abs/10.1198/016214504000000089)
 by Bradley Efron. There is also an R package implementing the methods,
-which is the 
+which is the
 [locfdr](https://cran.r-project.org/web/packages/locfdr/index.html)
 package on CRAN.
 
@@ -58,7 +60,7 @@ t$diff <- factor(diff, levels=c(TRUE,FALSE))
 
 Here I plot the p-values for all 20,000 tests.
 On the -log10 scale, you can see the enrichment in small p-values for
-the true alternative hypotheses at the end of the list of 20,000. 
+the true alternative hypotheses at the end of the list of 20,000.
 
 ```{r}
 plot(t$p.value)
@@ -79,7 +81,7 @@ t-statistics alone. Because we used simulation, we can color the tests
 according to belonging to the set of null or alternative hypotheses.
 Note that, we simulated positive differences between the two groups,
 so the t-statistics for the alternative hypotheses form a right tail
-for the total distribution. 
+for the total distribution.
 
 The basic idea of local FDR is that, we
 might try to estimate the null distribution from the total
@@ -118,7 +120,7 @@ lines(s, pi0*dnorm(s), col="purple", lwd=3)
 We can try to estimate $\pi_0$ by looking at the left side of the
 distribution. For example, we observe a certain set of counts along
 bins of t-statistics, and we can plot the expected counts if all of
-the hypotheses were null. 
+the hypotheses were null.
 
 ```{r}
 delta <- 0.1
@@ -184,5 +186,5 @@ points(df$mids, m*pi0.hat*expected, col="purple", type="o")
 However, note that these steps we have applied here are very rough,
 and mostly useful for demonstration of the idea. For practical
 analysis purposes you should read and use the links above for the
-local FDR paper and 
+local FDR paper and
 [locfdr](https://cran.r-project.org/web/packages/locfdr/index.html) package.

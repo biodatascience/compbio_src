@@ -1,9 +1,11 @@
 ---
 title: "Introduction to multiple testing"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
-editor_options: 
-  markdown: 
+format:
+  html:
+    embed-resources: true
+editor_options:
+  markdown:
     wrap: 72
 ---
 
@@ -41,124 +43,124 @@ create a null distribution of test statistics.
 
 # About the dataset
 
-We start by downloading a large, normalized matrix of values for
-*chromatin accessibilty* across 68 human donors. Chromatin accessibility
-refers to a quantitative measurement of whether the DNA at a certain
-location is packaged tightly or in a more open pattern, which indicates
-the degree to which proteins can access and bind to DNA -- in particular
-regulatory proteins which might affect transcription of genes. A diagram
-of inaccessible and accessible chromatin can be found on this [Wikipedia
-page](https://en.wikipedia.org/wiki/Chromatin_remodeling).
+We use a publicly available gene expression dataset from the
+[HipSci project](https://www.hipsci.org/), accessible via the
+[recount3](https://bioconductor.org/packages/recount3) Bioconductor
+package. The study (accession ERP020977) profiled gene expression in
+macrophages derived from induced pluripotent stem cells (iPSCs) of 86
+unrelated healthy donors under four conditions: naive, interferon-gamma
+(IFN-γ), Salmonella infection, and IFN-γ followed by Salmonella. The
+publication is:
 
-The dataset is hosted at [this
-website](http://mitra.stanford.edu/kundaje/portal/chromovar3d/dnase.html),
-and we download a text file of normalized data contained in this
-[subfolder](http://chromovar3d.stanford.edu/QTLs/correctedSignal/),
-which is about 130 Mb, compressed. The publication associated with this
-dataset is listed at the above link, and the goal was to find genetic
-variants which are associated with differences in chromatin
-accessibility. We won't discuss here exactly how the raw data was
-processed to produce the normalized matrix above, but for our purposes,
-all we need to know is that large values correspond to more accessible
-chromatin, each column corresponds to a different human donor, and each
-row corresponds to a distinct location in the genome. The rows are
-actually *peaks* of accessibility that were detected in at least some
-subset of the samples.
+> Alasoo et al. (2018) "Shared genetic effects on chromatin and gene
+> expression indicate a role for enhancer priming in immune response."
+> *Nature Genetics.*
 
-We have to use this `skip=1` argument below because the first row
-contains only column names, but is missing a column name for the first
-column (the index number of the peak from a larger set of peaks).
+For our null distribution, we focus on the **naive (untreated)**
+samples, where no biological difference between random groups of donors
+is expected.
 
-```{r}
-url <- "http://chromovar3d.stanford.edu/QTLs/correctedSignal/hMat.norm.ALL.dhs.peer_lS_5.txt.gz"
-file <- "hMat.norm.ALL.dhs.peer_lS_5.txt.gz"
-if (!file.exists(file)) download.file(url, file)
-library(readr)
-dnase <- read_delim(file, delim=" ", skip=1, col_names=FALSE)
-dnase
+```{r message=FALSE}
+library(recount3)
+proj <- available_projects()
+row <- proj[proj$project == "ERP020977",]
+rse <- create_rse(row, type = "gene")
+rse
 ```
 
+We parse the condition from the sample attributes and keep only the
+naive (untreated) samples:
+
 ```{r}
-dim(dnase)
-col.names <- names(read.delim(file, nrow=1, sep=" "))
-col.names
+attrs <- colData(rse)$sra.sample_attributes
+treatment <- rep("naive", length(attrs))
+treatment[grepl("salmonella infection", attrs) & grepl("interferon gamma", attrs)] <- "IFNg_Salmonella"
+treatment[grepl("salmonella infection", attrs) & !grepl("interferon gamma", attrs)] <- "Salmonella"
+treatment[!grepl("salmonella infection", attrs) & grepl("interferon gamma", attrs)] <- "IFNg"
+table(treatment)
+rse <- rse[, treatment == "naive"]
+dim(rse)
 ```
 
-We have 250k peaks and 68 donors. We add the column names that we
-skipped before:
+We normalize the raw coverage counts using `transform_counts`, which
+scales each sample to 40 million mapped reads (analogous to RPM
+normalization). We then filter to genes expressed in the majority of
+samples, and take a log2 transformation.
 
 ```{r}
-mat <- as.matrix(dnase[,-1])
+mat <- transform_counts(rse)
+expressed <- rowMeans(mat > 5) > 0.5
+mat <- log2(mat[expressed, ] + 1)
 dim(mat)
-colnames(mat) <- col.names
 ```
 
-I take a quick look at the histogram of values for the first four peaks:
+I take a quick look at the histogram of values for the first four genes:
 
 ```{r}
-par(mfrow=c(2,2))
-for (i in 1:4) hist(mat[i,], col="grey")
+par(mfrow = c(2, 2))
+for (i in 1:4) hist(mat[i, ], col = "grey", main = rownames(mat)[i])
 ```
 
-Also, it's always a good idea to make a PCA plot of the samples, to look
-for any large-scale structure in the data:
+Also, it's always a good idea to make a PCA plot of the samples, to
+look for any large-scale structure in the data:
 
 ```{r}
-par(mfrow=c(1,1))
+par(mfrow = c(1, 1))
 pc <- prcomp(t(mat))
-plot(pc$x[,1:2])
+plot(pc$x[, 1:2])
 ```
 
 If you square the standard deviation values and sum them, you get the
 total variance in the data. Here I show that the top PC is not a large
-percent of the variance in the data, which means that there is not a low
-dimensional structure to the data, which one might see with strong batch
-effects or distinct biological conditions.
+percent of the variance in the data, which means that there is not a
+strong low-dimensional structure, as one might see with distinct
+biological conditions or strong batch effects.
 
 ```{r}
-plot(pc$sdev[1:10]^2 / sum(pc$sdev^2), type="b", ylab="% Var")
+plot(pc$sdev[1:10]^2 / sum(pc$sdev^2), type = "b", ylab = "% Var")
 ```
 
 # Multiple testing
 
 To investigate multiple testing, we first generate a mock comparison: I
 choose two random groups of the data, indicated by a factor variable
-called `fake` and perform row-wise t-tests across all the 250k peaks in
-the data. I then look at the distribution of p-values across 20 bins
-defined on [0,1].
+called `fake` and perform row-wise t-tests across all expressed genes.
+I then look at the distribution of p-values across 20 bins defined on
+[0,1].
 
 ```{r message=FALSE}
 set.seed(1)
-fake <- factor(sample(rep(1:2,each=ncol(mat)/2)))
+n <- ncol(mat)
+fake <- factor(sample(c(rep(1, n %/% 2), rep(2, n - n %/% 2))))
 library(genefilter)
 ts <- rowttests(mat, fake)
 nbins <- 20
-brks <- 0:nbins/nbins
-hist(ts$p.value, col="grey", breaks=brks)
+brks <- 0:nbins / nbins
+hist(ts$p.value, col = "grey", breaks = brks)
 ```
 
-Here I make this plot again, and show a line for what we would expect on
-average for each bin for null hypotheses. We can see we are pretty close
-to the expected values for this set of bins.
+Here I make this plot again, and show a line for what we would expect
+on average for each bin for null hypotheses. We can see we are pretty
+close to the expected values for this set of bins.
 
 ```{r}
 p <- ts$p.value
-hist(p, col="grey", breaks=brks)
-abline(h=length(p)/nbins, col="dodgerblue", lwd=3)
-1/nbins
-sum(p < 1/nbins)
-length(p)/nbins
+hist(p, col = "grey", breaks = brks)
+abline(h = length(p) / nbins, col = "dodgerblue", lwd = 3)
+1 / nbins
+sum(p < 1 / nbins)
+length(p) / nbins
 ```
 
 Now, because we want to explore how multiple testing frameworks deal
-with combined null and alternative hypotheses, I will "spike in" 10,000
+with combined null and alternative hypotheses, I will "spike in" 1,000
 p-values corresponding to alternative hypotheses. I don't generate the
 data, just p-values which, after log10 transformation, are uniformly
 distributed on [-6,-1].
 
 ```{r}
 p2 <- p
-p2[1:10000] <- 10^runif(10000,-6,-1)
+p2[1:1000] <- 10^runif(1000, -6, -1)
 ```
 
 # Correction with `p.adjust`
@@ -173,18 +175,18 @@ rate (FWER) while the Benjamini-Hochberg method bounds the false
 discovery rate (FDR) in expectation. A reminder: these are critically
 different bounds: FWER is the number of false positives over all null
 hypotheses, while FDR is the number of false positives over the set
-which is called positive. And the Benjamini-Hochberg method provides the
-FDR bound in expectation.
+which is called positive. And the Benjamini-Hochberg method provides
+the FDR bound in expectation.
 
 Below we show the histogram of adjusted p-values, and the minimal
 adjusted p-value. The adjustment is simply the original p-value
-multiplied by the number of tests. So we could provide FWER control for
-this particular simulated data for a few hundred tests, but only at a
-high rate.
+multiplied by the number of tests. So we could provide FWER control
+for this particular simulated data for a few hundred tests, but only at
+a high rate.
 
 ```{r}
-padj.bonf <- p.adjust(p2, method="bonferroni")
-hist(padj.bonf, col="grey", breaks=brks)
+padj.bonf <- p.adjust(p2, method = "bonferroni")
+hist(padj.bonf, col = "grey", breaks = brks)
 min(padj.bonf)
 min(p2) * length(p2) == min(padj.bonf)
 sum(padj.bonf < .5)
@@ -196,21 +198,21 @@ Investigators are often interested in the rate of false positives among
 the set of most promising features (genes, or in this case, genomic
 regions) that are identified by a statistical test.
 
-Here, we pick up on thousands of tests where we can control the FDR at
-5%, for example.
+Here, we pick up on many tests where we can control the FDR at 5%,
+for example.
 
 ```{r}
-padj.bh <- p.adjust(p2, method="BH")
-hist(padj.bh, col="grey", breaks=brks)
+padj.bh <- p.adjust(p2, method = "BH")
+hist(padj.bh, col = "grey", breaks = brks)
 min(padj.bh)
 sum(padj.bh < .05)
 ```
 
 One way to think about what our adjusted p-values are delivering, is to
 examine a histogram of the original p-values for various bin sizes along
-[0,1]. We see an enrichment of small p-values in the smallest bin. If we
-draw the line of expected counts if all the hypotheses were null, we see
-that the first bin could be expected to contain more than half null
+[0,1]. We see an enrichment of small p-values in the smallest bin. If
+we draw the line of expected counts if all the hypotheses were null, we
+see that the first bin could be expected to contain more than half null
 hypotheses. This corresponds to the largest adjusted p-value in this
 bin, which makes sense: by thresholding on an adjusted p-value, we
 should obtain a set of hypotheses bounded by a given false discovery
@@ -218,10 +220,10 @@ rate in expectation.
 
 ```{r}
 nbins <- 20
-brks <- 0:nbins/nbins
-hist(p2, col="grey", breaks=brks)
-abline(h=length(p)/nbins, col="dodgerblue", lwd=3)
-max(padj.bh[p2 < 1/nbins])
+brks <- 0:nbins / nbins
+hist(p2, col = "grey", breaks = brks)
+abline(h = length(p) / nbins, col = "dodgerblue", lwd = 3)
+max(padj.bh[p2 < 1 / nbins])
 ```
 
 If we make the bins smaller, the ratio of expected nulls decreases
@@ -230,10 +232,10 @@ maximum adjusted p-value matches the expected proportion in that bin.
 
 ```{r}
 nbins <- 100
-brks <- 0:nbins/nbins
-hist(p2, col="grey", breaks=brks)
-abline(h=length(p)/nbins, col="dodgerblue", lwd=3)
-max(padj.bh[p2 < 1/nbins])
+brks <- 0:nbins / nbins
+hist(p2, col = "grey", breaks = brks)
+abline(h = length(p) / nbins, col = "dodgerblue", lwd = 3)
+max(padj.bh[p2 < 1 / nbins])
 ```
 
 # Runs of identical adjusted p-values
@@ -241,26 +243,27 @@ max(padj.bh[p2 < 1/nbins])
 Finally, I want to show a property of adjusted p-values using the
 Benjamini-Hochberg (BH) method, which sometimes surprises users who
 aren't familiar with the procedure. See the runs of identical adjusted
-p-values for the first 2000 sorted p-values:
+p-values for the first 500 sorted p-values:
 
 ```{r}
 padj.sort <- sort(padj.bh)
-plot(-log10(padj.sort[1:2000]), xlab="i", ylab="p")
-plot(-log10(padj.sort[1:1200]), xlab="i", ylab="p")
+plot(-log10(padj.sort[1:500]), xlab = "i", ylab = "p")
+plot(-log10(padj.sort[1:300]), xlab = "i", ylab = "p")
 ```
 
 The [publication of the BH method](http://www.jstor.org/stable/2346101)
 describes a procedure, whereby one finds the largest *i* such that the
 i-th smallest p-value is less than $\frac{i}{m} q$, where *q* is the
 desired FDR bound. The adjusted p-values are the smallest value of *q*
-for each test, so a *reverse* of the procedure where you start with *q*.
-Geometrically, the BH procedure can be thought of putting the tests in
-order of p-value along the x-axis, with the value of p on the y-axis.
-For the first 2000 tests, this looks like:
+for each test, so a *reverse* of the procedure where you start with
+*q*. Geometrically, the BH procedure can be thought of putting the
+tests in order of p-value along the x-axis, with the value of p on the
+y-axis. For the first 500 tests, this looks like:
 
 ```{r}
 p.sort <- sort(p2)
-plot(1:2000, p.sort[1:2000], ylim=c(0,p.sort[2000]), type="l", xlab="i", ylab="p")
+plot(1:500, p.sort[1:500], ylim = c(0, p.sort[500]), type = "l",
+     xlab = "i", ylab = "p")
 ```
 
 We then can find the smallest *q* to define a set, by drawing the line
@@ -274,8 +277,8 @@ adjusted p-value if the line had touches the sorted p-values earlier.
 q <- min(padj.bh)
 i <- sum(padj.bh == q)
 m <- length(p2)
-plot(1:2000, p.sort[1:2000], ylim=c(0,p.sort[2000]), type="l")
-abline(0, q/m, col="red")
+plot(1:500, p.sort[1:500], ylim = c(0, p.sort[500]), type = "l")
+abline(0, q / m, col = "red")
 ```
 
 # q-values
@@ -283,8 +286,8 @@ abline(0, q/m, col="red")
 Finally, we mention that there is a method which improves upon the BH
 method by attempting to estimate the proportion of nulls in the set of
 all hypotheses, called $\pi_0 = \frac{m_0}{m}$. The BH method controls
-the FDR in expectation for any $m_0 \le m$, but if we can come up with a
-good estimate of $\pi_0$ when it is less than 1, we can reject more
+the FDR in expectation for any $m_0 \le m$, but if we can come up with
+a good estimate of $\pi_0$ when it is less than 1, we can reject more
 hypotheses and still control the FDR in expectation. Without getting
 into details, the `qvalue` function in the qvalue package does this
 estimation, and provides q-values which operate analogously to the
@@ -297,7 +300,7 @@ $\pi_0$ is close to the truth:
 library(qvalue)
 res <- qvalue(p2)
 res$pi0
-1 - 10000/length(p) # we simulated 10k alternative
+1 - 1000 / length(p) # we spiked in 1k alternatives
 ```
 
 The q-values are multiplicatively scaled relative to the BH adjusted
@@ -306,8 +309,8 @@ smaller $\pi_0$ the gain in sensitivity would be more substantial.
 
 ```{r}
 qval.sort <- sort(res$qvalues)
-plot(padj.sort[1:2000], qval.sort[1:2000])
-abline(0,1)
+plot(padj.sort[1:500], qval.sort[1:500])
+abline(0, 1)
 ```
 
 ```{r}

@@ -1,7 +1,9 @@
 ---
 title: "Hidden Markov Models and Dynamic Programming"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format:
+  html:
+    embed-resources: true
 ---
 
 Here we will present the Hidden Markov Model (HMM), and apply it to
@@ -21,7 +23,7 @@ segmentation*. If we have time we will also cover this algorithm.)
 > al. (2001). We are calling this data set coriell. The data correspond
 > to two array CGH studies of fibroblast cell strains. In particular, we
 > chose the studies GM05296 and GM13330. After selecting only the mapped
-> data from chromosomes 1-22 and X, there are 2271 data points. 
+> data from chromosomes 1-22 and X, there are 2271 data points.
 
 If we draw all the values, lined up along the genome, it looks like this:
 
@@ -70,7 +72,7 @@ abline(h=.25)
 # Markov Models
 
 One intuitive model for segmenting this data into regions is the
-Hidden Markov Model (HMM). If you haven't yet seen 
+Hidden Markov Model (HMM). If you haven't yet seen
 [Markov chains](https://en.wikipedia.org/wiki/Markov_chain#Formal_definition),
 they are very useful and not too hard to understand. An order-1 Markov
 chain is a sequence, $X_1, X_2, ...$ such that the probability the
@@ -128,7 +130,7 @@ A
 The following encodes the emission probabilities. Note that we make
 some really bad guesses for the means of the three probability density
 functions. We do this on purpose, to show the improvement when we
-later use the HMM to update these parameters 
+later use the HMM to update these parameters
 using the [EM algorithm](../model/EM.html).
 
 ```{r}
@@ -141,13 +143,13 @@ B <- function(j, y) {
 
 # Useful variables for analyzing the HMM
 
-Here we will use the definitions of variables from 
+Here we will use the definitions of variables from
 [An Introduction to hidden Markov models](http://ieeexplore.ieee.org/abstract/document/1165342)
 by Lawrence Rabiner and Biing-Hwang Juang. We use a small notation
 change, using *Y* for the observed variables and *X* for the hidden
 variables instead of *O* and *I*, as it is difficult to see the
 difference between *I* and the condition bar. The *Y* and *X* notation
-can be found on the Wikipedia page for the 
+can be found on the Wikipedia page for the
 [Baum-Welch algorith](https://en.wikipedia.org/wiki/Baum%E2%80%93Welch_algorithm).
 
 The following variables denote (with phrasing from Rabiner and Juang):
@@ -158,7 +160,7 @@ and state *i*, given the model $\theta$
   from *t+1* to the end, given state *i* and the model $\theta$
 * $\gamma_{i,t}$ - the probability of state *i* at time *t* given the
   entire observation sequence and the model $\theta$
-  
+
 It's useful to see these as formula:
 
 $$ \alpha_{i,t} = P(Y_1=y_1,...,Y_t=y_t,X_t=i|\theta) $$
@@ -181,13 +183,13 @@ probabilities at time *t*. All of the information about the chain that
 we need to calculate probabilities at time *t* is encoded in the
 probabilities one step behind in time. And likewise for $\beta_{i,t}$,
 but running time forward instead of backward. These two sets of
-equations are called the 
+equations are called the
 [Forward-Backward algorithm](https://en.wikipedia.org/wiki/Forward%E2%80%93backward_algorithm).
 
 Let's step through how we will calculate each column of $\alpha_{i,t}$.
 We start with the initial probabilities $\pi$, and the
 observed value $Y_1 = y_1$. Then at time *t=2* and for state *i*, we
-take the sum of the following vector: 
+take the sum of the following vector:
 the pre-computed probabilities from all possible states at time *t=1*,
 multiplied by the probability of transitioning to state *i*, and then
 multiplied by the probability of having observed $Y_2 = y_2$.
@@ -196,7 +198,7 @@ of the sequence, only looking back one time point at each step. This
 property, of only having to look back at the previous stage to know
 how to move forward, is part of
 [dynamic programming](https://en.wikipedia.org/wiki/Dynamic_programming).
-Typical dynamic programs use this efficiency to calculate, for example, the 
+Typical dynamic programs use this efficiency to calculate, for example, the
 [shortest path through a graph](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
 by first solving the shortest path through a smaller part of the graph.
 
@@ -229,7 +231,7 @@ and $\beta_{i,t}$.
 
 $$ \gamma_{i,t} = P(X_t=i|Y,\theta) $$
 
-$$ = \frac{P(X_t=i,Y|\theta)}{P(Y|\theta)} $$ 
+$$ = \frac{P(X_t=i,Y|\theta)}{P(Y|\theta)} $$
 
 $$ = \frac{P(Y_1=y_1,...,Y_t=y_t,X_t=i|\theta) P(Y_{t+1}=y_{t+1},...,Y_T=y_T|X_t=i,\theta)}{P(Y|\theta)} $$
 
@@ -273,7 +275,7 @@ for (t in 2:T) {
 
 Once we are done, we can run backwards from *T* to *1*, and
 re-construct the most probably sequence of states, here stored as
-`x.hat`. 
+`x.hat`.
 
 ```{r}
 x.hat <- numeric(T)
@@ -299,7 +301,7 @@ plot(seq_len(T), x.hat, type="l", xlab="", ylab="",
 Finally, we show the algorithm used for updating our estimates of the
 parameters $\theta = (\pi,A,B)$, which is called the
 [Baum-Welch algorith](https://en.wikipedia.org/wiki/Baum%E2%80%93Welch_algorithm),
-a special case of the [EM algorithm](../model/EM.html). 
+a special case of the [EM algorithm](../model/EM.html).
 
 We already have all we need to update $\pi$ and the parameters of B,
 but we need to define a new variable to give us the conditional
@@ -311,14 +313,14 @@ observation sequence and the estimates for $\theta$.
 
 $$ \xi_{i,j,t} = P(X_t=i,X_{t+1}=j|Y,\theta) $$
 
-$$ = \frac{\alpha_{i,t} A_{i,j} B_{j,y_{t+1}} \beta_{j,t+1}}{P(Y|\theta)} $$ 
+$$ = \frac{\alpha_{i,t} A_{i,j} B_{j,y_{t+1}} \beta_{j,t+1}}{P(Y|\theta)} $$
 
 We can compute these probabilities, for all *i,j,t*, using the Forward
 algorithm, multiplying one set of transition probabilities with *A*,
 an emission probability with *B*, followed by the Backward
 algorithm. As shown above, all of these values are already available,
 we just need to iterate through all the values for *i,j,t*, and then
-scale appropriately. 
+scale appropriately.
 
 ```{r}
 xi <- array(0, dim=c(n,n,T-1))
@@ -374,7 +376,7 @@ sd(y[x.hat == 2])
 
 Finally, the transition probabilities also make sense, and roughly
 correspond to what we would expect given the length of the runs in the
-predicted segmentation: the run length for state *i* can be considered a 
+predicted segmentation: the run length for state *i* can be considered a
 [geometric random variable](https://en.wikipedia.org/wiki/Geometric_distribution)
 with success probability $A_{i,i}$.
 

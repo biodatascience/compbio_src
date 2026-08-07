@@ -1,17 +1,19 @@
 ---
 title: "Irreproducible discovery rate"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format:
+  html:
+    embed-resources: true
 ---
 
-We've discussed the [false discovery rate](multtest.html) 
+We've discussed the [false discovery rate](multtest.html)
 and the [local false discovery rate](localfdr.html),
 which both involve the assumption of two groups of hypotheses in
 the data: a set of null hypotheses, and a set of alternative
 hypotheses. Here, I'd like to introduce a slightly different framework
 for assigning probabilities to high-throughput data, which is called
 the *irreproducible discovery rate*, or IDR. A reference for the IDR
-is the article 
+is the article
 [Measuring reproducibility of high-throughput experiments](https://arxiv.org/abs/1110.4705)
 by Qunhua Li, James B. Brown, Haiyan Huang, and Peter J. Bickel.
 
@@ -46,7 +48,7 @@ relative to the number of reads for the control experiment.
 The [ENCODE project](https://www.encodeproject.org/)
 produced many ChIP-seq experiments for various
 proteins and across many cell lines. We will focus on a specific
-experiment which is listed 
+experiment which is listed
 [here](https://www.encodeproject.org/experiments/ENCSR841NDX/).
 This specific experiment is called "ELF1 ChIP-seq on human GM12878
 (immortalized cell line)", which means that the protein of interest was
@@ -83,13 +85,13 @@ df1 <- read_delim(file1, delim="\t", col_names=FALSE)
 df2 <- read_delim(file2, delim="\t", col_names=FALSE)
 peak1 <- GRanges(df1$X1, IRanges(df1$X2, df1$X3), score=df1$X7)
 peak2 <- GRanges(df2$X1, IRanges(df2$X2, df2$X3), score=df2$X7)
-peak1 <- keepStandardChromosomes(peak1, pruning.mode="coarse")
-peak2 <- keepStandardChromosomes(peak2, pruning.mode="coarse")
+peak1 <- GenomeInfoDb::keepStandardChromosomes(peak1, pruning.mode="coarse")
+peak2 <- GenomeInfoDb::keepStandardChromosomes(peak2, pruning.mode="coarse")
 ```
 
 In order to determine the irreproducible discovery rate, we need to
 first identify the set of peaks that are overlapping in the two
-experiments. To do this, we use the `findOverlap` function. 
+experiments. To do this, we use the `findOverlap` function.
 
 ```{r}
 fo <- findOverlaps(peak1, peak2)
@@ -141,22 +143,22 @@ one experiment, which are ranked lowest for the replicate experiment.
 plot(rank(-y1), rank(-y2), cex=.1)
 ```
 
-We use the `idr` package to estimate the IDR for these replicates. 
+We use the `idr` package to estimate the IDR for these replicates.
 Note that the IDR package authors now maintain IDR as
 a [python package](https://github.com/nboley/idr). The python package
-is reported to be faster than the R package. 
+is reported to be faster than the R package.
 
 From exploring use of the R package, I noticed it required that the
 scores be log transformed. Here we subset to just
 5,000 randomly sampled peaks to demonstrate use of the package.
 Finally, we combine the results and original data into a data.frame
-`df`. 
+`df`.
 
 ```{r}
 library(idr)
 dat <- cbind(log10(y1), log10(y2))
 dat <- dat[sample(nrow(dat),5000),]
-system.time({ 
+system.time({
   res <- est.IDR(dat, mu=3, sigma=1, rho=.9, p=.5)
 })
 df <- data.frame(rep1=dat[,1],rep2=dat[,2],

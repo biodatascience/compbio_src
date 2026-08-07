@@ -1,9 +1,11 @@
 ---
 title: "Lists of genomic ranges: GRangesList"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
-editor_options: 
-  markdown: 
+format:
+  html:
+    embed-resources: true
+editor_options:
+  markdown:
     wrap: 72
 ---
 
@@ -332,7 +334,7 @@ simplicity.
 pageCreate(width = 5, height = 3.25)
 suppressMessages(
   plotTranscripts(
-    chrom = "chr20", 
+    chrom = "chr20",
     chromstart = 44619522, chromend = 44652233,
     assembly = "hg38", labels = "transcript",
     x = 0.5, y = 2.5, width = 4, height = 3,
@@ -341,7 +343,7 @@ suppressMessages(
 )
 suppressMessages(
   plotGenomeLabel(
-    chrom = "chr20", 
+    chrom = "chr20",
     chromstart = 44619522, chromend = 44652233,
     assembly = "hg38",
     x = 0.5, y = 2.75, length = 4
@@ -361,8 +363,8 @@ We can also programmatically color elements:
 ```{r}
 gr <- ebt_sub[[1]]
 gr$highlight <- factor(rep(c("A","B"),c(11,1)))
-gr <- keepStandardChromosomes(gr, pruning.mode="coarse")
-seqlevelsStyle(gr) <- "UCSC"
+gr <- GenomeInfoDb::keepStandardChromosomes(gr, pruning.mode="coarse")
+GenomeInfoDb::seqlevelsStyle(gr) <- "UCSC"
 ```
 
 ```{r}
@@ -372,7 +374,7 @@ cols <- function(n) palette.colors(n+1)[-1]
 suppressMessages(
   plotRanges(
     data = gr,
-    chrom = "chr20", 
+    chrom = "chr20",
     chromstart = 44619522, chromend = 44652233,
     assembly = "hg38",
     spaceWidth = 0,
@@ -382,7 +384,7 @@ suppressMessages(
 )
 suppressMessages(
   plotGenomeLabel(
-    chrom = "chr20", 
+    chrom = "chr20",
     chromstart = 44619522, chromend = 44652233,
     assembly = "hg38",
     x = 0.5, y = 1.1, length = 4

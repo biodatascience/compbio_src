@@ -18,7 +18,7 @@ rmarkdown::render("module/file.Rmd")
 quarto::quarto_render("module/file.qmd")
 ```
 
-Rendered HTML files and cache directories (`*_cache/`, `*_files/`) are committed alongside source files.
+HTML files are gitignored in this repo (see `.gitignore`). Cache directories (`*_cache/`, `*_files/`) are also gitignored. Only source `.qmd`/`.Rmd` files are committed here.
 
 ## Module Structure
 
@@ -49,12 +49,18 @@ Each module directory follows a consistent pattern:
 
 ## Rmd → Qmd Migration
 
-As of 2026, migration to Quarto (`.qmd`) is in progress. Current status (11 `.Rmd`, 17 `.qmd`):
+As of 2026, all lecture files have been migrated to Quarto (`.qmd`). Current status (5 `.Rmd`, 23 `.qmd`):
 
-- **Already migrated to `.qmd`**: `bioc/` (4 files), `dist/` (5 files), `model/` (4 files), `hier/` (2 files), `eda/brain_RNA.qmd`, `eda/EDA.qmd`
-- **Still `.Rmd`**: `markov/`, `multiple/`, `net/`, `eda/NAs.Rmd`, and all `_HW.Rmd` homework files
+- **All lecture files**: migrated to `.qmd` across all modules
+- **Still `.Rmd`**: only `_HW.Rmd` homework files (intentionally kept as `.Rmd` with `execute: eval: false` to prevent standalone execution)
 
-When migrating a file, rename `.Rmd` → `.qmd` and update the YAML header (replace `output: html_document` with `format: html`).
+When migrating a file, rename `.Rmd` → `.qmd` and update the YAML header:
+- Lecture files: replace `output: html_document` with `format:\n  html:\n    embed-resources: true`
+- HW files: also add `execute:\n  eval: false` (they depend on cross-document context)
+
+Known issues when rendering:
+- After loading `plotgardener`, `TxDb.*`, or `org.Hs.eg.db`, `keepStandardChromosomes()` may become unavailable. Use `GenomeInfoDb::keepStandardChromosomes()` and `GenomeInfoDb::seqlevelsStyle()` instead.
+- `multiple/multtest.qmd` uses `recount3` to load ERP020977 (HipSci macrophage RNA-seq, 317 naive samples); requires internet access at render time.
 
 ## Depositing HTML to gh-pages
 
@@ -72,6 +78,8 @@ For example, after rendering all files in `model/` and `hier/`:
 cp model/*.html ../compbio/model/
 cp hier/*.html ../compbio/hier/
 ```
+
+**Do not deposit `_HW.html` files** — homework files are not published to the course website.
 
 Then commit and push in `../compbio` to publish.
 

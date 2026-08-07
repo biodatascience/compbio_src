@@ -1,7 +1,9 @@
 ---
 title: "Network analysis of DNA loops"
 author: "[Michael Love](http://mikelove.github.io)"
-output: html_document
+format:
+  html:
+    embed-resources: true
 ---
 
 In this document, we will cover how considering certain datasets in
@@ -11,7 +13,7 @@ will use as an example dataset the list of DNA loops (chromatin
 interaction data) found using deeply sequenced in situ Hi-C. The
 published article is:
 
-[Static and Dynamic DNA Loops form AP-1-Bound Activation Hubs during Macrophage Development](http://dx.doi.org/10.1016/j.molcel.2017.08.006) 
+[Static and Dynamic DNA Loops form AP-1-Bound Activation Hubs during Macrophage Development](http://dx.doi.org/10.1016/j.molcel.2017.08.006)
 by Douglas Phanstiel
 
 A preprint of the article can also be found [here](http://www.biorxiv.org/content/early/2017/05/25/142026).
@@ -20,7 +22,7 @@ The article describes in detail the set of DNA loops which are gained
 and lost as a precursor monocyte differentiates into a mature
 macrophage. The summary of the article is below. Note in particular
 the highlighted sentence which discusses multi-loop hubs (or
-communities). 
+communities).
 
 > The three-dimensional arrangement of the human genome comprises a
 > complex network of structural and regulatory chromatin loops
@@ -39,7 +41,7 @@ communities).
 > (AP-1)-binding events, suggesting that multi-loop activation hubs
 > involving cell-type-specific transcription factors represent an
 > important class of regulatory chromatin structures for the
-> spatiotemporal control of transcription. 
+> spatiotemporal control of transcription.
 
 A DNA loop as detected by Hi-C is a link between two regions of DNA,
 called *anchors*, detected by summing up non-duplicated fragments
@@ -71,7 +73,7 @@ document. You will need to unzip the directory and move the three
 files into your working directory.
 
 You do not need to gunzip the three files themselves, we will
-read them in using `read_delim`. 
+read them in using `read_delim`.
 
 ```{r echo=FALSE}
 knitr::opts_chunk$set(cache=TRUE)
@@ -134,7 +136,7 @@ as 2 kb windows upstream of the transcription start site (TSS).
 library(TxDb.Hsapiens.UCSC.hg19.knownGene)
 txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
 g <- genes(txdb)
-g <- keepStandardChromosomes(g, pruning.mode="coarse")
+g <- GenomeInfoDb::keepStandardChromosomes(g, pruning.mode="coarse")
 promoter <- promoters(g, upstream=2000, downstream=0)
 ```
 
@@ -163,12 +165,12 @@ EE <- loop.status[anchor1$enhancer & anchor2$enhancer]
 PP <- loop.status[anchor1$promoter & anchor2$promoter]
 EP <- loop.status[(anchor1$enhancer & anchor2$promoter) |
                   (anchor2$enhancer & anchor1$promoter)]
-other <- loop.status[!((anchor1$promoter | anchor1$enhancer) & 
+other <- loop.status[!((anchor1$promoter | anchor1$enhancer) &
                        (anchor2$promoter | anchor2$enhancer))]
 ```
 
 We can then cross-tabulate the loop status for the different
-categories, and make a barplot to compare them. Compare with 
+categories, and make a barplot to compare them. Compare with
 [Figure 4E](http://www.cell.com/action/showImagesData?pii=S1097-2765%2817%2930603-2)
 in the paper.
 
@@ -286,7 +288,7 @@ boxplot(community.size ~ community.type, log="y", main="loops per community")
 We can also tabulate the number of enhancers and promoters per
 community. Note that here we perform a slightly different analysis
 than in the paper, for simplicity of code. Here we add up the
-number of enhancers and promoters per loop, and then add this tally 
+number of enhancers and promoters per loop, and then add this tally
 for all the loops in the community. This ends up double counting when
 anchors appear in multiple loops. A better analysis would focus on
 anchors here rather than loops (this was the analysis done in the paper).

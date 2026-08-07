@@ -2,12 +2,16 @@
 title: "Homework 2"
 author: "your name here"
 date: "`r format(Sys.time(), '%m/%d/%Y')`"
-output: html_document
+format:
+  html:
+    embed-resources: true
+execute:
+  eval: false
 ---
 
 # Question 1 - Gene density and GC content - 8 pts
 
-Does gene density as calculated in HW 1 Question 2 relate to the 
+Does gene density as calculated in HW 1 Question 2 relate to the
 "GC content", defined as the ratio of C and G
 bases in a region? Remember, GC content = sum(C or G bases) divided
 by the sequence length. GC content of ACGT = 0.5, GC content of ACGC =
@@ -26,7 +30,7 @@ suppressPackageStartupMessages(library(Biostrings))
 
 # Question 2 - Exon and gene GC content by gene type - 8 pts
 
-In this question we will examine the exonic GC content and the 
+In this question we will examine the exonic GC content and the
 gene-level GC content, per gene. The exonic GC content is the GC content
 of any basepair that is in any exon of the gene. The gene GC content
 will be the GC content of the entire sequence including exons and introns.
@@ -36,7 +40,7 @@ and then `reduce`-ing the exon-by-gene GRangesList object:
 
 ```{r}
 ebg <- exonsBy(edb, by="gene",
-               filter = 
+               filter =
              AnnotationFilterList(GeneIdFilter("ENSG", "startsWith")))
 ebg <- keepStandardChromosomes(ebg, pruning.mode = "coarse")
 ebg <- reduce(ebg)
@@ -44,7 +48,7 @@ ebg <- reduce(ebg)
 
 What does `reduce` do? It basically "flattens" the ranges so that each
 basepair is only represented in one range. For example compare `foo`
-to `reduce(foo)`: 
+to `reduce(foo)`:
 
 ```{r}
 foo <- IRanges(start=c(1,5,11),end=c(7,9,13))
@@ -54,7 +58,7 @@ reduce(foo)
 
 So calling `reduce` on the exons for each gene "flattens" the ranges
 so that any overlapping basepairs are compressed into a single
-continguous range. 
+continguous range.
 
 Now repeat the same subset for the genes (as defined above), and make
 sure the two are in the same order.
@@ -82,7 +86,7 @@ all(sum(width(ebg)) == width(eseqs))
 ```
 
 Compare the exonic GC content across two types of genes:
-`protein_coding`, and `lincRNA` (see the metadata of `g`). 
+`protein_coding`, and `lincRNA` (see the metadata of `g`).
 Repeat for the gene GC content.
 It is sufficient to compare visually.
 
@@ -117,7 +121,7 @@ ids <- unique(tab$ENSEMBL)
 
 The next step is to see how the genes associated with "response to
 virus" behaved in this experiment where the donors were infected with
-rhinovirus. Use the code below to load the asthma RNA-seq dataset. 
+rhinovirus. Use the code below to load the asthma RNA-seq dataset.
 
 For students using Windows: copy the URL below into a web browser and
 then save the file locally into your R working directory with the name
@@ -139,7 +143,7 @@ comparable. Take the column means of this matrix and make a boxplot of
 the column means over `rse$treatment`. How do you interpret this plot?
 
 (We will show a better performing transformation than log2(counts + 1)
-next week.) 
+next week.)
 
 ```{r message=FALSE}
 url <- "http://duffel.rail.bio/recount/SRP046226/rse_gene.Rdata"
@@ -185,7 +189,7 @@ then take the top 200 peaks by q-value, and focus on 100 bp around the
 basepair with most evidence of binding (the "peak" of the
 "peak"... the terminology is obviously not great). We do this by
 narrowing the start position to 50 bp less than the peak bp and then
-resizing to 100 bp. 
+resizing to 100 bp.
 
 Collect the DNA sequence of the peaks and some control regions (you
 can use 1000 bp to the right as control regions). Use the Homo sapiens
