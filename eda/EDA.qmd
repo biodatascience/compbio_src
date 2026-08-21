@@ -29,17 +29,10 @@ from the presentation when you `show` the object, is that the
 characters are not automatically converted to *factor*, as they are
 with `read.delim` or the like.
 
-Let's convert the first column to a *factor*. To do so, I show a
-special function from the *magrittr* package called a compound
-assignment pipe. This looks like `%<>%`. This take the left-hand side
-and performs the function on the right-hand side, finally re-assigning
-the end result to the left-hand side. 
-
-We will see other "pipes" from *magrittr* later on.
+Let's convert the first column to a *factor*:
 
 ```{r message=FALSE}
-library(magrittr)
-orgs$type %<>% factor
+orgs$type <- factor(orgs$type)
 ```
 
 Let's make some plots of the number of basepairs in the genomes of
@@ -93,8 +86,13 @@ legend("topright", levels(orgs$type), col=1:nlevels(orgs$type), pch=20)
 # with(orgs, identify(bp, coding, labels=orgs$name)) 
 ```
 
-Another way to make a plot with labels is using 
-[ggplot2](http://ggplot2.tidyverse.org/reference/):
+Another way to make a plot with labels is using
+[ggplot2](http://ggplot2.tidyverse.org/reference/).
+In ggplot2, you build a plot by adding layers with `+`: a call to
+`ggplot()` sets up the coordinate system and maps columns to visual
+properties via `aes()`, and then `geom_*` functions draw the data.
+Common geoms include `geom_point()`, `geom_line()`, `geom_histogram()`,
+`geom_density()`, `geom_boxplot()`, and `geom_smooth()`.
 
 ```{r}
 library(ggplot2)
@@ -119,27 +117,24 @@ skim(orgs)
 For many operations, it's useful to use the dplyr package to
 manipulate *data.frames* or *tibbles*. 
 
-Before, I introduce two new functions.  First, the forward pipe
-`%>%`, which sends the left-hand side to the first argument of the
-function on the right-hand side. Seconds, the right assignment `->` is
-just like the more familiar left assignment, but points in the same
-direction of the pipes, so I find useful here.
+Before I show dplyr operations, let me introduce the pipe operator `|>`,
+which sends the left-hand side to the first argument of the function on
+the right-hand side.
 
-A simple example of the pipe is:
+A simple example of the pipe:
 
 ```{r}
 x <- c(1:9,1000)
-x %>% mean(trim=.1)
+x |> mean(trim=.1)
 # equivalent to
 mean(x, trim=.1)
 ```
 
-Using dplyr, let's show, adding a new column
-which tallies up the number of coding and non-coding genes:
+Using dplyr, let's add a new column tallying up coding and non-coding genes:
 
 ```{r message=FALSE}
 library(dplyr)
-orgs %<>% mutate(genes = coding + noncoding)
+orgs <- orgs |> mutate(genes = coding + noncoding)
 orgs$genes
 ```
 
@@ -149,8 +144,8 @@ for each type, the mean ratio of genes which are coding and the
 standard deviation of the ratio. One `type` has an SD of NA, why?
 
 ```{r}
-orgs %>%
-  group_by(type) %>%
+orgs |>
+  group_by(type) |>
   summarize(n=n(),
             cr_avg=mean(coding/genes),
             cr_sd=sd(coding/genes))
@@ -159,8 +154,8 @@ orgs %>%
 Let's save this as a new table, `tab`:
 
 ```{r}
-tab <- orgs %>%
-  group_by(type) %>%
+tab <- orgs |>
+  group_by(type) |>
   summarize(n=n(),
             cr_avg=mean(coding/genes),
             cr_sd=sd(coding/genes))
@@ -181,11 +176,11 @@ to a plotting function. For example, points and line ranges:
 
 ```{r}
 # here we have to name the median something other than `bp`
-orgs %>%
-  group_by(type) %>%
+orgs |>
+  group_by(type) |>
   summarize(basepairs=median(bp),
             min=min(bp),
-            max=max(bp)) %>%
+            max=max(bp)) |>
   ggplot(aes(type, basepairs, ymin=min, ymax=max)) +
   geom_pointrange()
 ```
@@ -244,4 +239,45 @@ Another option, putting the bars beside each other:
 ```{r}
 ggplot(dat, aes(z, col=type, fill=type)) +
   geom_histogram(position="dodge")
+```
+
+## Appendix: `|>` vs `%>%` and the placeholder
+
+R 4.1 introduced a native pipe `|>` that covers the most common use
+case: passing the left-hand side to the *first* argument of the
+right-hand side. For almost everything in this course, `|>` and `%>%`
+(from the *magrittr* package) are interchangeable.
+
+The one place they differ is the placeholder, a way to pipe into
+an argument that is not the first, or that is nested inside another
+call.
+
+Base R uses `_` as a placeholder, but only as a direct named argument.
+
+```{r message=FALSE}
+library(magrittr)
+orgs |> lm(coding ~ bp, data = _) |> coef() # base R
+orgs %>% lm(coding ~ bp, data = .) %>% coef() # magrittr equivalent
+orgs %>% lm(coding ~ bp, data = .) %>% coef # magrittr can drop ()
+```
+
+Magrittr's `.` can appear anywhere on the right-hand side, including
+nested inside another call. Here we compute `trim` from the data itself:
+
+```{r}
+x <- c(1:9, 1000)
+x |> mean(trim = 0.1)
+x %>% mean(trim = 1/length(.))  # trim = 1/10 = 0.1
+# x |> mean(trim = 1/length(_)) # syntax error
+```
+
+
+Magrittr also provides `%<>%`, a compound assignment pipe that applies
+a function and reassigns the result to the left-hand side. There is no
+base R equivalent; the plain `<-` form is always a safe replacement:
+
+```{r}
+# these two are equivalent
+orgs$type %<>% factor       # magrittr compound assignment
+orgs$type <- factor(orgs$type)  # base R
 ```

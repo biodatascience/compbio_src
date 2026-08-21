@@ -56,7 +56,9 @@ load(file)
 
 I've written a simple function which scales the gene expression data.
 It should roughly be *counts* of molecules detected for each gene and
-for each sample. It takes maybe half a minute to do the scaling.
+for each sample. It also accounts for sequencing depth (the total
+number of reads per sample), which we will discuss in more detail
+later in the course. It takes maybe half a minute to do the scaling.
 
 ```{r, message=FALSE}
 library(SummarizedExperiment)
@@ -156,12 +158,34 @@ We can get a better sense by coloring the groups by condition.
 ```{r}
 library(ggplot2)
 dat <- data.frame(pc$x[,1:2], condition)
-ggplot(dat, aes(PC1, PC2, col=condition)) + 
+ggplot(dat, aes(PC1, PC2, col=condition)) +
   geom_point()
 ```
 
+We can also change the color palette and map shape to condition as well.
+With 13 regions we need to build a palette manually, combining two
+RColorBrewer palettes:
+
+```{r}
+library(RColorBrewer)
+cols13 <- c(brewer.pal(8, "Dark2"), brewer.pal(5, "Set1"))
+ggplot(dat, aes(PC1, PC2, col=condition, shape=condition)) +
+  geom_point(size=1.5) +
+  scale_color_manual(values=cols13) +
+  scale_shape_manual(values=0:12)
+```
+
+We can look at the distribution of PC1 scores for each region
+individually using a faceted density plot:
+
+```{r fig.height=8}
+ggplot(dat, aes(PC1)) +
+  geom_density() +
+  facet_wrap(~ condition, ncol=3)
+```
+
 Let's focus on the samples belonging to four specific regions of the
-brain: 
+brain:
 
 ```{r}
 regions <- c("Cerebellum","Cortex","Hippocampus","Hypothalamus")

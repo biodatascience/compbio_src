@@ -1,0 +1,157 @@
+---
+title: "Brain RNA EDA Exercises"
+author: ""
+format:
+  html:
+    embed-resources: true
+execute:
+  eval: false
+---
+
+## Setup
+
+Run these chunks first to build the objects used throughout the exercises.
+This mirrors the setup in `brain_RNA.qmd`.
+
+```{r}
+library(here)
+library(SummarizedExperiment)
+library(magrittr)
+library(matrixStats)
+library(ggplot2)
+```
+
+```{r}
+url <- "http://duffel.rail.bio/recount/SRP012682/rse_gene_brain.Rdata"
+file <- here("eda", "brain.rda")
+if (!file.exists(file)) download.file(url, file)
+load(file)
+```
+
+```{r}
+source(here("bioc", "my_scale_counts.R"))
+se <- my_scale_counts(rse_gene)
+```
+
+```{r}
+cts <- assay(se)
+condition <- se$smtsd
+condition %<>% (function(x) sub("Brain - (.*)", "\\1", x))
+condition %<>% factor
+rs <- rowSums(cts)
+cts <- cts[rs > 100, ]
+logcts <- log10(cts + 1)
+```
+
+After running the setup, your environment contains:
+
+| Object      | Type                    | Description                                              |
+|-------------|-------------------------|----------------------------------------------------------|
+| `se`        | SummarizedExperiment    | Scaled GTEx brain RNA-seq; all genes, all samples        |
+| `cts`       | integer matrix          | Count matrix filtered to genes with rowSum > 100         |
+| `logcts`    | numeric matrix          | log10(cts + 1)                                           |
+| `condition` | factor                  | Brain region label for each sample                       |
+
+Check the dimensions of each object:
+
+```{r}
+dim(se)
+dim(cts)
+dim(logcts)
+length(condition)
+nlevels(condition)
+table(condition)
+```
+
+---
+
+## Exercise 1: Distributions and region comparison
+
+**1a.** How many unique brain regions are in this dataset, and how many
+samples belong to each? Use `levels()` and `table()` to explore
+`condition`.
+
+```{r}
+
+```
+
+**1b.** Pick **three** brain regions that were *not* analyzed in
+`brain_RNA.qmd` (which used Cerebellum, Cortex, Hippocampus, and
+Hypothalamus). Subset `logcts` and `condition` to only those regions,
+dropping unused factor levels.
+
+```{r}
+
+```
+
+**1c.** For each sample in your subset, compute the median log-count
+across all genes. Build a `data.frame` with columns `region` and
+`med`, then use ggplot2 to make a boxplot or violin plot of per-sample
+median log-count by region.
+
+*Hint: `apply(mat, 2, median)` gives column medians.*
+
+```{r}
+
+```
+
+**1d.** Find the single gene with the highest row variance **across
+all ~1400 samples** (use `rowVars` from `matrixStats`). Plot its
+log-count values across your three regions from 1b as a ggplot2
+boxplot. Does its expression differ by region?
+
+```{r}
+
+```
+
+**1e.** Pick two of your three regions and compute the mean
+log-expression of each gene within each region (hint: `rowMeans` on
+the appropriate column subset). Make a `smoothScatter` of region A
+means vs. region B means. Add a diagonal reference line with
+`abline(0, 1)`. What does the spread around the diagonal tell you?
+
+```{r}
+
+```
+
+---
+
+## Exercise 2: PCA on a new subset of regions
+
+**2a.** Using the same three regions from Exercise 1b, identify the top
+500 genes by row variance computed **only across those samples**. Run
+`prcomp` on the transposed log-count matrix for those genes and
+samples.
+
+```{r}
+
+```
+
+**2b.** Make a ggplot2 scatter plot of PC1 vs. PC2, coloring points by
+brain region. How much variance does each PC explain? (Check
+`summary(pc)` or compute from `pc$sdev`.) How does the separation
+compare to what you saw in `brain_RNA.qmd` with the original four
+regions?
+
+```{r}
+
+```
+
+**2c.** What are the top 10 most variable genes (by `rowVars`) among
+your subset from 2a? Print their Ensembl IDs — these are the row names
+of `logcts`. Look one up on [Ensembl](https://ensembl.org) or
+[NCBI Gene](https://www.ncbi.nlm.nih.gov/gene/). Does it make
+biological sense that this gene varies across brain regions?
+
+```{r}
+
+```
+
+**2d.** *(Extension)* How sensitive is the PCA structure to your choice
+of top genes? Re-run the PCA using the top 100 and top 2000 genes by
+variance and compare the PC1 vs. PC2 plots. Does the grouping by
+region change?
+
+```{r}
+
+```

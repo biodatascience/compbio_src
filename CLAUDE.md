@@ -64,7 +64,7 @@ Known issues when rendering:
 
 ## Depositing HTML to gh-pages
 
-Rendered HTML files are published via a parallel sibling repo at `../compbio`, which is checked out on the `gh-pages` branch. The directory structure mirrors this repo (e.g. `hier/` → `../compbio/hier/`).
+Rendered HTML files are published via a parallel sibling repo at `../compbio` (this repo is `compbio_src`; the gh-pages repo is the sibling `compbio`), which is checked out on the `gh-pages` branch. The directory structure mirrors this repo (e.g. `hier/` → `../compbio/hier/`).
 
 To deposit HTML after rendering:
 
@@ -81,7 +81,12 @@ cp hier/*.html ../compbio/hier/
 
 **Do not deposit `_HW.html` files** — homework files are not published to the course website.
 
-Then commit and push in `../compbio` to publish.
+The user handles all commits and pushes in `../compbio` — do not do this automatically.
+
+## Writing Style
+
+- Do not use bold (`**text**`) in prose
+- Do not use em dashes (`—`); use a comma, parentheses, or rewrite the sentence instead
 
 ## Architecture Notes
 
