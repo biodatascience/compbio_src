@@ -1,0 +1,92 @@
+---
+title: "Interpolation between brain regions"
+author: "[Michael Love](http://mikelove.github.io)"
+format:
+  html:
+    embed-resources: true
+---
+
+```{r message=FALSE}
+library(here)
+library(SummarizedExperiment)
+library(magrittr)
+library(matrixStats)
+library(ggplot2)
+source(here("bioc","my_scale_counts.R"))
+```
+
+Load and scale data.
+
+```{r}
+load(here("eda","brain.rda"))
+se <- my_scale_counts(rse_gene)
+cts <- assay(se)
+condition <- se$smtsd
+condition %<>% (function(x) sub("Brain - (.*)", "\\1", x))
+condition %<>% factor
+```
+
+Filter genes with low total counts.
+
+```{r}
+cts <- cts[rowSums(cts) > 100,]
+dim(cts)
+```
+
+Identify Spinal cord and Hypothalamus samples.
+
+```{r}
+sc_idx <- grep("Spinal cord", as.character(condition))
+hypo_idx <- grep("Hypothalamus", as.character(condition))
+cat("Spinal cord:", length(sc_idx), "  Hypothalamus:", length(hypo_idx), "\n")
+```
+
+Pick one sample from each region and create 10 pseudosamples by linear interpolation on the log count scale. A weight of 0 gives the Hypothalamus sample, weight 1 gives the Spinal cord sample.
+
+```{r}
+sc_log   <- log10(cts[, "SRR1402882"] + 1)
+hypo_log <- log10(cts[, "SRR1413454"] + 1)
+
+weights <- seq(0, 1, length.out = 10)
+pseudo  <- sapply(weights, function(w) w * sc_log + (1 - w) * hypo_log)
+colnames(pseudo) <- paste0("pseudo_", seq_len(10))
+```
+
+Combine with all Spinal cord and Hypothalamus samples, log-transform the real samples, and run PCA on the top 500 most variable genes.
+
+```{r}
+logcts <- cbind(log10(cts[, sc_idx] + 1), log10(cts[, hypo_idx] + 1), pseudo)
+group <- c(
+  rep("Spinal cord", length(sc_idx)),
+  rep("Hypothalamus", length(hypo_idx)),
+  rep("Pseudosample", 10)
+)
+
+rv <- rowVars(logcts)
+o  <- order(rv, decreasing = TRUE)[1:500]
+pc <- prcomp(t(logcts[o,]))
+```
+
+Pseudosamples are colored by interpolation weight (0 = Hypothalamus, 1 = Spinal cord). Real samples are shown as filled circles.
+
+```{r fig.width=7, fig.height=5}
+dat      <- data.frame(pc$x[, 1:2], group = group)
+dat_real <- dat[dat$group != "Pseudosample",]
+dat_pseudo <- dat[dat$group == "Pseudosample",]
+dat_pseudo$weight <- weights
+
+ggplot() +
+  geom_point(data = dat_pseudo,
+             aes(PC1, PC2, color = weight), shape = 18, size = 4, alpha = 0.9) +
+  scale_color_gradient(low = "tomato", high = "steelblue",
+                       name = "interp.\nweight") +
+  geom_point(data = dat_real,
+             aes(PC1, PC2, fill = group), shape = 21, size = 2.5, stroke = 0.5) +
+  scale_fill_manual(values = c("Spinal cord" = "steelblue",
+                               "Hypothalamus" = "tomato")) +
+  theme_bw()
+```
+
+```{r}
+sessionInfo()
+```
