@@ -87,6 +87,33 @@ ggplot() +
   theme_bw()
 ```
 
+## In class work
+
+```{r}
+par(mar=c(8,5,2,2))
+boxplot(pc$x[,1] ~ group, las=2, xlab="")
+```
+
+```{r}
+new <- 181:190
+group[new]
+pc1 <- pc$x[,1]
+closest <- sapply(pc1[new], \(x) {
+  which.min(abs(x - pc1[-new]))
+  })
+group[closest]
+```
+
+```{r}
+train <- pc$x[1:180,1:10]
+test <- pc$x[new,1:10]
+y <- factor(group[1:180])
+library(caret)
+fit <- train(x = train, y = y, method = "plr")
+predict(fit, newdata = test, type = "prob")
+
+```
+
 ```{r}
 sessionInfo()
 ```
