@@ -1,0 +1,83 @@
+---
+title: "Classification across three brain regions"
+author: "[Michael Love](http://mikelove.github.io)"
+format:
+  html:
+    embed-resources: true
+---
+
+```{r message=FALSE}
+library(here)
+library(SummarizedExperiment)
+library(magrittr)
+library(matrixStats)
+library(ggplot2)
+library(GGally)
+source(here("bioc","my_scale_counts.R"))
+```
+
+Load and scale data.
+
+```{r}
+load(here("eda","brain.rda"))
+se <- my_scale_counts(rse_gene)
+cts <- assay(se)
+condition <- se$smtsd
+condition %<>% (function(x) sub("Brain - (.*)", "\\1", x))
+condition %<>% factor
+```
+
+Filter genes with low total counts.
+
+```{r}
+cts <- cts[rowSums(cts) > 100,]
+dim(cts)
+```
+
+Identify Spinal cord, Hypothalamus, and Hippocampus samples.
+
+```{r}
+sc_idx    <- grep("Spinal cord",  as.character(condition))
+hypo_idx  <- grep("Hypothalamus", as.character(condition))
+hippo_idx <- grep("Hippocampus",  as.character(condition))
+cat("Spinal cord:", length(sc_idx),
+    "  Hypothalamus:", length(hypo_idx),
+    "  Hippocampus:", length(hippo_idx), "\n")
+```
+
+Subset to the three regions, log-transform, and select the top 500 most variable genes.
+
+```{r}
+idx     <- c(sc_idx, hypo_idx, hippo_idx)
+logcts  <- log10(cts[, idx] + 1)
+y       <- droplevels(condition[idx])
+
+rv <- rowVars(logcts)
+o  <- order(rv, decreasing = TRUE)[1:500]
+x  <- logcts[o, ]
+dim(x)
+```
+
+Run PCA on the 500-gene log-count matrix (samples as rows).
+
+```{r}
+pc    <- prcomp(t(x))
+x_pca <- pc$x
+```
+
+Plot all pairs of PC1 through PC4, colored by brain region.
+
+```{r fig.width=8, fig.height=7, message=FALSE}
+dat <- data.frame(x_pca[, 1:4], condition = y)
+ggpairs(dat,
+        columns = 1:4,
+        aes(color = condition, alpha = 0.4),
+        upper = list(continuous = "points"),
+        lower = list(continuous = "points"),
+        diag  = list(continuous = "densityDiag")) +
+  theme_bw()
+```
+
+```{r}
+sessionInfo()
+```
