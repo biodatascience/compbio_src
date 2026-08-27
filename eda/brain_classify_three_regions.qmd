@@ -101,6 +101,29 @@ if (!identical(rownames(gene_dat), rownames(x)))
   gene_dat <- gene_dat[rownames(x),,drop=FALSE]
 ```
 
+Use `MclustDA` with one Gaussian per class (`G=1`) and a fully free covariance
+matrix per class (`modelType="EDDA"`, `modelNames="VVV"`), fitting on PC1 and
+PC2. Evaluate with 20 random 80/20 splits.
+
+```{r}
+library(mclust)
+dat_cv <- data.frame(x_pca[, 1:2], y = y)
+n <- nrow(dat_cv)
+acc <- numeric(20)
+for (i in 1:100) {
+  train_idx <- sample(n, size = floor(0.8 * n))
+  train <- dat_cv[train_idx, ]
+  test  <- dat_cv[-train_idx, ]
+  fit   <- MclustDA(train[, 1:2], train$y, G = 1,
+                    modelType = "EDDA", modelNames = "VVV")
+  pred  <- predict(fit, test[, 1:2])$classification
+  acc[i] <- mean(pred == test$y)
+}
+acc
+mean(acc)
+barplot(table(round(acc,3)))
+```
+
 ```{r}
 sessionInfo()
 ```
