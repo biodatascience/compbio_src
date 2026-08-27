@@ -251,7 +251,7 @@ head(seqlevels(g),100)
 Let's subset to just the "standard" chromosomes:
 
 ```{r}
-g <- keepStandardChromosomes(g, pruning.mode="coarse")
+g <- GenomeInfoDb::keepStandardChromosomes(g, pruning.mode="coarse")
 ```
 
 The following functions tell you the names and lengths of chromosomes,

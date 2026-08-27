@@ -57,8 +57,9 @@ We start again with the GEUVADIS RNA-seq samples prepared
 in [distances](distances.html). 
 
 ```{r message=FALSE}
+library(here)
 library(DESeq2)
-load("geuvadis.rda")
+load(here("bioc","geuvadis.rda"))
 ```
 
 As typical, though we conceptually have a simple task to perform, many
@@ -85,6 +86,7 @@ the following
 
 ```{r message=FALSE}
 library(GenomicFeatures)
+library(txdbmaker)
 ```
 
 We need to import this gene information from a GTF (gene transfer
@@ -95,16 +97,22 @@ Note that a warning message
 about `The "phase" metadata column contains non-NA values`,
 and another one about closing connection are both OK.
 
-```{r eval=FALSE}
-txdb <- makeTxDbFromGFF("gencode.v25.annotation.gtf.gz")
-saveDb(txdb, file="gencode.sqlite")
+```{r}
+gtf <- here("dist","gencode.v25.annotation.gtf.gz")
+if (!file.exists(gtf)) {
+  download.file("ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_25/gencode.v25.annotation.gtf.gz", gtf)
+}
+if (!file.exists(here("dist","gencode.sqlite"))) {
+  txdb <- makeTxDbFromGFF(gtf)
+  saveDb(txdb, file=here("dist","gencode.sqlite"))
+}
 ```
 
 We load the *TxDb* and extract all the exons, grouped by gene. We
 check that we have the same gene names in `ebg` and in `dds`.
 
 ```{r}
-txdb <- loadDb("gencode.sqlite")
+txdb <- loadDb(here("dist","gencode.sqlite"))
 ebg <- exonsBy(txdb, by="gene")
 head(names(ebg))
 table(names(ebg) %in% rownames(dds))

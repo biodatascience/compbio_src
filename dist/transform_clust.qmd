@@ -17,8 +17,9 @@ knitr::opts_chunk$set(cache=TRUE)
 ```
 
 ```{r message=FALSE}
+library(here)
 library(DESeq2)
-load("geuvadis.rda")
+load(here("bioc","geuvadis.rda"))
 ```
 
 # Picking a transformation

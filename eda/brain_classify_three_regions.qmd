@@ -66,8 +66,12 @@ x_pca <- pc$x
 ```
 
 Plot all pairs of PC1 through PC4, colored by brain region.
+Hippocampus is shown in goldenrod, Hypothalamus in steelblue, and Spinal cord in tomato.
 
 ```{r fig.width=8, fig.height=7, message=FALSE}
+region_colors <- c("Hippocampus" = "goldenrod",
+                   "Hypothalamus" = "steelblue",
+                   "Spinal cord"  = "tomato")
 dat <- data.frame(x_pca[, 1:4], condition = y)
 ggpairs(dat,
         columns = 1:4,
@@ -75,7 +79,25 @@ ggpairs(dat,
         upper = list(continuous = "points"),
         lower = list(continuous = "points"),
         diag  = list(continuous = "densityDiag")) +
+  scale_color_manual(values = region_colors) +
+  scale_fill_manual(values = region_colors) +
   theme_bw()
+```
+
+Some more information about the genes:
+
+```{r}
+rngs <- rowRanges(se)
+gene_dat <- data.frame(
+  row.names = names(rngs),
+  chrom = seqnames(rngs),
+  strand = strand(rngs),
+  width = width(rngs),
+  symbol = sapply(rngs$symbol, `[`, 1)
+)
+head(gene_dat)
+if (!all.equal(rownames(gene_dat), rownames(x)))
+  gene_dat <- gene_dat[rownames(x),,drop=FALSE]
 ```
 
 ```{r}

@@ -145,7 +145,7 @@ to the first 10 genes.
 library(EnsDb.Hsapiens.v86)
 txdb <- EnsDb.Hsapiens.v86
 g <- genes(txdb)
-g <- keepStandardChromosomes(g, pruning.mode="coarse")
+g <- GenomeInfoDb::keepStandardChromosomes(g, pruning.mode="coarse")
 row_ranges <- g[1:10]
 ```
 
