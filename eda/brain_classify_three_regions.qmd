@@ -24,6 +24,7 @@ se <- my_scale_counts(rse_gene)
 cts <- assay(se)
 condition <- se$smtsd
 condition %<>% (function(x) sub("Brain - (.*)", "\\1", x))
+condition %<>% (function(x) sub("Spinal cord \\(.*\\)", "Spinal cord", x))
 condition %<>% factor
 ```
 
@@ -96,7 +97,7 @@ gene_dat <- data.frame(
   symbol = sapply(rngs$symbol, `[`, 1)
 )
 head(gene_dat)
-if (!all.equal(rownames(gene_dat), rownames(x)))
+if (!identical(rownames(gene_dat), rownames(x)))
   gene_dat <- gene_dat[rownames(x),,drop=FALSE]
 ```
 
