@@ -66,17 +66,17 @@ Known issues when rendering:
 
 Rendered HTML files are published via a parallel sibling repo at `../compbio` (this repo is `compbio_src`; the gh-pages repo is the sibling `compbio`), which is checked out on the `gh-pages` branch. The directory structure mirrors this repo (e.g. `hier/` → `../compbio/hier/`).
 
-To deposit HTML after rendering:
+To deposit HTML after rendering, use `\cp` to bypass the `cp -i` alias:
 
 ```bash
-cp module/file.html ../compbio/module/file.html
+\cp module/file.html ../compbio/module/file.html
 ```
 
 For example, after rendering all files in `model/` and `hier/`:
 
 ```bash
-cp model/*.html ../compbio/model/
-cp hier/*.html ../compbio/hier/
+\cp model/*.html ../compbio/model/
+\cp hier/*.html ../compbio/hier/
 ```
 
 **Do not deposit `_HW.html` files** — homework files are not published to the course website.

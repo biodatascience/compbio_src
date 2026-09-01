@@ -265,6 +265,8 @@ We can take a peek at the column data:
 colData(rse)[,1:6]
 ```
 
+# Parsing sample information
+
 The information we are interested in is contained in the
 `characteristics` column (which is a character list).
 
@@ -285,6 +287,28 @@ rse$treatment <- sapply(rse$characteristics, `[`, 4)
 table(rse$condition, rse$treatment)
 ```
 
+The following code I use to clean up the condition and treatment
+variables:
+
+```{r message=FALSE}
+library(stringr)
+rse$condition <- rse$condition |>
+  str_remove("disease state: ") |>
+  str_replace("-", ".") |>
+  factor()
+rse$treatment <- rse$treatment |>
+  str_remove("treatment: ") |>
+  factor()
+```
+
+Now we have:
+
+```{r}
+table(rse$condition, rse$treatment)
+```
+
+# Looking at the genes and their ranges
+
 Let's see what the `rowRanges` of this experiment look like:
 
 ```{r}
@@ -294,23 +318,61 @@ seqinfo(rse)
 
 The `rowRanges` here were determined by the quantification method that
 the *recount2* authors used. We don't know what the genome is from the
-`seqinfo`, but we could look this up from the project website.
+`seqinfo`, but we can see from the 
+[recount2 website](https://jhubiostatistics.shinyapps.io/recount/)
+the following information:
 
-The following code I use to clean up the condition and treatment
-variables:
-
-```{r message=FALSE}
-library(magrittr)
-rse$condition %<>% (function(x) {
-  factor(sub("-",".", sub("disease state: (.*)","\\1",x) ))
-  })
-rse$treatment %<>% (function(x) factor(sub("treatment: (.*)","\\1",x)))
-```
-
-Now we have:
+> The RangedSummarizedExperiment object for the counts summarized at the 
+> gene level using the Gencode v25 (GRCh38.p7, CHR) annotation.
 
 ```{r}
-table(rse$condition, rse$treatment)
+library(Seqinfo)
+si_obj <- Seqinfo::Seqinfo(genome="hg38")
+seqinfo(rse) <- si_obj[ seqlevels(rse) ]
+seqinfo(rse)
+```
+
+Now with `seqinfo` we get warnings (as we should) for shifting features
+past the limit of the chromosome.
+
+```{r}
+rowRanges(rse)[1]
+seqinfo(rse)["chrX"]
+shift(rowRanges(rse)[1], 55e6)
+shift(rowRanges(rse)[1], 57e6)
+```
+
+
+# Adding gene metadata from a GTF file
+
+One piece of metadata we might want to add to the rows of our SE is the
+gene biotype, e.g. whether a gene is protein-coding, a lncRNA, a
+pseudogene, etc. This information is available in the GENCODE annotation
+GTF file. Here we use *rtracklayer* to import the GTF directly, keeping
+only the gene-level entries. We will see other ways to work with GTF
+files and annotation databases later in the Bioconductor section of the
+course. The GTF is ~37 Mb.
+
+```{r message=FALSE}
+library(rtracklayer)
+# GENCODE v25
+gtf_url <- "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_25/gencode.v25.annotation.gtf.gz"
+gtf_file <- here("bioc", "gencode.v25.gtf.gz")
+if (!file.exists(gtf_file)) download.file(gtf_url, gtf_file)
+genes_gtf <- rtracklayer::import(gtf_file, feature.type="gene")
+```
+
+The `feature.type` argument limits the import to gene-level rows, so we
+avoid parsing the full multi-million line file. The result is ranges
+with metadata columns from the GTF, including `gene_type`. Both the
+GTF and our `rse` use versioned GENCODE gene IDs (e.g.
+`ENSG00000000003.14`), so we can match them directly.
+
+```{r}
+m <- match(rownames(rse), genes_gtf$gene_id)
+mcols(rse)$gene_type <- genes_gtf$gene_type[m]
+tab <- table(mcols(rse)$gene_type)
+head(sort(tab, decreasing = TRUE),10)
 ```
 
 # Visualizing count matrix data in a SE
@@ -398,14 +460,14 @@ sce <- computeSumFactors(sce)
 sizeFactors(sce)
 ```
 
-Similarly, dedicated functions for transformations:
+Similarly, dedicated functions for transformations (the deprecation warning is ignorable for now, as of 2026 functions for single cell transformation are being migrated to new packages...)
 
 ```{r}
 sce <- logNormCounts(sce)
 assayNames(sce)
 ```
 
-And dedicated functions and new slots for reduced dimensions:
+And dedicated functions and new slots for reduced dimensions. (Again ignore the deprecation warnings...)
 
 ```{r}
 set.seed(1)
