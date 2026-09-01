@@ -136,15 +136,17 @@ If we don't have ranges, we can just put a table on the "side" of the
 SE by specifying `rowData`.
 
 I will show in the example though how to provide `rowRanges`. Let's
-use the first 10 genes in the Ensembl database for human. The
+use the first 10 genes from the UCSC hg38 knownGene annotation. The
 following code loads a database, pulls out all the genes (as
 *GRanges*), removes extra "non-standard" chromosomes, and then subsets
 to the first 10 genes.
 
 ```{r message=FALSE}
-library(EnsDb.Hsapiens.v86)
-txdb <- EnsDb.Hsapiens.v86
-g <- genes(txdb)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
+suppressMessages({
+  g <- sort(genes(txdb))
+})
 g <- GenomeInfoDb::keepStandardChromosomes(g, pruning.mode="coarse")
 row_ranges <- g[1:10]
 ```
@@ -198,7 +200,7 @@ then use the *GRanges* function `overlapsAny` within single square
 brackets (like you would subset any matrix-like object:
 
 ```{r}
-query <- GRanges("1", IRanges(25000,40000))
+query <- GRanges("chr1", IRanges(5000,35000))
 se_sub <- se[overlapsAny(se, query), ]
 ```
 
@@ -208,7 +210,7 @@ We could have equivalently used the shorthand code:
 se_sub <- se[se %over% query,]
 ```
 
-We get just three ranges, and three rows of the SE:
+We get just the overlapping ranges, and the corresponding rows of the SE:
 
 ```{r}
 rowRanges(se_sub)
