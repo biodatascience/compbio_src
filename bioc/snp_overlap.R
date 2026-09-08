@@ -2,6 +2,7 @@
 
 # GWAS Catalogue 
 # https://www.ebi.ac.uk/gwas/studies/GCST90624624
+# https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/GCST90624001-GCST90625000/GCST90624624/
 # gzcat GCST90624624.tsv.gz | awk -F'\t' 'NR==1 || $8 < 5e-8' > GCST90624624-filtered.tsv
 # gzip GCST90624624-filtered.tsv
 library(readr)
@@ -103,3 +104,33 @@ ebg[subjectHits(fo)]
 
 # can always unlist...
 plyranges::find_overlaps(pruned_snps, unlist(ebg))
+
+
+
+# look up annotation for one gene
+ovlps |>
+  filter(symbol == "PRKCA") |>
+  dplyr::slice(n=1)
+
+# look up annotation for PRKCA using OrgDb
+
+if (FALSE) {
+  library(AnnotationHub)
+  ah <- AnnotationHub()
+  orgs <- subset(ah, ah$rdataclass == "OrgDb")
+  orgdb <- query(orgs, "Homo sapiens")[[1]]
+}
+
+# or just...
+library(org.Hs.eg.db)
+orgdb <- org.Hs.eg.db
+
+select(orgdb, keys="PRKCA", columns="GENENAME", keytype="SYMBOL")
+
+go <- select(orgdb, keys="PRKCA", columns="GO", keytype="SYMBOL")
+go <- go[go$ONTOLOGY == "BP",]
+
+library(GO.db)
+go2 <- select(GO.db, go$GO, c("TERM","DEFINITION"), "GOID")
+go2$TERM
+go2$DEFINITION
