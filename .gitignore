@@ -4,6 +4,7 @@
 *.gz
 *.txt
 *.sqlite
+*.yaml
 */*_cache
 */*_files
 *.Rproj
