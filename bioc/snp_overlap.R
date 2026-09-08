@@ -56,22 +56,25 @@ ovlps <- snps17 |>
 table(ovlps$symbol)
 # PRKCA is the correct answer (according to papers)
 
+# count how many genes overlap each SNP genome-wide; tabulate SNPs inside vs. outside genes
 res <- snps %>%
   mutate(ovlp = count_overlaps(., g)) |>
   mcols()
 
 table(res$ovlp > 0)
 
+# divide the genome into 1 Mb non-overlapping windows, keep only windows that contain at least one SNP
 tiles <- tileGenome(
-  seqlengths(snps), 
-  tilewidth = 1e6, 
+  seqlengths(snps),
+  tilewidth = 1e6,
   cut.last.tile.in.chrom = TRUE
 )
 
-tiles <- tiles |> 
+tiles <- tiles |>
   filter_by_overlaps(snps) %>%
   mutate(tile_id = seq_along(.))
 
+# LD pruning: within each 1 Mb window keep the single most-significant SNP
 pruned_snps <- snps |>
   join_overlap_inner(tiles) |>
   group_by(tile_id) |>
@@ -79,11 +82,13 @@ pruned_snps <- snps |>
   ungroup() |>
   filter(!duplicated(tile_id))
 
+# repeat the gene-overlap count on the pruned set to see how many lead SNPs fall in genes
 res <- pruned_snps %>%
   mutate(ovlp = count_overlaps(., g)) |>
   mcols()
 table(res$ovlp > 0)
 
+# for each pruned SNP, report the symbol of the nearest gene
 pruned_snps |>
   join_nearest(g) |>
   as_tibble() |>
@@ -91,6 +96,7 @@ pruned_snps |>
 
 # ebg is a GRangesList so we can use basic GRanges functions
 # plyranges only works with GRanges...
+# find which pruned SNPs overlap exons (gene-level GRangesList)
 fo <- findOverlaps(pruned_snps, ebg)
 fo
 ebg[subjectHits(fo)]
