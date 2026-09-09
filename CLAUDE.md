@@ -61,6 +61,7 @@ When migrating a file, rename `.Rmd` → `.qmd` and update the YAML header:
 Known issues when rendering:
 - After loading `plotgardener`, `TxDb.*`, or `org.Hs.eg.db`, `keepStandardChromosomes()` may become unavailable. Use `GenomeInfoDb::keepStandardChromosomes()` and `GenomeInfoDb::seqlevelsStyle()` instead.
 - `multiple/multtest.qmd` uses `recount3` to load ERP020977 (HipSci macrophage RNA-seq, 317 naive samples); requires internet access at render time.
+- `library(Seqinfo)` in `bioc/objects.qmd` is correct: `Seqinfo` is a standalone Bioconductor package (separate from `GenomeInfoDb`) that exposes `Seqinfo(genome=)` for fetching chromosome lengths by genome build.
 
 ## Depositing HTML to gh-pages
 
@@ -82,6 +83,19 @@ For example, after rendering all files in `model/` and `hier/`:
 **Do not deposit `_HW.html` files** — homework files are not published to the course website.
 
 The user handles all commits and pushes in `../compbio` — do not do this automatically.
+
+## plyranges / tidyomics Style
+
+When working with GRanges objects, prefer `plyranges` idioms over base GenomicRanges:
+
+- Use `keepStandardChromosomes(pruning.mode="coarse")` rather than `filter(seqnames %in% std_chroms)`.
+- Call `unstrand()` before `reduce_ranges()` when the goal is strand-agnostic region definitions (e.g. "does a variant fall in an exon"). Without it, `reduce_ranges()` reduces per strand and overlapping + / - ranges are never merged.
+- Use `gaps(..., ignore.strand=TRUE)` to compute intergenic complements; without it, `gaps()` returns spurious full-chromosome ranges on `"+"` and `"-"` because those strands have no coverage in an unstranded input.
+- Use `mutate()` to modify range components (`start`, `width`) as well as metadata columns, and to factorize columns in the pipe rather than via `$<-` after the fact.
+- Use `slice_sample(n=n, weight_by=col)` in place of `sample.int(..., prob=...)` + subsetting.
+- Use `bind_ranges(..., .id="col")` instead of `c()` when combining labeled groups; the argument names become the level values of the id column automatically.
+- Use `select(-col)` to drop temporary columns (e.g. intermediate weight columns).
+- Use `unique(col)` for factor levels derived from the data rather than hardcoding a character vector.
 
 ## Writing Style
 
