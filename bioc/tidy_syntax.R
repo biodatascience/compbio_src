@@ -95,13 +95,13 @@ tpm <- sweep(counts_per_kb, 2, colSums(counts_per_kb) / 1e6, FUN = "/")
 assay(vsd, "tpm") <- tpm
 
 keep <- rowData(vsd)$LRTPvalue < 1e-3 & rowData(vsd)$treatment_HRV16_vs_Vehicle > 0
-upreg_expr_profile <- rowMeans(assay(vsd[keep, ], "vst"))
+upreg_expr_profile <- colMeans(assay(vsd[keep, ], "vst"))
 
 # tidy syntax with plyxp
-# plyxp keeps all computation inside the object: no temporary matrices floating
-# in the workspace, column summaries via cols() are scoped to the pipe and
-# never stored separately, and results land directly in assays(xp) without an
-# explicit assay<- assignment.
+
+# plyxp keeps all computation inside the object: no temp vars floating
+# in the workspace, results land directly in assays(xp) without an
+# explicit `assay <-` assignment...
 
 xp <- xp |>
   mutate(
@@ -122,10 +122,30 @@ xp <- xp |>
 assay(vsd, "tpm")[1:5,1:5]
 assay(xp, "tpm")[1:5,1:5]
 
+expr_profiles <- xp |>
+  filter(rows(LRTPvalue < 1e-3)) |>
+  mutate(rows(
+    regulation = factor(ifelse(treatment_HRV16_vs_Vehicle > 0, "up", "down"))
+  )) |>
+  group_by(rows(regulation)) |>
+  summarize(col_means = colMeans(vst)) |>
+  mutate(rows(.features = regulation))
 
+upreg_expr_profile[1:5]
+assay(expr_profiles, "col_means")[,1:5]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Task 3: paired isoform exons
 # ─────────────────────────────────────────────────────────────────────────────
 
 ebt_sub <- readRDS(here("bioc", "two_isoform_exons.rds"))
+
+findOverlaps(ebt_sub[[1]], ebt_sub[[2]])
+findOverlaps(ebt_sub[[2]], ebt_sub[[1]])
+
+library(splicelogic)
+exons <- unlist(ebt_sub)
+
+exons |>
+  preprocess(coef_col="direction") |>
+  find_skipped_exons()
