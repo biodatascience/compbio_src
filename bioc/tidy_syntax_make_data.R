@@ -48,7 +48,11 @@ gene_bodies <- g |>
   unstrand() |>
   reduce_ranges()
 
-intron_regions <- gene_bodies |> 
+# Remove any gene-body overlap from promoters so the four classes are disjoint
+prom_regions <- prom_regions |>
+  filter_by_non_overlaps(gene_bodies)
+
+intron_regions <- gene_bodies |>
   setdiff(exon_regions)
 
 # Intergenic: complement of (gene bodies union promoters) within chr bounds
@@ -86,13 +90,6 @@ variants <- bind_ranges(
   sort()
 
 saveRDS(variants, here("bioc", "variants.rds"))
-message("Task 1 data: ", length(variants), " variants -> bioc/variants.rds")
-
-# Version without true labels (for use as a prediction task)
-variants |>
-  select(-type) |>
-  saveRDS(here("bioc", "variants_no_labels.rds"))
-message("  unlabeled copy -> bioc/variants_no_labels.rds")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Task 2: normalize the airway epithelial SummarizedExperiment
@@ -124,7 +121,10 @@ si_hg38 <- Seqinfo::Seqinfo(genome = "hg38")
 seqinfo(rse) <- si_hg38[seqlevels(rse)]
 
 # Add gene biotype from GENCODE v25 GTF (same annotation used by recount2)
-gtf_url  <- "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_25/gencode.v25.annotation.gtf.gz"
+gtf_url  <- paste0(
+  "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/",
+  "release_25/gencode.v25.annotation.gtf.gz"
+)
 gtf_file <- here("bioc", "gencode.v25.gtf.gz")
 if (!file.exists(gtf_file)) download.file(gtf_url, gtf_file)
 genes_gtf <- rtracklayer::import(gtf_file, feature.type = "gene")
@@ -137,10 +137,14 @@ keep <- rowSums(assay(rse) >= 10) >= 12
 dds <- DESeqDataSet(rse[keep,], ~ condition + treatment)
 dds <- DESeq(dds, test="LRT", reduced = ~ condition)
 vsd <- vst(dds, blind=FALSE)
-rowData(vsd) <- rowData(vsd)[,c("gene_id","symbol","gene_type","treatment_HRV16_vs_Vehicle","LRTPvalue")]
+assayNames(vsd) <- "vst"
+assays(vsd) <- c(assays(vsd), assays(dds)["counts"])
+assayNames(vsd)
+cols_to_keep <- c("gene_id","symbol","gene_type","treatment_HRV16_vs_Vehicle","LRTPvalue")
+rowData(vsd) <- rowData(vsd)[,cols_to_keep]
+# plotPCA(vsd, "treatment")
 
-saveRDS(vsd, here("bioc", "airway_vst_data.rds"))
-message("Task 2 data: VST-normalized SE -> bioc/airway_vst_data.rds")
+saveRDS(vsd, here("bioc", "asthma_vst_data_counts.rds"))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Task 3: compare transcript sets
@@ -176,6 +180,8 @@ ebt_sub <- ebt_sub[order(mcols(ebt_sub)$gene_id)]
 n_exons   <- lengths(ebt_sub)
 direction <- setNames(rep(NA_integer_, length(ebt_sub)), mcols(ebt_sub)$tx_id)
 
+# Per gene: compare the two transcripts' exon counts and label the shorter +1,
+# the longer -1; skip genes where both isoforms have the same count.
 for (gid in unique(mcols(ebt_sub)$gene_id)) {
   txs  <- mcols(ebt_sub)$tx_id[mcols(ebt_sub)$gene_id == gid]
   cnts <- n_exons[txs]
@@ -194,6 +200,7 @@ exons_gr <- unlist(ebt_sub, use.names = FALSE) |>
     direction = rep(direction[mcols(ebt_sub)$tx_id], lengths(ebt_sub))
   )
 
+# splicelogic
 se_exons <- exons_gr |>
   preprocess(coef_col="direction") |>
   find_skipped_exons()
@@ -203,4 +210,3 @@ ebt_sub <- relist(exons_gr, ebt_sub)
 ebt_sub <- ebt_sub[names(ebt_sub) %in% se_isoforms]
 
 saveRDS(ebt_sub, here("bioc", "two_isoform_exons.rds"))
-message("Task 3 data: GRangesList of transcript pairs -> bioc/two_isoform_exons.rds")
