@@ -1,6 +1,9 @@
 ---
 title: "VST math"
 author: "Michael Love"
+format: 
+  html:
+    embed-resources: true
 ---
 
 Using the notation of the
