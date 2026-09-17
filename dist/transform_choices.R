@@ -1,6 +1,7 @@
 library(SummarizedExperiment)
 library(matrixStats)
 library(ggplot2)
+library(patchwork)
 
 # we will use this function later to assess trends 
 # in the mean and variance across features
@@ -30,7 +31,7 @@ myPcaFunction <- function(se, assay_name = 1, num_pcs = 4) {
 # mu_range is on the probability scale and gets multiplied by params$n).
 # spiked rows are drawn only from the bottom low_var_frac fraction of
 # features ranked by their (untransformed) variance h(mu_base), so the
-# signal is hidden in low-count features (Poisson/NB/lognormal) or
+# signal is hidden in low-count features (Poisson/NB) or
 # extreme-probability features (binomial) -- exactly where an untransformed,
 # Euclidean-distance PCA contributes least. A separate technical factor
 # (colData(se)$tech_signal) is spiked into the top pct_tech_spike% of rows
@@ -38,7 +39,7 @@ myPcaFunction <- function(se, assay_name = 1, num_pcs = 4) {
 # untransformed PCA -- to mimic a technical artifact riding on the most
 # highly expressed/highest-count features. assay 1 ("counts") holds the
 # noisy draws, assay 2 ("truth") the noiseless mean mu_ij.
-mySimulator <- function(se, dist = c("poisson", "binomial", "nb", "lognormal"),
+mySimulator <- function(se, dist = c("poisson", "binomial", "nb"),
                          params = list(), pct_spike = 20, mu_range,
                          effect_scale = 0.25, low_var_frac = 0.5,
                          pct_tech_spike = 2) {
@@ -57,10 +58,9 @@ mySimulator <- function(se, dist = c("poisson", "binomial", "nb", "lognormal"),
   }
 
   h_of_mu <- switch(dist,
-    poisson   = mu_base,
-    binomial  = mu_base * (1 - mu_base / params$n),
-    nb        = mu_base + mu_base^2 / params$size,
-    lognormal = mu_base^2
+    poisson  = mu_base,
+    binomial = mu_base * (1 - mu_base / params$n),
+    nb       = mu_base + mu_base^2 / params$size
   )
 
   n_spike <- round(pct_spike / 100 * n_features)
@@ -96,8 +96,7 @@ mySimulator <- function(se, dist = c("poisson", "binomial", "nb", "lognormal"),
   sim <- switch(dist,
     poisson = matrix(rpois(length(mu_true), lambda = mu_true), nrow = n_features),
     binomial = matrix(rbinom(length(mu_true), size = params$n, prob = mu_true / params$n), nrow = n_features),
-    nb = matrix(rnbinom(length(mu_true), size = params$size, mu = mu_true), nrow = n_features),
-    lognormal = matrix(exp(rnorm(length(mu_true), mean = log(mu_true), sd = params$sigma)), nrow = n_features)
+    nb = matrix(rnbinom(length(mu_true), size = params$size, mu = mu_true), nrow = n_features)
   )
 
   assays(se) <- list(counts = sim, truth = mu_true)
@@ -128,26 +127,7 @@ se_pois <- mySimulator(se_pois, dist = "poisson", mu_range = c(1, 500))
 
 myMeanSdPlot(assay(se_pois, "counts"))                  # raw: variance grows with mean
 myMeanSdPlot(poisson_vst(assay(se_pois, "counts")))      # after VST: flat
-
 assay(se_pois, "vst") <- poisson_vst(assay(se_pois, "counts"))
-se_pois <- myPcaFunction(se_pois, assay_name = "counts", num_pcs = 4)
-
-# does PCA recover the spiked-in biological signal?
-ggplot(as.data.frame(colData(se_pois)), aes(PC1, PC2, fill = biol_signal)) +
-  geom_point(size = 3, shape = 21, color = "black") +
-  scale_fill_distiller(palette = "RdBu")
-
-ggplot(as.data.frame(rowData(se_pois)), aes(factor(effect_size), PC1)) +
-  geom_boxplot()
-
-# does PCA instead pick up the technical factor (spiked into the
-# highest-variance features)?
-ggplot(as.data.frame(colData(se_pois)), aes(PC1, PC2, fill = tech_signal)) +
-  geom_point(size = 3, shape = 21, color = "black") +
-  scale_fill_distiller(palette = "PRGn")
-
-ggplot(as.data.frame(colData(se_pois)), aes(tech_signal, PC1)) +
-  geom_point(size = 3)
 
 ## ---- Binomial(n=100): h(mu) = mu*(1-mu/n), a hump (not monotonic!) ----
 ## with p = mu/n: g(p) = 2*asin(sqrt(p)), the arcsine-sqrt transform
@@ -160,11 +140,15 @@ se_binom <- SummarizedExperiment(
   colData = DataFrame(biol_signal = runif(n_samples), tech_signal = runif(n_samples))
 )
 se_binom <- mySimulator(se_binom, dist = "binomial",
-                         params = list(n = n_binom), pct_spike = 20,
+                         params = list(n = n_binom),
                          mu_range = c(0.01, 0.99))
 
-# TODO: myMeanSdPlot before/after binomial_vst, myPcaFunction, and check
-# whether PCA recovers biol_signal vs tech_signal (see Poisson example above)
+myMeanSdPlot(assay(se_binom, "counts"))                       # raw: humped variance
+myMeanSdPlot(binomial_vst(assay(se_binom, "counts"), n_binom)) # after VST: flat
+assay(se_binom, "vst") <- binomial_vst(assay(se_binom, "counts"), n_binom)
+
+# TODO: myFourPlots(se_binom) to check whether PCA recovers biol_signal vs
+# tech_signal (see Poisson example above)
 
 ## ---- Negative Binomial(size=100): h(mu) = mu + mu^2/r ----
 ## g(mu) = 2*sqrt(r)*asinh(sqrt(mu/r)), which interpolates sqrt (mu << r,
@@ -179,23 +163,13 @@ se_nb <- SummarizedExperiment(
   rowData = DataFrame(feat_signal = runif(n_features)),
   colData = DataFrame(biol_signal = runif(n_samples), tech_signal = runif(n_samples))
 )
-se_nb <- mySimulator(se_nb, dist = "nb", params = list(size = r_nb),
-                      pct_spike = 20, mu_range = c(1, 500))
+se_nb <- mySimulator(se_nb, dist = "nb", 
+                     params = list(size = r_nb),
+                     mu_range = c(1, 500))
 
-# TODO: myMeanSdPlot before/after nb_vst, myPcaFunction, and check whether
-# PCA recovers biol_signal vs tech_signal (see Poisson example above)
+myMeanSdPlot(assay(se_nb, "counts"))
+myMeanSdPlot(nb_vst(assay(se_nb, "counts"), r_nb))
+assay(se_nb, "vst") <- nb_vst(assay(se_nb, "counts"), r_nb)
 
-## ---- Log-normal (constant sigma on log scale): h(mu) ~ mu^2 -> g(mu) = log(mu) ----
-lognormal_vst <- function(x) log(x)
-
-sigma_ln <- 0.5
-se_ln <- SummarizedExperiment(
-  assays = list(counts = matrix(NA_real_, n_features, n_samples)),
-  rowData = DataFrame(feat_signal = runif(n_features)),
-  colData = DataFrame(biol_signal = runif(n_samples), tech_signal = runif(n_samples))
-)
-se_ln <- mySimulator(se_ln, dist = "lognormal", params = list(sigma = sigma_ln),
-                      pct_spike = 20, mu_range = c(1, 500))
-
-# TODO: myMeanSdPlot before/after lognormal_vst, myPcaFunction, and check
-# whether PCA recovers biol_signal vs tech_signal (see Poisson example above)
+# TODO: myFourPlots(se_nb) to check whether PCA recovers biol_signal vs
+# tech_signal (see Poisson example above)
