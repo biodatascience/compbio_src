@@ -61,9 +61,9 @@ table(variants[variants %over% exon_regions]$type)
 
 pred_var <- variants %>%
   mutate(predicted_type = case_when(
-    count_overlaps(., exon_regions)       > 0 ~ "exonic",
-    count_overlaps(., intron_regions)     > 0 ~ "intronic",
-    count_overlaps(., prom_regions)       > 0 ~ "promoter",
+    overlapsAny(., exon_regions)   ~ "exonic",
+    overlapsAny(., intron_regions) ~ "intronic",
+    overlapsAny(., prom_regions)   ~ "promoter",
     TRUE ~ "intergenic"
   ))
 
