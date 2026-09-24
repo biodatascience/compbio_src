@@ -21,7 +21,7 @@ alpha <- t(replicate(k, {
 }))
 
 # make the alphas decreasing in effect
-alpha <- alpha * (5:1 / 2.5)
+alpha <- alpha * 5:1 / 2.5
 
 p_de <- .1 # percent DE genes
 # X: n x 2
@@ -36,7 +36,7 @@ beta <- rbind(rnorm(m),
 # data model
 # Y: n x m (samples x genes) 
 # NOTE! this is not our normal genomics orientation
-Y <- X %*% beta + W %*% alpha + rnorm(n * m, 0, .5)
+Y <- X %*% beta + W %*% alpha + rnorm(n * m, 0, 0.5)
 
 # standard limma fit
 fit <- lmFit(t(Y), X)
@@ -46,9 +46,9 @@ tt <- topTable(efit, coef = 2, number = m, sort.by = "none")
 plot(beta[2,], tt$t)
 plot(beta[2,], tt$P.Value)
 
-# RUV fit using genes with high p-value, more factors than needed
-rfit <- RUV2(Y, X[,2], ctl=which(tt$P.Value > .5), k=2*k) # from pval
-#rfit <- RUV2(Y, X[,2], ctl=which(beta[2,] == 0), k=2*k) # oracle
+# RUV fit using known control genes
+known_controls <- sample(which(beta[2,] == 0), 1000)
+rfit <- RUV2(Y, X[,2], ctl = known_controls, k = 2 * k)
 
 image(cor(rfit$W, W), zlim=c(-1,1), axes = FALSE, 
       xlab="estimated W", ylab="true W",
@@ -57,7 +57,7 @@ axis(1, at = seq(0, 1, length.out = 2*k), labels = 1:(2*k))
 axis(2, at = seq(0, 1, length.out = k), labels = 1:k, las=1)
 
 # batch corrected
-fit_bc <- lmFit(t(Y), cbind(X, rfit$W))
+fit_bc <- lmFit(t(Y), cbind(X, rfit$W[,1:k]))
 efit_bc <- eBayes(fit_bc)
 tt_bc <- topTable(efit_bc, coef = 2, number = m, sort.by = "none")
 
@@ -76,20 +76,21 @@ pairs(cbind(beta[2,], tt$logFC, tt_bc$logFC),
       col = cols, cex=.5,
       lower.panel = panel.cor)
 
-table(orig = tt$adj.P.Val < .01,
-      with_ruv = tt_bc$adj.P.Val < .01,
+fdr_alpha <- 0.1
+table(orig = tt$adj.P.Val < fdr_alpha,
+      with_ruv = tt_bc$adj.P.Val < fdr_alpha,
       actually_de = beta[2,] != 0)
 
 # RUV versions
 ruv_logFC <- rfit$betahat[1,]
-ruv_padj <- p.adjust(rfit$p[1,], method = "BH")
+ruv_padj <- p.adjust(variance_adjust(rfit)$p.ebayes[1,], method = "BH")
 
 pairs(cbind(beta[2,], tt$logFC, ruv_logFC),
       labels = c("beta","limma orig","ruv2 (correct SE)"),
       col = cols, cex=.5,
       lower.panel = panel.cor)
 
-table(orig = tt$adj.P.Val < .01,
-      with_ruv = ruv_padj < .01,
+table(orig = tt$adj.P.Val < fdr_alpha,
+      with_ruv = ruv_padj < fdr_alpha,
       actually_de = beta[2,] != 0)
 
