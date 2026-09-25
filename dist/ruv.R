@@ -2,15 +2,15 @@ library(limma)
 library(ruv)
 
 # sample size, number of genes, number of factors
-n <- 50
-m <- 5000
-k <- 5
+n <- 100
+m <- 10e3
+k <- 3
 
 # W: n x k
 W <- matrix(rnorm(n * k), ncol=k)
 
 # spike and slab model: prob slab = non-zero effects
-p_slab <- .1
+p_slab <- .25
 # alpha: k x m
 alpha <- t(replicate(k, {
   ifelse(
@@ -21,9 +21,9 @@ alpha <- t(replicate(k, {
 }))
 
 # make the alphas decreasing in effect
-alpha <- alpha * 5:1 / 2.5
+alpha <- alpha * 5:1
 
-p_de <- .1 # percent DE genes
+p_de <- .05 # percent DE genes
 # X: n x 2
 X <- cbind(rep(1,n), rep(0:1,each=n/2)) # second column is "treatment"
 cor(W, X[,2])
@@ -36,15 +36,15 @@ beta <- rbind(rnorm(m),
 # data model
 # Y: n x m (samples x genes) 
 # NOTE! this is not our normal genomics orientation
-Y <- X %*% beta + W %*% alpha + rnorm(n * m, 0, 0.5)
+Y <- X %*% beta + W %*% alpha + rnorm(n * m, 0, .5)
 
 # standard limma fit
 fit <- lmFit(t(Y), X)
 efit <- eBayes(fit)
 tt <- topTable(efit, coef = 2, number = m, sort.by = "none")
 
-plot(beta[2,], tt$t)
-plot(beta[2,], tt$P.Value)
+plot(beta[2,], tt$t, cex=.1)
+plot(beta[2,], tt$P.Value, cex=.1, log="y")
 
 # RUV fit using known control genes
 known_controls <- sample(which(beta[2,] == 0), 1000)
@@ -82,15 +82,14 @@ table(orig = tt$adj.P.Val < fdr_alpha,
       actually_de = beta[2,] != 0)
 
 # RUV versions
-ruv_logFC <- rfit$betahat[1,]
-ruv_padj <- p.adjust(variance_adjust(rfit)$p.ebayes[1,], method = "BH")
+# ruv_logFC <- rfit$betahat[1,]
+# ruv_padj <- p.adjust(variance_adjust(rfit)$p.ebayes[1,], method = "BH")
 
-pairs(cbind(beta[2,], tt$logFC, ruv_logFC),
-      labels = c("beta","limma orig","ruv2 (correct SE)"),
-      col = cols, cex=.5,
-      lower.panel = panel.cor)
+# pairs(cbind(beta[2,], tt$logFC, ruv_logFC),
+#       labels = c("beta","limma orig","ruv2 (correct SE)"),
+#       col = cols, cex=.5,
+#       lower.panel = panel.cor)
 
-table(orig = tt$adj.P.Val < fdr_alpha,
-      with_ruv = ruv_padj < fdr_alpha,
-      actually_de = beta[2,] != 0)
-
+# table(orig = tt$adj.P.Val < fdr_alpha,
+#       with_ruv = ruv_padj < fdr_alpha,
+#       actually_de = beta[2,] != 0)
