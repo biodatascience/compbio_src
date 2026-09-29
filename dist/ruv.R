@@ -21,7 +21,7 @@ alpha <- t(replicate(k, {
 }))
 
 # make the alphas decreasing in effect
-alpha <- alpha * 5:1
+alpha <- alpha * k:1
 
 p_de <- .05 # percent DE genes
 # X: n x 2
