@@ -25,14 +25,15 @@
 # variance estimates).
 #
 # In the Stan file, `beta[group]` expands the K group slopes to a
-# vector of length G, one per gene. The slopes are written in
-# "non-centered" form, e.g. b = beta[group] + sigma_gene * z with
-# z ~ N(0,1), instead of b ~ normal(beta[group], sigma_gene). It is
-# the same model, but easier for the sampler when the SEs are large
-# relative to sigma_gene: then b and sigma_gene are strongly
-# dependent in the posterior (a "funnel" shape), while z and
-# sigma_gene are not. In examples 1 and 2 many observations have
-# fairly small SEs, and the ordinary "centered" form samples better.
+# vector of length G, one per gene. The model is written in the
+# simple "centered" form, b ~ normal(beta[group], sigma_gene). Stan
+# will give some warnings for this model (low E-BFMI, low ESS for
+# sigma_gene): the SEs are large relative to sigma_gene, so b and
+# sigma_gene are strongly dependent in the posterior (a "funnel"
+# shape). See the comment in the Stan file for the "non-centered"
+# form, which is the same model but samples better here. In examples
+# 1 and 2 many observations have fairly small SEs, and the centered
+# form samples well.
 
 set.seed(1)
 K <- 6       # groups
