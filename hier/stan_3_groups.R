@@ -1,9 +1,11 @@
 # Stan example 3: genes nested in groups, slopes over time
 #
-#   beta_k ~ N(mu_beta, sigma_group)            k = 1, ..., K groups
-#   b_i ~ N(beta_{group(i)}, sigma_gene)        i = 1, ..., G genes
-#   a_i ~ N(mu_a, sigma_a)
-#   y_ij ~ N(a_i + b_i * time_j, sigma_y)       j = 1, ..., T times
+#   beta_k ~ N(mu_beta, sigma_group)      k = 1, ..., K groups
+#   b_i ~ N(beta_{group(i)}, sigma_gene)  i = 1, ..., G genes
+#   x_i | b_i ~ N(b_i, x_sd_i)
+#
+# where x_i and x_sd_i are the estimated slope and its standard error
+# from a per-gene linear regression of expression on time.
 #
 # The change from the previous examples: instead of one level of
 # shrinkage, there are two. Each gene's slope is pulled toward its
@@ -12,26 +14,31 @@
 # module) have similar slopes, so they can borrow strength from each
 # other.
 #
-# The data are given to Stan in "long" format, one row per
-# observation, with integer indices saying which gene each row belongs
-# to and which group each gene belongs to. In Stan, `b[gene]` expands
-# the G gene slopes to a vector of length N, and `beta[group]` expands
-# the K group slopes to a vector of length G.
+# This is a "two-stage" analysis: first summarize each gene by its
+# slope estimate and SE, then fit the hierarchical model to those
+# summaries, as in examples 1 and 2. We could instead give Stan every
+# observation and fit the regressions inside the model; the results
+# are very similar, because the slope estimate and its SE carry the
+# information about the slope. One difference: each SE here is
+# estimated from only 16 points per gene, so it is itself noisy, and
+# the model treats it as known (compare limma, which shrinks these
+# variance estimates).
 #
-# In the Stan file the slopes are written in "non-centered" form,
-# e.g. b = beta[group] + sigma_gene * z with z ~ N(0,1), instead of
-# b ~ normal(beta[group], sigma_gene). It is the same model, but easier
-# for the sampler when the data per gene are weak and sigma_gene is
-# small: then b and sigma_gene are strongly dependent in the posterior
-# (a "funnel" shape), while z and sigma_gene are not. In examples 1 and
-# 2 there are many observations with fairly small SEs, and the
-# ordinary "centered" form samples better.
+# In the Stan file, `beta[group]` expands the K group slopes to a
+# vector of length G, one per gene. The slopes are written in
+# "non-centered" form, e.g. b = beta[group] + sigma_gene * z with
+# z ~ N(0,1), instead of b ~ normal(beta[group], sigma_gene). It is
+# the same model, but easier for the sampler when the SEs are large
+# relative to sigma_gene: then b and sigma_gene are strongly
+# dependent in the posterior (a "funnel" shape), while z and
+# sigma_gene are not. In examples 1 and 2 many observations have
+# fairly small SEs, and the ordinary "centered" form samples better.
 
 set.seed(1)
 K <- 6       # groups
 per <- 10    # genes per group
 G <- K * per
-n_time <- 8
+n_time <- 16
 time <- seq(0, 1, length=n_time)
 
 mu_beta <- 1
@@ -62,19 +69,23 @@ for (k in 1:K) {
 }
 par(mfrow=c(1,1))
 
-dat <- list(N = nrow(dat_long), G = G, K = K,
-            y = dat_long$y, time = dat_long$time,
-            gene = dat_long$gene, group = group)
+# per-gene least squares slope and its standard error
+ols <- t(sapply(1:G, function(i) {
+  fit_i <- lm(y ~ time, data=dat_long, subset = gene == i)
+  summary(fit_i)$coefficients["time", c("Estimate","Std. Error")]
+}))
+b_ols <- ols[,1]
+b_se <- ols[,2]
+
+dat <- list(G = G, K = K, x = b_ols, x_sd = b_se, group = group)
 
 library(rstan)
 library(here)
 fit <- stan(file = here("hier","stan_3_groups.stan"),
-            data = dat, iter = 4000,
-            control = list(adapt_delta = 0.95))
+            data = dat)
 check_hmc_diagnostics(fit)
 
-print(fit, pars=c("mu_beta","sigma_group","sigma_gene","sigma_y"))
-c(mu_beta=mu_beta, sigma_group=sigma_group,
-  sigma_gene=sigma_gene, sigma_y=sigma_y)
+print(fit, pars=c("mu_beta","sigma_group","sigma_gene"))
+c(mu_beta=mu_beta, sigma_group=sigma_group, sigma_gene=sigma_gene)
 
 post <- extract(fit)

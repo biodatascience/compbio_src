@@ -106,5 +106,5 @@ When working with GRanges objects, prefer `plyranges` idioms over base GenomicRa
 
 - The repo is course materials, not a package — there is no `DESCRIPTION`, `NAMESPACE`, or test suite.
 - `bioc/my_scale_counts.R` is a reusable utility for normalizing RNA-seq counts by mapped read depth; it is sourced by other documents.
-- `hier/stan_<k>_<name>.stan` + `hier/stan_<k>_<name>.R` form a numbered series of Stan examples: 0 fixed normal prior, 1 learned hyperparameters (mu_theta, sigma_theta) with per-observation SEs, 2 Student t prior, 3 genes nested in groups with slopes over time. Other R scripts (`simple_hierarchical.R`, `hierarchical_iterate.R`) cover ash and limma shrinkage without Stan.
+- `hier/stan_<k>_<name>.stan` + `hier/stan_<k>_<name>.R` form a numbered series of Stan examples: 0 fixed normal prior, 1 learned hyperparameters (mu_theta, sigma_theta) with per-observation SEs, 2 Student t prior, 3 genes nested in groups with slopes over time (two-stage: fit to per-gene OLS slope estimates and SEs). Other R scripts (`simple_hierarchical.R`, `hierarchical_iterate.R`) cover ash and limma shrinkage without Stan.
 - Data files (`.bed`, `.tsv`, `.csv.gz`) live alongside the `.Rmd` that uses them; no separate data directory.
