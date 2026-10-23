@@ -6,56 +6,125 @@ format:
     embed-resources: true
 ---
 
-I want to give a sense of how the EM algorithm can be used in a
-variety of computational biology problems, beyond the common [mixture
-of distributions model](EM.html). Here I will show how EM can be used
-to find the *sequence motifs* associated with DNA binding proteins,
-like transcription factors. A sequence motif is a series of DNA
-letters (nucleotides) that the DNA binding proteins can "recognize".
-As we discussed in class, when we refer loosely to such "recognition",
-we're actually talking about the protein and the DNA sequence in a
-particular region having electrostatic interactions, producing
-favorable, low energy states. Recall the image of the amino acid
-residuals "reaching in" to the major and minor groove of the DNA
-double helix, and interacting with the 4 possible nucleotides.
+# DNA binding motifs and gene regulation
 
-The following will be an incredibly oversimplified simulation and
-model to show how EM might help us find sequence motifs. For a real
-reference on how EM might be used, please consult the following paper,
-which proposed an EM-based methodology for motif finding:
+A motif is the sequence of nucleotides that a DNA binding protein,
+such as a transcription factor, prefers to bind. As we discussed in
+class, "binding" here means that amino acid residues of the protein
+make favorable contacts with nucleotides in the major groove of the
+DNA double helix, and some sequences of letters make for better
+contacts than others.
+
+Transcription factor motifs are usually 6-20 bp long. The binding
+isn't perfectly specific: a protein will bind to a family of similar
+sequences, some more strongly than others. So instead of a single
+sequence, we describe a motif with a position probability matrix,
+which gives the probability of each nucleotide at each position of
+the motif. You will also see the position weight matrix (PWM), which
+is the log of these probabilities divided by the background frequency
+of each nucleotide. A positive value in the PWM means that nucleotide
+is more common at that position of the motif than in the genome
+overall.
+
+Transcription factors find their target genes by binding to
+instances of their motif in cis-regulatory elements (CREs), such as
+promoters and enhancers. A CRE typically has binding sites for a
+number of transcription factors, which together determine whether
+and when the nearby gene is transcribed. A short motif will also
+match by chance at a huge number of places in the genome, and most of
+these are never bound, for example because they are in closed
+chromatin. This is why we usually look for motifs in regions where
+there is experimental evidence of binding, such as ChIP-seq peaks,
+rather than scanning the whole genome.
+
+For most transcription factors, we can't yet predict the motif from
+the protein sequence or structure alone. AlphaFold 3 and similar
+tools can model protein-DNA complexes, but getting an accurate motif
+out of these is still an open problem. So we learn motifs from data.
+
+The setup is: we have a set of DNA sequences (ChIP-seq peaks, or the
+promoters of genes that respond to some stimulus), and we want to find
+a sequence pattern that shows up in many of them. What makes this
+hard:
+
+- We don't know which windows of each sequence contain the motif.
+- We don't know the motif itself.
+- The background sequence isn't uniformly random. If the genome is
+  AT-rich, an AT-rich pattern will look common just because its
+  letters are common.
+- The motif can be on either strand.
+- Some sequences won't contain the motif at all.
+- The sequences may contain motifs for more than one transcription
+  factor.
+
+The model below deals with the first three, and ignores the rest to
+keep things simple. EM is a good fit here, with the windows that
+contain the motif as the latent variable. Keep in mind that what EM
+finds are candidate binding sites, patterns that are over-represented
+relative to the background, and these still need to be checked
+against other evidence.
+
+The code below is a simplified simulation and model, following the
+setup of the MEME method, which proposed EM for motif finding:
 
 *MEME: discovering and analyzing DNA and protein sequence motifs* -
 [link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1538909/)
 
-For homework, you will work with ChIP-seq data for a particular
-transcription factor with a known motif, and you will try to adapt the
-following code to find the motif of this transcription factor from
-data.
+Before we get started, note that EM is not the only way to find these
+motifs. Another, seemingly more direct approach, would be to tabulate
+all the k-mers for a value of k that is large, but less than the
+length of the motif we are looking for. If we look across sequences
+which should occasionally contain the motif, we will likely find sets
+of k-mers that occur more than we would expect in "background" DNA
+sequences.
 
-# Simulation of motif finding
+# The model
 
-The over-simplifications we will make here, which result in an unrealistic
-simulation and worse method, but are useful for pedagogical purposes:
+MEME breaks every sequence into overlapping windows the same width as
+the motif, and asks of each window: is this a motif or is this
+background? This is a mixture of two components, just like the
+mixture of distributions from before:
 
-* I will only model the motif sequence itself, and not the
-  probability of the "background" sequence.
+* The motif component is a matrix $\theta$ with 4 rows and as many
+  columns as the motif is wide. Each column gives the probabilities of
+  A,C,G,T at that position of the motif. This is the position
+  probability matrix from above, and $\log(\theta / \theta_{bg})$ is
+  the PWM.
+* The background component is a single vector $\theta_{bg}$ of
+  nucleotide probabilities, the same for every position.
+* $\lambda$ is the mixing proportion, the probability that a given
+  window is a motif.
+
+The hidden variable $Z_i$ is 1 if window *i* is a motif and 0 if it
+is background. This sets up a problem that can be tackled with EM: if
+we knew the motif, we could find which windows are motifs, and if we
+knew which windows are motifs, we could easily determine the motif. We
+start with neither.
+
+The background component is essential. Without it, the model has no
+way to say "this window doesn't look like the motif", and it has to
+explain every window as a motif. It also lets us account for the fact
+that the four nucleotides are not in equal abundance in genomes: a
+window full of common nucleotides should not look like a motif just
+because those nucleotides are common.
+
+The over-simplifications we will make here, which result in an
+unrealistic simulation, but are useful for pedagogical purposes:
+
 * Each DNA sequence will be the same length. In reality, we often will
   have experimental data that a protein binds to a location, but each
   genomic range will have a different width.
-* Each DNA sequence will contain the motif. With experimental data, a
-  number of the locations where we find a protein bound to DNA might
-  not contain that protein's motif. It is possible that the protein we
-  are interested in is bound to another protein that is bound to DNA,
-  so our protein is not making direct contact with DNA through its motif.
-* I will only look on one strand of the DNA, instead of on both strands.
-* I will simulate identical DNA sequences as the hidden motif,
-  although in fact, sequence motifs of a DNA binding protein vary
-  across the genome. There are always some, and often many, positions
-  within a motif which allow for a variety of nucleotides.
+* Each DNA sequence will contain the motif exactly once. With
+  experimental data, a number of the locations where we find a protein
+  bound to DNA might not contain that protein's motif. It is possible
+  that the protein we are interested in is bound to another protein
+  that is bound to DNA, so our protein is not making direct contact
+  with DNA through its motif.
+* I will only look on one strand of the DNA, instead of on both
+  strands.
+* We will know the width of the motif.
 
-```{r echo=FALSE}
-knitr::opts_chunk$set(cache=TRUE)
-```
+# Simulation
 
 I begin by defining some parameters and simulating our motif that we
 want to find. Here I use numbers 1-4 to represent nucleotides A,C,G,T.
@@ -70,19 +139,8 @@ motif
 ```
 
 Now we will embed the motif into some DNA sequences, which here are
-rows of a matrix *X*. The *Z* variable keeps track of the start
-position of the motif in the DNA sequences in *X*. We therefore setup
-a problem that can be tackled with EM: if we knew the motif, we could
-find the locations *Z*, and if we knew the locations *Z*, we could
-easily determine the motif. We start with neither.
-
-Before we get started, note that EM is not the only way to find these
-motifs. Another, seemingly more direct approach, would be to tabulate
-all the k-mers for a value of k that is large, but less than the
-length of the motif we are looking for. If we look across sequences
-which should occasionally contain the motif, we will likely find sets
-of k-mers that occur more than we would expect in "background" DNA
-sequences.
+rows of a matrix *x*. The vector *z* keeps track of the start
+position of the motif in each sequence.
 
 ```{r}
 x <- matrix(sample(1:4, n * l, TRUE),nrow=n)
@@ -91,174 +149,334 @@ for (i in seq_len(n)) {
   x[i, z[i] + 0:(motif_len-1)] <- motif
 }
 head(z)
-x[1,]
+x[1,z[1] + 0:(motif_len-1)]
+```
+
+The sequence motifs of a DNA binding protein vary across the genome:
+there are always some, and often many, positions within a motif which
+allow for a variety of nucleotides. To mimic this, we replace 20% of
+the nucleotides with a random nucleotide. As the random nucleotide is
+the same as the original one quarter of the time, about 15% of
+positions change.
+
+```{r}
+noise <- 0.2
+set.seed(1)
+mutate_pos <- matrix(runif(n * l) < noise, nrow=n)
+x[mutate_pos] <- sample(1:4, sum(mutate_pos), TRUE)
 x[1,z[1] + 0:(motif_len-1)]
 motif
 ```
 
-Finally, we describe the parameters $\theta$ we will use to describe
-the motif. We will specify a matrix which has four rows for each of
-the DNA nucleotides, and is wider than the motif itself. This
-extension of the size of the matrix will reduce the chance that we
-hit upon the motif, but some of the nucleotides in the motif fall
-outside of the nucleotides modeled in $\theta$. A column of the matrix
-$\theta$ will represent the probability of observing a given
-nucleotide (A,C,G,T down the rows) at a given position in the
-motif. Note again that the positions in the motifs we recover are
-arbitrarily shifted: if the true motif starts at position 3 or
-position 7 of $\theta$ will both get us to a local maximum of the log
-likelihood.
+Now we redefine the data as MEME does, with one row per window. Each
+sequence contributes `n_win` windows, so the window starting at
+position `p` of sequence `i` is in row `(i-1) * n_win + p`.
 
 ```{r}
-set.seed(5)
-theta_len <- 20
-theta <- matrix(runif(theta_len*4),ncol=theta_len)
-theta <- sweep(theta, 2, colSums(theta), "/")
-dim(theta)
-theta[,1:5]
+w <- motif_len # width of the windows and of theta
+n_win <- l - w + 1 # number of windows per sequence
+win <- matrix(nrow=n * n_win, ncol=w)
+for (i in seq_len(n)) {
+  for (p in seq_len(n_win)) {
+    win[(i-1) * n_win + p,] <- x[i, p + 0:(w-1)]
+  }
+}
+dim(win)
+# rows of `win` that hold the true motifs
+motif_idx <- z + 0:(n-1) * n_win
 ```
 
-Let's first step through one iteration before we run the EM
-algorithm. We start by calculating the conditional probabilities using
-X and our initial guess $\theta^0$. We store these in a matrix, with
-one row per DNA sequence, and as many columns as potential starting
-positions for the motif. As I said above, for simplicity, here we just
-focus on the probability of the motif sequence, and ignore the
-background sequence. Let's just calculate the first row, i=1, and the
-first position, p=1.
+We can look at the windows holding the true motifs to see how much
+they vary (A,C,G,T in green, blue, orange, red):
+
+```{r, fig.width=5, fig.height=5}
+cols <- c("green3","blue","orange","red")
+pheatmap::pheatmap(win[motif_idx,], cluster_rows=FALSE,
+                   cluster_cols=FALSE, show_rownames=FALSE,
+                   color=cols, breaks=0:4 + .5, legend=FALSE)
+```
+
+# One step of EM
+
+The likelihood of a window under the motif component is the product,
+over positions, of the probability in $\theta$ of the nucleotide we
+see at that position. Under the background component it is the
+product of the background probabilities of its nucleotides. We
+estimate $\theta_{bg}$ once, from the overall frequency of each
+nucleotide, and hold it fixed.
 
 ```{r}
-i <- 1
-p <- 1
-# move a window along row i of x
-snip <- x[i,p + 0:(theta_len-1)]
+lik_motif <- function(snip, theta) {
+  prod(sapply(1:4, function(k) prod(theta[k, snip == k])))
+}
+lik_bg <- function(snip, theta_bg) {
+  prod(theta_bg[snip])
+}
+theta_bg <- tabulate(x, 4) / length(x)
+theta_bg
+```
+
+We start with a random guess $\theta^0$, where each column sums to 1,
+and with $\lambda^0$ equal to one motif per sequence.
+
+```{r}
+random_theta <- function(w) {
+  theta <- matrix(runif(w*4), ncol=w)
+  sweep(theta, 2, colSums(theta), "/")
+}
+set.seed(3)
+theta <- random_theta(w)
+round(theta, 2)
+lambda <- 1/n_win
+```
+
+In the E-step, the conditional probability that window *i* is a motif
+is the familiar ratio from mixture models:
+
+$$
+P(Z_i = 1 | X_i, \theta^t, \lambda^t) =
+\frac{\lambda^t \, P(X_i | \theta^t)}{\lambda^t \, P(X_i | \theta^t) +
+(1 - \lambda^t) \, P(X_i | \theta_{bg})}
+$$
+
+Let's calculate this for the first window of the first sequence.
+
+```{r}
+snip <- win[1,]
 snip
-# calculate the conditional probability given X and current theta
-prod(theta[1,snip == 1]) * prod(theta[2,snip == 2]) *
-  prod(theta[3,snip == 3]) * prod(theta[4,snip == 4])
+f_motif <- lambda * lik_motif(snip, theta)
+f_bg <- (1 - lambda) * lik_bg(snip, theta_bg)
+f_motif / (f_motif + f_bg)
 ```
 
-Once we've stored these condition probabilities in a matrix,
-`posterior_z`, we can use these to maximize our expectation of the log
-likelihood with respect to the
-condition distribution of *Z* given *X* and $\theta^t$
-and then update to $\theta^{t+1}$. We will add the contribution from each
-sequence out of `n`, and from all positions `p`. As `posterior_z` will be
-normalized so that each row sums to 1 (it forms a density along the
-positions), we only need to normalize the contribution of each
-sequence and position by `n`. Our update for $\theta^{t+1}$ for each
-nucleotide is the weighted average of the number of times we saw that
-nucleotide at that position. Here we show the line of code, but it is
-not evaluated, as we haven't yet computed `posterior_z`.
-
-```{r eval=FALSE}
-1/n * posterior_z[i,p] * (x[i,p + 0:(theta_len-1)] == j)
-```
-
-Now we will put these two pieces together, within a loop.
-We will also add some
-code which will plot the guesses at each iteration.
-
-First define a function to draw the estimates at each iteration, *t*:
+To compute the motif likelihood for all windows at once, it is much
+faster to loop over the `w` columns than over the many rows of `win`:
+for column `j`, `theta[cbind(win[,j], j)]` picks out the probability
+of the nucleotide observed at position `j` in every window. This gives
+the same answer as applying `lik_motif` to each row:
 
 ```{r}
-drawTheta <- function(theta, t) {
+lik_motif_all <- function(win, theta) {
+  lik <- rep(1, nrow(win))
+  for (j in seq_len(ncol(win))) {
+    lik <- lik * theta[cbind(win[,j], j)]
+  }
+  lik
+}
+all.equal(lik_motif_all(win, theta),
+          apply(win, 1, lik_motif, theta=theta))
+```
+
+As the background likelihood of each window doesn't change, we only
+need to compute it once. We then compute the conditional probability
+for all windows:
+
+```{r}
+lik_bg_win <- apply(win, 1, lik_bg, theta_bg=theta_bg)
+f_motif <- lambda * lik_motif_all(win, theta)
+f_bg <- (1 - lambda) * lik_bg_win
+post_motif <- f_motif / (f_motif + f_bg)
+summary(post_motif)
+```
+
+In the M-step, we maximize the expected log likelihood, where the
+expectation is over the conditional distribution of *Z* given *X* and
+the current parameters. The update for $\lambda$ is the average of
+the conditional probabilities. The update for each column of $\theta$
+is a weighted frequency of the nucleotides at that position, where
+each window is weighted by its probability of being a motif. Note
+that if we knew exactly which windows were motifs (`post_motif` all
+0 or 1), this would simply count the nucleotides at each position
+across the motifs.
+
+```{r}
+lambda <- mean(post_motif)
+counts <- t(sapply(1:4, function(k) colSums(post_motif * (win == k))))
+theta <- sweep(counts, 2, colSums(counts), "/")
+round(theta, 2)
+```
+
+# Running EM
+
+Now we put these two pieces together within a loop. We also keep
+track of the log likelihood at each iteration, which EM should never
+decrease, and the estimate of $\theta$ at each iteration, so we can
+plot it.
+
+```{r}
+meme_em <- function(theta, lambda, niter) {
+  loglik <- numeric(niter)
+  theta_hist <- list(theta)
+  for (t in seq_len(niter)) {
+    # E-step: probability that each window is a motif
+    f_motif <- lambda * lik_motif_all(win, theta)
+    f_bg <- (1 - lambda) * lik_bg_win
+    loglik[t] <- sum(log(f_motif + f_bg)) # log lik at theta^(t-1)
+    post_motif <- f_motif / (f_motif + f_bg)
+    # M-step: update the mixing proportion and the motif matrix
+    lambda <- mean(post_motif)
+    counts <- t(sapply(1:4, function(k) colSums(post_motif * (win == k))))
+    theta <- sweep(counts, 2, colSums(counts), "/")
+    theta_hist[[t + 1]] <- theta
+  }
+  list(theta=theta, lambda=lambda, post_motif=post_motif,
+       loglik=loglik, theta_hist=theta_hist)
+}
+```
+
+EM finds a local maximum of the likelihood, and which one depends on
+where we start. So, like MEME, we try a number of starting points and
+keep the best.
+
+```{r}
+n_starts <- 20
+niter <- 60
+fits <- lapply(seq_len(n_starts), function(s) {
+  set.seed(s)
+  meme_em(random_theta(w), lambda=1/n_win, niter=niter)
+})
+```
+
+The log likelihood increases over iterations for every start (one
+line per start), but the starts end up at different values. We plot
+the log likelihood relative to the highest value seen across all
+starts, so the top of the plot is 0 (a likelihood ratio of 1 with the
+best start):
+
+```{r, fig.width=6, fig.height=5}
+ll <- sapply(fits, `[[`, "loglik")
+matplot(ll[-1,] - max(ll), type="l", lty=1, col=1:n_starts,
+        xlab="iteration", ylab="log likelihood relative to best")
+```
+
+Some starts converge to a shifted version of the motif. For each
+start, we can find the window in each sequence with the highest
+probability of being a motif, and compare it to the true start
+position `z`. The most common offset between the chosen window and
+`z` tells us how far the motif was shifted. We then count how many of
+the true motif locations were recovered, allowing for that shift.
+
+```{r}
+summarize_fit <- function(fit) {
+  post_mat <- matrix(fit$post_motif, nrow=n, byrow=TRUE)
+  offset <- apply(post_mat, 1, which.max) - z
+  shift <- as.numeric(names(which.max(table(offset))))
+  c(loglik=fit$loglik[niter],
+    shift=shift,
+    recovered=sum(offset == shift))
+}
+res <- t(sapply(fits, summarize_fit))
+res
+```
+
+Some starts end up at the same values, so we jitter the points
+slightly, and label each size of shift (left or right) once:
+
+```{r, fig.width=6, fig.height=5}
+set.seed(1)
+jit_x <- jitter(res[,"recovered"], amount=2)
+jit_y <- jitter(res[,"loglik"] - max(res[,"loglik"]), amount=10)
+plot(jit_x, jit_y, xlim=range(jit_x) + c(-5, 15),
+     xlab="true motif locations recovered (allowing for shift)",
+     ylab="final log likelihood relative to best")
+abs_shift <- abs(res[,"shift"])
+# one label per size of shift, to the right of its group of points
+lab_x <- tapply(jit_x, abs_shift, max)
+lab_y <- tapply(jit_y, abs_shift, mean)
+text(lab_x, lab_y, labels=paste("shift", names(lab_x)), pos=4, cex=.8)
+```
+
+The starts with no shift have the highest log likelihood and recover
+the most motif locations. The larger the shift, the lower the log
+likelihood, and the fewer of the motif locations are recovered, even
+after accounting for the shift.
+
+To see this, we define a function to draw an estimate of $\theta$ as
+a row of squares, colored by the most likely nucleotide at each
+position, and more transparent when that nucleotide's probability is
+closer to 1/4. The argument `shift` moves the squares left or right.
+
+```{r}
+drawTheta <- function(theta, y, shift=0) {
   theta_max <- apply(theta, 2, which.max)
   theta_max_p <- apply(theta, 2, max)
-  cols_alpha <- sapply(1:theta_len, function(i) {
+  cols_alpha <- sapply(seq_len(ncol(theta)), function(i) {
     adjustcolor(cols[theta_max[i]],(theta_max_p[i] - .25)/.75)
   })
-  points(seq_len(theta_len), rep(t,theta_len),
+  points(seq_len(ncol(theta)) + shift, rep(y,ncol(theta)),
          col=cols_alpha, pch=15, cex=2)
 }
 ```
 
-The following code chunk is too long for an Rmarkdown,
-but I put it here as
-one long chunk so that you can step through the code at each iteration
-and examine the values of the posteior for Z and theta,
-as the EM is progressing. It has to be one long chunk to draw the
-iterations on the same plot.
+Drawing the final $\theta$ from each start, moved by its shift so that
+it lines up with the true motif at the bottom, with starts ordered by
+their final log likelihood (highest at the top):
 
-```{r message=FALSE, fig.width=6, fig.height=6}
-set.seed(5)
-theta <- matrix(runif(theta_len*4),ncol=theta_len)
-theta <- sweep(theta, 2, colSums(theta), "/")
-
+```{r, fig.width=7, fig.height=8, message=FALSE}
 library(rafalib)
-niter <- 10
-nullplot(0, theta_len, -1, niter,
-         xlab="position in motif", ylab="iterations")
-cols <- c("green3","blue","orange","red")
-# draw the true motif at the bottom
-points(seq_len(motif_len) + (theta_len-motif_len)/2,
-       rep(-1,motif_len), col=cols[motif], pch=15, cex=2)
-drawTheta(theta, 0) # draw theta^0
+ord <- order(res[,"loglik"])
+nullplot(min(res[,"shift"]), w + max(res[,"shift"]) + 1, -1, n_starts,
+         xlab="position relative to true motif",
+         ylab="starts, ordered by log likelihood")
+points(seq_len(w), rep(-1,w), col=cols[motif], pch=15, cex=2)
+for (k in seq_len(n_starts)) {
+  drawTheta(fits[[ord[k]]]$theta, k, shift=res[ord[k],"shift"])
+}
+abline(v=c(.5, w + .5), lty=2)
+```
 
-### the EM algorithm ###
-for (t in seq(1,niter)) {
-  # initialize conditional distribution (posterior) of z
-  # given data `x` and current model parameters `theta`
-  posterior_z <- matrix(0,nrow=n,ncol=l-theta_len+1)
-  for (i in seq_len(n)) {
-    for (p in seq_len(l-theta_len+1)) {
-      # move a window along row i of x
-      snip <- x[i,p + 0:(theta_len-1)]
-      # calculate the conditional distribution (posterior)
-      # of Z given X and current theta
-      posterior_z[i,p] <- prod(theta[1,snip == 1]) *
-        prod(theta[2,snip == 2]) *
-        prod(theta[3,snip == 3]) *
-        prod(theta[4,snip == 4])
-    }
-  }
-  # normalize posterior_z to make it a density along positions
-  posterior_z <- posterior_z / rowSums(posterior_z)
+All of the starts found the same motif. But a $\theta$ shifted by $s$
+positions only covers $10 - s$ positions of the motif (inside the
+dashed lines). Its other $s$ columns line up with the random sequence
+next to the motif, so they are close to the background frequencies
+(the faded squares), and explain the data no better than the
+background component does. Each position of the motif that falls
+outside of $\theta$ is information we are not using, and so the
+likelihood is lower.
 
-  # Sys.sleep(0.1) # for live demo
+Why doesn't EM fix the shift? A shifted $\theta$ is a local maximum
+that is hard to escape: moving it one position over would mean
+passing through worse values of the likelihood. MEME deals with this
+by trying many starting points (derived from substrings of the data
+rather than random values) and by explicitly trying shifted versions
+of the motif. Here, we simply keep the start with the highest log
+likelihood.
 
-  # re-estimate theta by maximizing over E_{Z|X,theta^t} (log lik)
-  theta <- matrix(0,nrow=4,ncol=theta_len)
-  for (j in 1:4) {
-    for (i in seq_len(n)) {
-      for (p in seq_len(l-theta_len+1)) {
-        # for nucleotide j, add the contribution of sequence i,
-        # averaging over all positions p, weighted by Z.
-        # MLE is just the frequency of when the sequence = j here
-        theta[j,] <- theta[j,] + 1/n * posterior_z[i,p] *
-          (x[i,p + 0:(theta_len-1)] == j)
-      }
-    }
-  }
+```{r}
+best_start <- which.max(ll[niter,])
+best <- fits[[best_start]]
+round(best$theta, 2)
+motif
+```
 
-  drawTheta(theta, t) # theta for iteration 't'
+We can follow the estimates of $\theta$ over the iterations for this
+start, for the first 20 iterations. The random initialization has no
+clear motif, and for the
+first few iterations not much happens. Then a few positions that
+happen to agree with the motif start to pull the conditional
+probabilities of the true motif windows upward, and the rest of the
+motif fills in over a few iterations.
 
+```{r, fig.width=6, fig.height=7}
+n_show <- 20 # the best start converges well before this
+nullplot(0, w + 1, -1, n_show,
+         xlab="position in motif", ylab="iteration")
+points(seq_len(w), rep(-1,w), col=cols[motif], pch=15, cex=2)
+for (t in 0:n_show) {
+  drawTheta(best$theta_hist[[t + 1]], t)
 }
 ```
 
-Looking at the estimates of $\theta$ over iterations, we see that the
-random initialization contained four positions that aligned with the
-true motif. Over the next three iterations, the motif filled in, as
-the density in *Z* concentrated on the true positions. Finally, after
-iteration 5, we see the motif come into strong relief, with the other
-positions evening out to equal probability of all nucleotides.
+The estimate of $\lambda$, converted to motifs per sequence, should be
+close to 1:
 
 ```{r}
-round(theta, 2)
+best$lambda * n_win
 ```
 
-Note that, the four nucleotides are not in equal abundance in
-"background" sequence in our genomes, and so a better motif finding
-method would additionally model the "background" sequence.
-
-We can also see that the positions with highest density in *Z*
-correspond linearly to the true locations (although with a shift).
-Note that we did not locate the motif for every sequence. In
-particular, when the motif started on the far left or far right side,
-the $\theta$ matrix was too wide.
-
-```{r, fig.width=6, fig.height=6}
-plot(z, apply(posterior_z, 1, which.max),
-     ylab="max density in posterior_z")
-abline(0,1)
-```
+A few remaining differences from MEME: MEME uses pseudocounts (a
+Dirichlet prior) so that no entry of $\theta$ becomes exactly 0, it
+searches both strands, it allows for sequences without the motif, it
+searches over the width of the motif, and it accounts for the fact
+that overlapping windows can't both be motifs. Here we treated the
+windows as independent, which they are not.
