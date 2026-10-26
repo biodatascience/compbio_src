@@ -86,7 +86,12 @@ The user handles all commits and pushes in `../compbio` — do not do this autom
 
 ## plyranges / tidyomics Style
 
-When working with GRanges objects, prefer `plyranges` idioms over base GenomicRanges:
+When working with GRanges objects, use `plyranges` whenever possible, in preference to base GenomicRanges or base R subsetting. Students know dplyr well, so pipes of `filter()`, `mutate()`, `arrange()`, `slice_max()` and similar verbs are easier for them to read than `gr[head(order(gr$col, decreasing=TRUE), n)]`. Michael Love is the maintainer of plyranges, so if a plyranges verb does not seem to work or an idiom is unclear, ask him rather than falling back to base R.
+
+Specific idioms:
+
+- Use `slice_max(col, n=n, with_ties=FALSE)` and `arrange(desc(col))` to select and order ranges by a metadata column, rather than `gr[head(order(gr$col, decreasing=TRUE), n)]`. Without `with_ties=FALSE`, ties at the cutoff are kept and more than `n` ranges can be returned.
+- Inside `mutate()` and `filter()`, a bare name refers to a range column first (e.g. `width`), so give a script variable a different name (e.g. `win_width`) instead of writing `mutate(width=width)`.
 
 - Use `keepStandardChromosomes(pruning.mode="coarse")` rather than `filter(seqnames %in% std_chroms)`.
 - Call `unstrand()` before `reduce_ranges()` when the goal is strand-agnostic region definitions (e.g. "does a variant fall in an exon"). Without it, `reduce_ranges()` reduces per strand and overlapping + / - ranges are never merged.

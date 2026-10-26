@@ -1,0 +1,371 @@
+---
+title: "Finding motifs in real ChIP-seq peaks"
+author: "[Michael Love](http://mikelove.github.io)"
+format:
+  html:
+    embed-resources: true
+---
+
+# The task
+
+In `motif.qmd` we wrote EM for motif finding and tested it on
+simulated data, where we knew the answer. Today you work on real
+ChIP-seq peaks from ENCODE, where the data are messier, and see how
+well several methods recover the known motif of a transcription
+factor. Everything here is R, with no external programs to install.
+
+Each group gets one transcription factor:
+
+| TF | Cell line | Function | Canonical motif |
+|----|-----------|----------|-----------------|
+| cJun | K562 | AP-1 subunit (bZIP); immediate early response to growth signals and stress | TGASTCA |
+| cMyc | K562 | basic helix-loop-helix, partner MAX; drives growth and proliferation genes | CACGTG |
+| NFYA | K562 | subunit of NF-Y, which binds the CCAAT box near promoters; cell cycle genes | CCAAT |
+| YY1 | GM12878 | zinc finger protein; activates or represses, and helps form enhancer-promoter loops | GCCATNTT |
+| STAT1 | K562, after interferon gamma | JAK-STAT signal transducer; enters the nucleus on interferon signaling | TTCCNGGAA |
+| CEBPB | HepG2, after forskolin | bZIP factor; regulates liver and fat metabolism, inflammation, and differentiation | TTGCGCAA |
+| Pol2 | K562 | enzyme that transcribes mRNA; recruited by TFs, not sequence specific | none (promoters sometimes have a TATA box, TATAAA) |
+
+In these motifs S is G or C and N is any nucleotide. A motif is written
+5' to 3' on one of the two strands, so what you find may be the
+reverse complement of what is written here (more on this below). These
+are the motifs reported in the literature and in JASPAR, and your
+analysis does not have to agree with them exactly.
+
+For each TF the file `chip_seqs.rds` has the 500 peaks with the
+strongest signal. Each peak is 200 bp centered on the summit of the
+peak (hg38 sequence). The script `chip_make_data.R` shows how these
+were made from the ENCODE peak calls in AnnotationHub.
+
+```{r, message=FALSE}
+library(Biostrings)
+library(universalmotif)
+library(here)
+rds_file <- here("model", "chip_seqs.rds")
+if (!file.exists(rds_file)) {
+  download.file("https://github.com/biodatascience/compbio/raw/refs/heads/gh-pages/model/chip_seqs.rds",
+                rds_file, mode="wb")
+}
+chip_seqs <- readRDS(rds_file)
+names(chip_seqs)
+tf <- "cJun" # change this to your TF
+peaks <- chip_seqs[[tf]]$peaks
+peaks
+```
+
+# Packages used
+
+You need these installed (all from CRAN or Bioconductor):
+
+```{r, eval=FALSE}
+BiocManager::install(c("Biostrings", "universalmotif", "MotifDb", "kernlab", "here"))
+```
+
+* *Biostrings*: counting k-mers and matching patterns
+* *universalmotif*: motif logos, shuffling sequences, scanning for
+  motifs, and comparing a motif you found to a database of known motifs
+* *MotifDb*: a database of known motifs (JASPAR, HOCOMOCO and others)
+* *kernlab*: support vector machines with a string kernel
+* *here*: locating files relative to the root of the course repository
+
+# Both strands
+
+DNA has two strands, and a transcription factor can bind a site on
+either one. The motif we write down is the sequence read 5' to 3' on
+one strand, and on the other strand the same site reads as the
+reverse complement. For example, the AP-1 site `TGAGTCA` reads as
+`TGACTCA` on the other strand:
+
+```{r}
+reverseComplement(DNAString("TGAGTCA"))
+```
+
+The peak sequences in `chip_seqs.rds` are all given on the forward
+strand of the genome, so a binding site is equally likely to appear as
+the motif or as its reverse complement. Each method below handles this
+in a different way:
+
+* k-mer counts (Method 1) with `oligonucleotideFrequency` count the
+  forward strand only, so a k-mer and its reverse complement are
+  counted separately. We will add the reverse complement of each
+  sequence, as EM does, to count both strands.
+* EM (Method 2) adds the reverse complement of every peak to the data,
+  as extra sequences, so that windows on both strands are tested.
+* comparing to JASPAR (Method 2) and scanning for motifs (Method 4) are
+  done with `tryRC=TRUE` and `RC=TRUE`, which also test the reverse
+  complement of the motif.
+* the string kernel SVM (Method 3) is not strand aware, and counts the
+  forward strand only. Expect to see a k-mer and its reverse complement
+  both near the top of the weights.
+
+Because of this, the motif you find from EM may be the reverse
+complement of the motif in the table above, and that is not a
+problem. `motif_rc(mot)` in *universalmotif* does the same operation for a motif
+object.
+
+# Method 1: counting k-mers (the baseline)
+
+The simplest idea is to count all k-mers in the peaks and ask which are
+more common than expected. We need a control set of sequences for "what
+we would expect". The choice of control turns out to matter a lot.
+
+First try the sequence 2 kb to the right of each peak as control:
+
+```{r}
+kmer_enrich <- function(peaks, control, k) {
+  fp <- colSums(oligonucleotideFrequency(peaks, k))
+  fc <- colSums(oligonucleotideFrequency(control, k))
+  sort((fp + 1) / (fc + 1), decreasing=TRUE)
+}
+head(kmer_enrich(peaks, chip_seqs[[tf]]$control, k=6))
+```
+
+Now a different control: shuffle each peak sequence, preserving its
+dinucleotide counts (`k=2`). Any enrichment of longer k-mers is then
+not explained by the nucleotide or dinucleotide composition of the
+peaks.
+
+```{r}
+set.seed(1)
+shuffled <- shuffle_sequences(peaks, k=2)
+head(kmer_enrich(peaks, shuffled, k=6))
+```
+
+Counting the forward strand only splits the signal between a k-mer and
+its reverse complement. To count both strands, we add the reverse
+complement of each sequence to the set before counting. A k-mer and
+its reverse complement then have the same count, so we keep only one
+of each pair (the one that comes first alphabetically).
+
+```{r}
+kmer_enrich_both <- function(peaks, control, k) {
+  count_both <- function(s) {
+    colSums(oligonucleotideFrequency(c(s, reverseComplement(s)), k))
+  }
+  fp <- count_both(peaks)
+  fc <- count_both(control)
+  enrich <- sort((fp + 1) / (fc + 1), decreasing=TRUE)
+  rc <- as.character(reverseComplement(DNAStringSet(names(enrich))))
+  enrich[names(enrich) <= rc]
+}
+head(kmer_enrich_both(peaks, shuffled, k=6))
+```
+
+Notes:
+
+* The two controls can give different top k-mers. Compare them for a few
+  of the other TFs too. Peaks are often in promoters, which are GC rich
+  and have many CpG dinucleotides, and the shifted control is not
+  matched for this, while the shuffled control is.
+* Try `k` of 5, 6, 7, and 8. As `k` grows, each k-mer is seen fewer
+  times, so the counts get smaller and the enrichment values get more
+  variable. A k-mer and its reverse complement are the same binding
+  site on the opposite strand, and both show up in the forward-strand
+  list above.
+
+# Method 2: EM
+
+The file `chip_em.R` has the EM algorithm from `motif.qmd`, adapted to
+real data. The changes are:
+
+* it takes a `DNAStringSet`, and uses the central 100 bp of each peak
+  (`trim`) because the motif is usually near the summit
+* it looks on both strands, by adding the reverse complement of each
+  sequence
+* it adds a small pseudocount, so that no entry of $\theta$ is exactly 0
+* as in MEME, you can start from a k-mer (`seed`) instead of from
+  random values
+
+Reading the function, find where each of these happens. You need to
+choose the width `w` of the motif. Start around 8 to 10.
+
+```{r}
+source(here("model", "chip_em.R"))
+set.seed(1)
+system.time({
+  fit <- em_motif(peaks, w=8, n_starts=10)
+})
+round(fit$theta, 2)
+fit$n_motif # number of windows estimated to be motifs
+```
+
+To look at the result, we use the *universalmotif* package, which draws
+the logo of a position probability matrix. The height of each letter is
+its probability times the information content of the column.
+
+```{r, fig.width=5, fig.height=2.5}
+mot <- create_motif(fit$theta, alphabet="DNA", name=tf, type="PPM")
+mot@alphabet <- "DNA" # so that the labels agree with those in MotifDb
+view_motifs(mot)
+```
+
+Then we compare this motif to a database of known human motifs. Here
+we use JASPAR (2024) through *MotifDb*. The comparison is by Pearson
+correlation of the matrices, trying both strands.
+
+```{r, message=FALSE}
+library(MotifDb)
+is_jaspar_human <- values(MotifDb)$dataSource == "jaspar2024" &
+  values(MotifDb)$organism == "Hsapiens"
+jaspar <- convert_motifs(MotifDb[is_jaspar_human],
+                         class="universalmotif-universalmotif")
+match_jaspar <- function(mot, n=5) {
+  res <- compare_motifs(c(list(mot), jaspar), compare.to=1,
+                        method="PCC", min.overlap=6, tryRC=TRUE)
+  as.data.frame(res)[seq_len(n), c("target","score","Eval")]
+}
+match_jaspar(mot)
+```
+
+You can also see how well your motif lines up with a motif from the
+database, with `view_motifs(list(mot, jaspar[["name of the motif"]]))`.
+
+Notes:
+
+* The result depends on the starting values and on the width `w`. Rerun
+  with a different `set.seed()` or width, and compare the motifs and
+  `fit$loglik`. The fit with the highest log likelihood is the one kept
+  from the random starts.
+* EM can get stuck in repetitive sequence such as poly-A, which has
+  little to do with binding sites. Under the simple background model
+  (a single set of nucleotide frequencies), poly-A windows are unlikely,
+  so a poly-A motif fits the data better than the background does.
+  Masking repeats, or a background model that looks at neighboring
+  nucleotides, are ways to avoid this.
+* If the random starts fail, start EM from your best k-mer from
+  Method 1 with `seed="TGACTCA"` (any k-mer up to width `w`). This is
+  similar to how MEME picks starting values.
+* `fit$n_motif` can be larger than the number of peaks (about 500). The
+  model treats overlapping windows as independent, it searches both
+  strands, and a motif can read almost the same on both strands. Method
+  4 is a better way to say how many peaks contain the motif.
+
+# Method 3: support vector machine with a string kernel
+
+Methods 1 and 2 look for a pattern shared by the peaks. We can also ask
+for a classifier which distinguishes peaks from control sequence, and
+then look inside the classifier to see which k-mers it uses.
+
+A string kernel measures similarity of two sequences by the number of
+sub-strings of length $k$ they have in common (the "spectrum" kernel).
+We use *kernlab* as in the `bioc` homework. kernlab expects a list of
+character strings.
+
+```{r}
+library(kernlab)
+set.seed(1)
+y <- factor(rep(c("peak", "control"), each=length(peaks)))
+s <- as.list(c(as.character(peaks), as.character(shuffled)))
+sk <- stringdot(type="spectrum", length=6, normalized=TRUE)
+system.time({
+  svm_fit <- ksvm(s, y, kernel=sk, C=1, cross=5)
+})
+svm_fit
+# fraction of held-out sequences correctly called peak or control
+1 - cross(svm_fit)
+```
+
+The cross validation accuracy is the fraction of held-out sequences
+(left out of the fit, in 5 folds) that are correctly called as a peak or
+as control. Half of the sequences are peaks, so 0.5 is chance. This tells
+us how well peaks can be told apart from the shuffled control, using
+only 6-mer content. A support vector
+machine is a weighted sum over the training sequences, and for the
+spectrum kernel that is the same as a weight for every 6-mer. We
+compute the weights for each 6-mer, from the sequences chosen as
+support vectors:
+
+```{r}
+kmer_weights <- function(svm_fit, seqs, k) {
+  counts <- oligonucleotideFrequency(DNAStringSet(unlist(seqs)), k)
+  counts <- counts / sqrt(rowSums(counts^2)) # the kernel was normalized
+  sv <- SVindex(svm_fit)
+  w <- drop(coef(svm_fit)[[1]] %*% counts[sv,])
+  names(w) <- colnames(counts)
+  sort(w, decreasing=TRUE)
+}
+w <- kmer_weights(svm_fit, s, 6)
+head(w)
+tail(w)
+```
+
+The k-mers with large positive weights push a sequence toward being
+called a peak. Compare the top of this list to the top k-mers
+from Method 1. The weights are for the forward strand only, so look for
+a k-mer and its reverse complement both having large weights.
+
+Notes:
+
+* The SVM can use combinations of k-mers that together distinguish
+  peaks from control, and so it is less affected than the enrichment in
+  Method 1 by many related k-mers that share the same underlying motif.
+* Try other values of `length` (4 to 8) and `C`, and note how the cross
+  validation accuracy and the time per fit change.
+* Using the shifted control from Method 1 instead of shuffled
+  sequences changes what the classifier can learn. Peaks and shifted
+  sequences differ in GC content and CpG content in addition to motifs.
+
+# Method 4: scanning for a known motif
+
+Once you have a candidate motif (from EM, or from a database), you can
+ask how many peaks contain it, relative to control sequence.
+`scan_sequences` slides the motif along each sequence, and reports
+windows with a log-odds score above a threshold, on either strand.
+
+```{r}
+hits_in <- function(mot, seqs, pvalue=1e-4) {
+  res <- scan_sequences(mot, seqs, threshold=pvalue, threshold.type="pvalue",
+                        RC=TRUE, verbose=0, nthreads=1)
+  length(unique(res$sequence)) / length(seqs)
+}
+c(peaks=hits_in(mot, peaks), shuffled=hits_in(mot, shuffled))
+```
+
+Notes:
+
+* Compare the fraction of peaks with a match to the fraction in the
+  control, and to the proportion of peaks you expected to have the motif
+  from `fit$n_motif`.
+* The fraction depends on the p-value threshold. Try a few values.
+* The `chip_seqs` list has the peaks of the other TFs, so you can look
+  for your motif in them. For example, look for the cJun motif in the
+  cMyc peaks.
+
+# Other tools
+
+These are worth knowing about, but need more time than we have today:
+
+* *monaLisa* and *motifmatchr* (Bioconductor) scan the peaks for all
+  JASPAR motifs at once, and test for enrichment. These are fast, and
+  they answer the question "which known motifs are over-represented in
+  my peaks" rather than finding a new motif.
+* The MEME suite (MEME, STREME, FIMO) is the standard tool for de novo
+  motif finding, and what EM here is modeled on. It is a separate
+  program rather than an R package, and *universalmotif* and *memes*
+  can call it if it is installed. We skip it here so that nothing has
+  to be installed outside of R.
+* *gkmSVM* and neural networks (deep learning models of TF binding)
+  extend the idea of Method 3 to gapped k-mers or to learned filters.
+* Deep learning models trained on genome-wide data, such as ChromBPNet
+  (trained on chromatin accessibility, ATAC-seq or DNase-seq) and
+  AlphaGenome (trained on many assays, including ChIP-seq of TFs),
+  predict the signal at every base pair of a sequence, and can be used
+  to locate motifs by *in silico mutagenesis*. We take a peak region,
+  and for each position change the base to each of the other three
+  bases, and ask how much the predicted signal in the peak drops.
+  (Faster attribution methods such as DeepLIFT approximate this.)
+  Positions where mutations strongly reduce the signal are those that matter for
+  binding, and a run of adjacent such positions is a motif. Unlike
+  Methods 1 to 3, this does not require a control set of sequences, but
+  it does require a trained model, and the models are used from Python
+  (and typically need a GPU, or a server), so we do not run them here.
+
+# Reporting back
+
+1. Which methods recovered a motif for your TF, and which did not?
+2. Show a logo of your best motif, and the JASPAR motif it matched to.
+3. What fraction of peaks contain the motif?
+
+```{r}
+sessionInfo()
+```
