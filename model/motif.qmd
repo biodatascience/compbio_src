@@ -480,3 +480,69 @@ searches both strands, it allows for sequences without the motif, it
 searches over the width of the motif, and it accounts for the fact
 that overlapping windows can't both be motifs. Here we treated the
 windows as independent, which they are not.
+
+# Appendix: Why the weighted frequency maximizes our target
+
+In the M-step we said that we maximize the expected log likelihood,
+without writing it down. Here we show that the weighted frequencies
+used above are exactly the maximizer. Let $x_{ij}$ be the nucleotide
+at position $j$ of window $i$, and let $N$ be the number of windows.
+The log likelihood of the complete data, if we knew which windows were
+motifs, is:
+
+$$
+\log P(X, Z | \theta, \lambda) = \sum_{i=1}^N Z_i \left[\log \lambda +
+\sum_{j=1}^w \sum_{k=1}^4 1(x_{ij}=k) \log \theta_{kj}\right] +
+(1 - Z_i) \left[\log(1-\lambda) + \log P(X_i | \theta_{bg})\right]
+$$
+
+This is linear in the $Z_i$. So the expectation over the conditional
+distribution of $Z$ given $X$ and the current parameters just replaces
+each $Z_i$ with its conditional probability
+$r_i = P(Z_i = 1 | X_i, \theta^t, \lambda^t)$, which is `post_motif`
+in the code:
+
+$$
+Q(\theta, \lambda | \theta^t, \lambda^t) = \sum_{i=1}^N r_i \left[\log \lambda +
+\sum_{j=1}^w \sum_{k=1}^4 1(x_{ij}=k) \log \theta_{kj}\right] +
+(1 - r_i) \left[\log(1-\lambda) + \log P(X_i | \theta_{bg})\right]
+$$
+
+No integration over $Z$ is needed in practice, because of this
+linearity. The terms involving $\theta_{bg}$ are held fixed, so they
+do not affect the maximization. The remaining terms separate into a
+part with only $\lambda$ and a part with only $\theta$.
+
+For $\lambda$, we maximize $\sum_i r_i \log \lambda + (1 - r_i)
+\log(1-\lambda)$. Setting the derivative to zero:
+
+$$
+\frac{\sum_i r_i}{\lambda} - \frac{\sum_i (1 - r_i)}{1 - \lambda} = 0
+\quad \Rightarrow \quad \lambda = \frac{1}{N} \sum_i r_i
+$$
+
+which is `mean(post_motif)`.
+
+For $\theta$, define the weighted counts
+$c_{kj} = \sum_i r_i \, 1(x_{ij}=k)$. We maximize
+$\sum_j \sum_k c_{kj} \log \theta_{kj}$ subject to each column summing
+to 1. With a Lagrange multiplier $\mu_j$ for each column, we set the
+derivative with respect to $\theta_{kj}$ to zero:
+
+$$
+\frac{c_{kj}}{\theta_{kj}} - \mu_j = 0 \quad \Rightarrow \quad
+\theta_{kj} = \frac{c_{kj}}{\mu_j}
+$$
+
+The constraint $\sum_k \theta_{kj} = 1$ gives $\mu_j = \sum_k c_{kj}$,
+so
+
+$$
+\theta_{kj} = \frac{c_{kj}}{\sum_{k'} c_{k'j}}
+$$
+
+This is the weighted frequency of nucleotide $k$ at position $j$, the
+`counts` matrix divided by its column sums in the code. When every
+$r_i$ is 0 or 1, it reduces to the ordinary maximum likelihood
+estimate: counting the nucleotides at each position across the windows
+that are motifs.
