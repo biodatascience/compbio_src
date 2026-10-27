@@ -279,6 +279,14 @@ post_motif <- f_motif / (f_motif + f_bg)
 summary(post_motif)
 ```
 
+We can't maximize the log likelihood of the observed windows directly,
+for the same reason as in the mixture of normals: each window's
+likelihood is a sum over the two components,
+$\lambda P(X_i | \theta) + (1 - \lambda) P(X_i | \theta_{bg})$, so the
+log can't be distributed over the positions of $\theta$ (the log of a
+sum is not the sum of logs). If we knew $Z_i$, only one of the two
+terms would remain and the log would distribute.
+
 In the M-step, we maximize the expected log likelihood, where the
 expectation is over the conditional distribution of *Z* given *X* and
 the current parameters. The update for $\lambda$ is the average of
