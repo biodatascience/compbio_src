@@ -1,0 +1,201 @@
+---
+title: "Finding genes with an HMM"
+author: "[Michael Love](http://mikelove.github.io)"
+format:
+  revealjs:
+    embed-resources: true
+    smaller: true
+    width: 1280
+    height: 800
+    include-in-header:
+      text: |
+        <style>
+        .tiles { font-family: monospace; font-size: 30px; margin: 20px 0; }
+        .row { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+        .lab { width: 140px; font-size: 20px; color: #52514e; font-family: sans-serif; }
+        .t { width: 52px; height: 52px; display: inline-flex; align-items: center;
+             justify-content: center; border-radius: 6px; color: white; font-weight: bold; }
+        .gap { width: 52px; height: 52px; display: inline-block; }
+        .ig { background: #8a8984; }  /* intergenic */
+        .cd { background: #2a78d6; }  /* coding */
+        .in { background: #eb6834; }  /* intron */
+        .ss { background: #6250d6; }  /* splice site */
+        .sc { background: #1baf7a; }  /* start/stop codon */
+        .win { outline: 4px solid #0b0b0b; outline-offset: 2px; }
+        .pill { display: inline-block; padding: 8px 16px; border-radius: 22px; color: white;
+                font-size: 24px; font-family: sans-serif; }
+        .arrow { font-size: 28px; color: #52514e; padding: 0 4px; }
+        .note { font-size: 20px; color: #52514e; font-family: sans-serif; padding-left: 8px; }
+        </style>
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(ggplot2)
+library(dplyr)
+em <- read.csv("gene_finder_emissions.csv")
+base_cols <- c(A = "#008300", C = "#2a78d6", G = "#eda100", T = "#e34948")
+th <- theme_minimal(base_size = 18) +
+  theme(panel.grid = element_blank(), legend.position = "none")
+
+# fraction of each base at each position of the 3-mer, for a set of
+# emission groups
+base_composition <- function(model_name, groups, positions = 1:3) {
+  em |>
+    filter(model == model_name, group %in% groups) |>
+    tidyr::crossing(position = positions) |>
+    mutate(base = substr(kmer, position, position)) |>
+    group_by(group, position, base) |>
+    summarize(prob = sum(prob), .groups = "drop") |>
+    mutate(group = factor(group, groups))
+}
+
+logo_bars <- function(d, x) {
+  ggplot(d, aes({{ x }}, prob, fill = base)) +
+    geom_col(width = .85, color = "white", linewidth = .6) +
+    geom_text(aes(label = ifelse(prob > .15, base, "")),
+              position = position_stack(vjust = .5),
+              color = "white", size = 7, fontface = "bold") +
+    scale_fill_manual(values = base_cols) +
+    scale_y_continuous(breaks = c(0, .5, 1)) +
+    labs(x = NULL, y = NULL) + th
+}
+```
+
+## Reading DNA three letters at a time
+
+At each position $t$ the HMM sees the three letters centered on $t$,
+and has to guess the hidden label of position $t$.
+
+::: {.tiles}
+::: {.row}
+[DNA]{.lab}
+[C]{.t .cd} [A]{.t .cd} [G]{.t .cd .win} [G]{.t .ss .win} [T]{.t .in .win} [A]{.t .in} [A]{.t .in} [G]{.t .in} [T]{.t .in}
+:::
+::: {.row}
+[label]{.lab}
+[coding]{.pill .cd} [donor]{.pill .ss} [intron]{.pill .in}
+:::
+:::
+
+::: {.tiles}
+::: {.row}
+[$t$ = donor]{.lab}
+[G]{.t .cd .win} [G]{.t .ss .win} [T]{.t .in .win} [sees "GGT": the G T that starts every intron]{.note}
+:::
+:::
+
+Centering the three letters lets a one-letter state like the donor see
+its whole signal.
+
+To keep things simple: 100 genes on the + strand, coding sequence only,
+introns cut to 200 letters, 50 genes to learn from and 50 to test on.
+
+## The hidden states
+
+::: {.tiles}
+::: {.row}
+[intergenic]{.pill .ig} [→]{.arrow} [start codon]{.pill .sc} [→]{.arrow}
+[codon: 1 → 2 → 3 ↺]{.pill .cd} [→]{.arrow} [stop codon]{.pill .sc} [→]{.arrow}
+[intergenic]{.pill .ig}
+:::
+::: {.row}
+[ ]{.gap} [ ]{.gap} [ ]{.gap} [ ]{.gap} [ ]{.gap} [codon]{.pill .cd} [→]{.arrow}
+[donor]{.pill .ss} [→]{.arrow} [intron ↺]{.pill .in} [→]{.arrow}
+[acceptor]{.pill .ss} [→]{.arrow} [codon]{.pill .cd}
+:::
+:::
+
+- Only the arrows shown are allowed. Every other entry of the
+  transition matrix $A$ is 0, and stays 0 when Baum-Welch updates $A$.
+- The codon states go 1, 2, 3, 1, 2, 3, ... so the model reads in codons.
+- An intron can interrupt a codon anywhere, so there are three copies
+  of donor, intron, acceptor. Each copy remembers where in the codon
+  we were, and picks up there after the intron.
+
+## Learning the emissions: just count
+
+On the 50 training genes we know the label of every letter, so we count
+which 3-letter words appear in each state. The counts find the known
+signals (each bar shows the letters at one position of the 3-letter word):
+
+```{r counts, fig.width=12, fig.height=3.6}
+groups <- c("intronic", "start2", "stop2", "donor_1", "acceptor_1")
+d <- base_composition("simple", groups) |>
+  mutate(group = factor(group, groups,
+           c("intron (typical)", "start codon", "stop codon", "donor", "acceptor")),
+         position = factor(position, 1:3, c("t-1", "t", "t+1")))
+logo_bars(d, position) + facet_wrap(~group, nrow = 1)
+```
+
+We keep these counts fixed, and use Baum-Welch on the test genes only to
+learn how often the states switch, the transition matrix $A$.
+
+## Each letter is seen three times
+
+```{=html}
+<div class="tiles">
+<div class="row"><span class="lab">DNA</span>
+<span class="t ig">A</span><span class="t ig">C</span><span class="t cd win">G</span><span class="t ig">T</span><span class="t ig">A</span></div>
+<div class="row"><span class="lab">at t-1</span>
+<span class="t cd">A</span><span class="t cd">C</span><span class="t cd">G</span></div>
+<div class="row"><span class="lab">at t</span><span class="gap"></span>
+<span class="t cd">C</span><span class="t cd">G</span><span class="t cd">T</span></div>
+<div class="row"><span class="lab">at t+1</span><span class="gap"></span><span class="gap"></span>
+<span class="t cd">G</span><span class="t cd">T</span><span class="t cd">A</span></div>
+</div>
+```
+
+The HMM treats each 3-letter word as new evidence, so it is three times
+too sure of itself, and jumps between states too easily. Fix: shrink
+the emission probabilities, $B^w$ with $w < 1$.
+
+```{r weight, fig.width=12, fig.height=3}
+acc <- data.frame(
+  w = rep(c("1", "1/2", "1/3"), 2),
+  what = rep(c("letters labeled correctly", "codon position correct"), each = 3),
+  pct = c(62, 74, 70, 73, 94, 98))
+acc$w <- factor(acc$w, c("1", "1/2", "1/3"))
+acc$what <- factor(acc$what, unique(acc$what))
+ggplot(acc, aes(w, pct)) +
+  geom_col(width = .6, fill = "#2a78d6") +
+  geom_text(aes(label = paste0(pct, "%")), vjust = -.4, size = 6) +
+  facet_wrap(~what) + scale_y_continuous(limits = c(0, 108), breaks = NULL) +
+  labs(x = "w", y = NULL) + th
+```
+
+## Longer splice sites: more states
+
+Short exons were skipped: two rare jumps (into and out of the intron)
+cost more than a short exon's evidence. Fix: let the donor and acceptor
+each be a chain of states, 4 letters and 6 letters long. The counted
+letters along each chain spell out the known splice signals:
+
+```{r chains, fig.width=12, fig.height=3}
+donor <- paste0("donor_", 1:4)
+acceptor <- paste0("acceptor_", 1:6)
+d <- base_composition("advanced", c(donor, acceptor), positions = 2) |>
+  mutate(site = ifelse(grepl("donor", group), "start of intron (donor)",
+                       "end of intron (acceptor)"),
+         site = factor(site, c("start of intron (donor)", "end of intron (acceptor)")))
+logo_bars(d, group) + facet_wrap(~site, scales = "free_x") +
+  scale_x_discrete(labels = function(x) sub(".*_", "", x))
+```
+
+```{r models, fig.width=12, fig.height=2.4}
+res <- data.frame(
+  model = rep(c("simple (19 states)", "longer splice sites (43 states)"), 2),
+  what = rep(c("letters labeled correctly", "coding letters found"), each = 2),
+  pct = c(74, 78, 65, 78))
+res$model <- factor(res$model, unique(res$model))
+res$what <- factor(res$what, unique(res$what))
+ggplot(res, aes(pct, model, fill = model)) +
+  geom_col(width = .6) +
+  geom_text(aes(label = paste0(pct, "%")), hjust = -.15, size = 6) +
+  scale_fill_manual(values = c("#8a8984", "#2a78d6")) +
+  facet_wrap(~what) + scale_x_continuous(limits = c(0, 100), breaks = NULL) +
+  labs(x = NULL, y = NULL) + th
+```
