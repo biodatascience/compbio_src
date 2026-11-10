@@ -136,11 +136,13 @@ library(ggplot2)
 test_segments <- segments |> filter(!tx_id %in% train_ids)
 test_tx <- rep(test_segments$tx_id, width(test_segments))
 test_tx <- test_tx[-c(1, length(test_tx))]
+test_ids <- unique(test_tx) # the 50 test genes, in order
 
 # gamma, summed over the states for intergenic, codon (c1, c2, c3) and
 # intron (the three copies); the true coding positions are drawn as a
-# gray bar below
-plot_gene <- function(id) {
+# gray bar below. i is the test gene number, from 1 to 50
+plot_gene <- function(i) {
+  id <- test_ids[i]
   idx <- which(test_tx == id)
   g <- fit$gamma[, idx]
   d <- data.frame(
@@ -155,7 +157,10 @@ plot_gene <- function(id) {
               inherit.aes=FALSE, fill="gray40") +
     geom_line() +
     labs(x="position in gene", y="posterior probability",
-         title=paste("tx_id", id))
+         title=paste0("test gene ", i, " (tx_id ", id, ")"))
 }
 
-plot_gene(unique(test_tx)[1])
+plot_gene(1)
+plot_gene(2)
+plot_gene(3)
+plot_gene(4)
