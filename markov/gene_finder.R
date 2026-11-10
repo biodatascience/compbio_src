@@ -2,7 +2,7 @@
 # between them in DNA sequence from human genes.
 #
 # We sample 300 protein-coding genes from hg38 (UCSC knownGene) on the
-# + strand, with fewer than 15 CDS pieces and a canonical CDS (ATG ...
+# pos strand, with fewer than 15 CDS pieces and a canonical CDS (ATG ...
 # stop codon). UTRs are removed: each gene runs from the start codon to
 # the stop codon, padded with 100 bp of intergenic sequence on either
 # side, and does not overlap any other gene. Introns are trimmed to

@@ -60,7 +60,7 @@ make_model <- function(n_donor=1, n_acceptor=1) {
   list(states=states, allowed=allowed, emission_group=emission_group)
 }
 
-# Sample + strand protein-coding transcripts (one per gene) with fewer
+# Sample pos strand protein-coding transcripts (one per gene) with fewer
 # than max_cds CDS pieces. Keep only canonical CDS (starting with ATG,
 # ending with a stop codon, length a multiple of 3), with CDS pieces of
 # at least 6 bp and introns of at least 20 bp (room for the donor and
